@@ -110,7 +110,10 @@ function decodeRepositoryTasks(encoded) {
     observation:{...task.observation,verifiedRead:decodedRead}}:{})};
  });
 }
+function decodeRepositoryEvidence(tasks) { return decodeRepositoryTasks(unpackGitCommitEvidence(tasks)); }
 async function generateRepositoryAudit({ai,request,enabled=false}) {
+ const {repositoryOriginalTasks,repositoryEvidenceView,...modelConfig}=request.config;
+ request={...request,config:modelConfig};
  const original=request.config.responseJsonSchema,goals=original?.properties?.completionAssessment?.properties?.objectives;
  if(!enabled || !goals?.properties)return ai.models.generateContent(request);
  const entries=Object.entries(goals.properties);
@@ -121,7 +124,13 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
  // The bounded transport omits indexes equal to their position. Decode before
  // selecting objective evidence; otherwise every receipt becomes metadata-only.
  const encoded=unpackGitCommitEvidence(messages.filter(m=>m.content.startsWith(observationPrefix)).map(m=>JSON.parse(m.content.slice(observationPrefix.length))));
- const tasks=decodeRepositoryTasks(encoded);
+ let tasks=decodeRepositoryTasks(encoded);
+ if(repositoryOriginalTasks && typeof repositoryEvidenceView==='function') {
+  if(!Array.isArray(repositoryOriginalTasks)||repositoryOriginalTasks.length!==tasks.length||
+   tasks.some((task,index)=>repositoryOriginalTasks[index]?.index!==task.index||repositoryOriginalTasks[index]?.name!==task.name))
+   throw Error('REPOSITORY_EVIDENCE_VIEW_IDENTITY_INVALID');
+  tasks=repositoryOriginalTasks;
+ }
  const user=messages.findLast(m=>m.role==='user');
  const failures=messages.filter(m=>m.content.startsWith('INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=')).map(m=>{
   const prefix='INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=';
@@ -167,7 +176,11 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
  for(const [key,entry] of entries){
   const template=entry.anyOf[0].properties;
   const contract=selection?contracts[entries.findIndex(([id])=>id===key)]:null;
-  const selected=selection?tasks.filter(task=>selection[key].includes(task.index)):tasks;
+  const routed=selection?tasks.filter(task=>selection[key].includes(task.index)):tasks;
+  const selected=typeof repositoryEvidenceView==='function'?repositoryEvidenceView(routed):routed;
+  if(!Array.isArray(selected)||selected.length!==routed.length||selected.some((task,index)=>
+   task.index!==routed[index].index||task.name!==routed[index].name||JSON.stringify(task.args)!==JSON.stringify(routed[index].args)))
+   throw Error('REPOSITORY_EVIDENCE_VIEW_IDENTITY_INVALID');
   const allowed=[...new Set(entry.anyOf.flatMap(b=>b.properties.evidenceTaskIndexes.items.enum||[]))]
    .filter(index=>!selection||selected.some(task=>task.index===index));
   const selectedFiles=new Set(selected.flatMap(task=>task.observation?.verifiedRead?.file?[task.observation.verifiedRead.file]:[]));
@@ -197,6 +210,8 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
    scopedMessages[0].content='Evalua exclusivamente la preparacion de contexto solicitada en objective. scopeContext resuelve que archivos/cantidad, pero leer contenido es otra operacion y no condiciona PREPARAR contexto. Compara args.files con contextPreview.files, cantidad, identidad y exito de repo.context. excerpt truncado/evidenceOnly/independentlyCertified=false significan que el resumen no prueba contenido, no que falte preparar el contexto. Si el objetivo pide verificar contenido tambien, ese requisito si requiere lecturas. s=true requiere todo el objetivo literal y r con sus recibos; si falta algo, s=false y l concreta. e explica la cobertura antes del veredicto. No inventes archivos, pruebas ni resultados.';
   if(scopedMessages && contract.explicitTools?.length===1 && contract.explicitTools[0]==='repo.read')
    scopedMessages[0].content="Evalua SOLO la lectura solicitada en objective. Primero resuelve QUE archivos exige el objetivo mediante scopeContext y dependencies. Si se refiere a archivos preparados, contextPreview.files identifica ese conjunto. Las lecturas auxiliares en evidence no agregan archivos requeridos. Compara contenido y rangos SOLO de archivos pertinentes; no rechaces por truncamiento de un auxiliar ajeno. Cada archivo requerido necesita contenido real de repo.read, identidad correcta y cobertura solicitada; metadataOnly, AST y contexto resumen no sustituyen su contenido. Una fuente requerida parcial o ausente conserva s=false. Explica en e el conjunto requerido y cobertura. s=true solo si TODO ese alcance esta demostrado, r cita sus lecturas reales y l vacio; si no s=false y l describe lo que falta. No concedas permisos ni inventes pruebas.";
+  if(scopedMessages && !contract.explicitTools?.length)
+   scopedMessages[0].content="Evalua SOLO objective literal. scopeContext permite recuperar el verbo o antecedente de un fragmento; no añade los otros objetivos separados. Distingue informar hechos observados de verificar un archivo entero. Un fragmento parcial puede probar los hechos concretos presentes en content, con su fecha y alcance; no prueba lo omitido, ausencia global ni cobertura total. No exijas leer todo un documento para informar un resultado que aparece literalmente en la ventana observada. Si el objetivo exige totalidad, conserva esa exigencia. Los commits describen historial, no prueban tests aprobados; scripts de tests tampoco prueban su ejecucion. Resultados documentados permiten informar lo documentado con sus limites, no certificar produccion ni afirmar una ejecucion nueva. Verifica que hay evidencia suficiente para redactar el informe solicitado; no exijas que el informe ya haya sido emitido. e explica cobertura o brecha; s=true solo con todo el alcance solicitado y r pertinentes de evidence; l vacio. Si falta algo s=false y l concreta. supportingEvidence no sustituye indices del tipo requerido.";
   const requiredToolReceipts=(contract?.explicitTools||[]).map(name=>selected.filter(task=>allowed.includes(task.index)&&task.name===name));
   const response=await ai.models.generateContent({...request,config:{...request.config,
    semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:512,temperature:0,
@@ -246,15 +261,47 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
 }
 // Continuation chooses an action; it cannot certify objectives. Full receipts
 // already fed the objective auditors and remain unchanged in missionState.
+// Share identical native argument grammars, never argument values or authority.
+function shareContinuationArgumentSchemas(schema) {
+ if(!schema||typeof schema!=='object'||Array.isArray(schema))return schema;
+ const scoped=value=>value&&typeof value==='object'&&(Object.keys(value).some(key=>
+  ['$defs','$ref','$id','$anchor','$dynamicRef','$recursiveRef'].includes(key))||Object.values(value).some(scoped));
+ if(scoped(schema))return schema;
+ const copy=structuredClone(schema),locations=[],counts=new Map();
+ const visit=node=>{
+  if(!node||typeof node!=='object'||Array.isArray(node))return;
+  for(const [name,child]of Object.entries(node.properties||{})) {
+   if(name==='args'&&child&&typeof child==='object'&&!Array.isArray(child)) {
+    const encoded=JSON.stringify(child);
+    if(encoded.length>=128){locations.push({owner:node.properties,encoded});counts.set(encoded,(counts.get(encoded)||0)+1);}
+   } else visit(child);
+  }
+  for(const keyword of ['anyOf','oneOf','allOf','prefixItems'])if(Array.isArray(node[keyword]))node[keyword].forEach(visit);
+  if(Array.isArray(node.items))node.items.forEach(visit);else visit(node.items);
+  if(typeof node.additionalProperties==='object')visit(node.additionalProperties);
+ };
+ visit(copy.properties?.toolCalls);visit(copy.properties?.sourceFallback);
+ const defs={},ids=new Map();
+ for(const {owner,encoded}of locations) {
+  if(counts.get(encoded)<2)continue;
+  if(!ids.has(encoded)){const id='continuationArgs'+ids.size;ids.set(encoded,id);defs[id]=owner.args;}
+  owner.args={$ref:'#/$defs/'+ids.get(encoded)};
+ }
+ if(!ids.size)return schema;
+ copy.$defs=defs;
+ return JSON.stringify(copy).length<JSON.stringify(schema).length?copy:schema;
+}
 function compactRepositoryContinuation(request) {
  const prefix='EVIDENCIA_OBTENIDA=';
  const decoded=decodeRepositoryTasks(unpackGitCommitEvidence(request.config.chatMessages
   .filter(m=>m.content.startsWith(prefix)).map(m=>JSON.parse(m.content.slice(prefix.length)))));
  let index=0;
- return {...request,config:{...request.config,chatMessages:request.config.chatMessages.map(message=>{
+ return {...request,config:{...request.config,
+  ...(request.config.responseJsonSchema?{responseJsonSchema:shareContinuationArgumentSchemas(request.config.responseJsonSchema)}:{}),
+  chatMessages:request.config.chatMessages.map(message=>{
   if(!message.content.startsWith(prefix))return message;
   const task=decoded[index++];
   return {...message,content:prefix+JSON.stringify(metadata(task))};
  })}};
 }
-module.exports={packRepositoryContextMetadata,unpackRepositoryContextMetadata,generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};
+module.exports={decodeRepositoryEvidence,packRepositoryContextMetadata,unpackRepositoryContextMetadata,generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};

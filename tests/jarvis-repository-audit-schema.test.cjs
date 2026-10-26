@@ -145,7 +145,9 @@ test('repository recovery exposes its required source alternative in the native 
    assert.ok(req.config.responseJsonSchema,'required sourceFallback cannot be requested only in prose with nativeToolChat');
    assert.equal(req.config.responseJsonSchema.properties.toolCalls.maxItems,1);
    assert.ok(req.config.responseJsonSchema.required.includes('sourceFallback'));
-   assert.ok(JSON.stringify(req.config.responseJsonSchema.properties.sourceFallback).includes('jarvis-safe-b.js'));
+   const schema=req.config.responseJsonSchema;
+   const expand=value=>!value||typeof value!=='object'?value:value.$ref?expand(schema.$defs[value.$ref.slice('#/$defs/'.length)]):Array.isArray(value)?value.map(expand):Object.fromEntries(Object.entries(value).map(([key,child])=>[key,expand(child)]));
+   assert.ok(JSON.stringify(expand(schema.properties.sourceFallback)).includes('jarvis-safe-b.js'));
    assert.ok(req.config.chatMessages.filter(m=>m.content.startsWith('EVIDENCIA_OBTENIDA=')).every(m=>JSON.parse(m.content.slice('EVIDENCIA_OBTENIDA='.length)).metadataOnly));
    throw Error('RECOVERY_CONTRACT_VERIFIED');
   }
@@ -313,4 +315,18 @@ test('empty routing inspects acquired compatible evidence without manufacturing 
   }return{text:'{"toolCalls":[],"explanation":"Pendiente."}'};
  }}}});
  assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);assert.equal(JSON.stringify(req),before);
+});
+test('objective evidence rehydrates only its routed original receipts after aggregate eviction',async()=>{
+ const req=request();req.config.repositoryObjectiveScopes=[{objective:'Revisar commits reales',resolvedScope:'Revisar commits reales'}];
+ for(const branch of req.config.responseJsonSchema.properties.completionAssessment.properties.objectives.properties.objective_0.anyOf){branch.properties.requiredEvidenceKind.enum=['repository_source'];branch.properties.evidenceTaskIndexes.items.enum=[0];}
+ const original=[{index:0,name:'repo.read',args:{file:'a.js'},observation:{ok:true,verifiedRead:{file:'a.js',content:'export const a=1;',partial:false}}},{index:1,name:'repo.read',args:{file:'aux.js'},observation:{ok:true,verifiedRead:{file:'aux.js',content:'auxiliary',partial:false}}}];
+ const transport=structuredClone(original);transport[0].observation.verifiedRead.content='';transport[0].observation.verifiedRead.partial=true;
+ req.config.chatMessages.unshift(...transport.map(task=>({role:'system',content:'OBSERVACION_EJECUTADA='+JSON.stringify(task)})));
+ req.config.repositoryOriginalTasks=original;let views=0;req.config.repositoryEvidenceView=tasks=>{views++;assert.deepEqual(tasks,[original[0]]);return structuredClone(tasks)};
+ const result=await generateRepositoryAudit({enabled:true,request:req,ai:{models:{generateContent:async r=>{
+  assert.equal(r.config.repositoryOriginalTasks,undefined);assert.equal(r.config.repositoryEvidenceView,undefined);
+  if(r.config.semanticStage==='REPOSITORY_EVIDENCE_SELECTION')return{text:'{"objective_0":[0]}'};
+  if(r.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT'){const input=JSON.parse(r.config.chatMessages.at(-1).content);assert.equal(input.evidence[0].observation.verifiedRead.content,'export const a=1;');assert.equal(input.evidence[0].observation.verifiedRead.partial,false);return{text:'{"e":"No se afirma cobertura sin prueba.","s":false,"r":[0],"l":"Pendiente."}'};}
+  return{text:'{"toolCalls":[],"explanation":"Pendiente."}'};
+ }}}});assert.equal(views,1);assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);assert.equal(transport[0].observation.verifiedRead.content,'');
 });

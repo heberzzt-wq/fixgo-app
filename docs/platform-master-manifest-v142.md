@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26 retest WEB9e442077: obtuvo Git8, estado limpio, contexto y lecturas completas de shim3lineas/policy13lineas, pero ciclo Git5/Git1. Cancelacion fisica diagnostica, Bridge14696 detenido inactivo; no COMPLETED. Causa comprobada: sharing lossless ocurria solo tras fallo total; vista expulsaba fuente completa124bytes mientras mantenia duplicados. Fix aplica sharing antes de truncar y preserva ambos contenidos completos dentro11607/12288chars; fixture real sin mutar originales. Frontera excluye prefijos Git integros ya obtenidos y revoca esa dedupe ante mutacion/historial distinto/truncacion. Auditoria repo.read resuelve archivos requeridos desde alcance/contexto, no agrega auxiliares; probe positivo4,5 y negativo falta4 rechaza. Replay exacto11inferencias: Git/contexto/doslecturas obtienen prueba independiente; siguiente lectura valida package.json desde31, explicacion/tests pendientes. Laptop vieja16/16 auxiliares snapshot contexto-frontier con hashes. CI del fix en curso; retest web pendiente. Sin push/deploy ni certificacion general. CI final retencion exit0 {"pass":1887,"fail":0,"skipped":2}. Regresion formato legacy detectada y corregida: compartir anticipadamente solo en auditoria por objetivo con scope resuelto; recibos legacy mantienen contrato previo. Prueba fuente positiva/negativa fisica y replay11calls preservados. Pendiente commit/arranque limpio/retest web.
+**Resumen:** 2026-10-26 WEB bec1af4d MISSION-fd282c54-f976-4ddc-9a25-cc65cf8fa21f termino PARTIAL/PLANNER_UNAVAILABLE por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION tras110inferencias. Git/contexto/lecturas tuvieron proof independiente intermedio; luego numerosas lecturas parciales del manifiesto expulsaron cuerpos fuente pequeños y auditor exigio documento completo para reportar hechos. Bridge7428 detenidoidle0. Correccion en curso: rehidratar recibos originales por objetivo y acotar tambien verificador independiente, con identidades/rangos/flags preservados; no certificacion general. Se adelanta latestHandoff en JSON para coincidir con LEE ESTO PRIMERO del Markdown; historial íntegro. Hito local siguiente: auditoria rehidrata originales SOLO de cada objetivo antes de acotarlos; verificador independiente usa misma proyeccion por alcance con guardas de identidad/hash/rangos/prefijo/flags y falla cerrado si desaparece fuente citada. Pruebas dirigidas nuevas+existentes54/54 y codec/proof29/29. Desbordamiento restante localizado en recuperacion: messages17345+schema7636 duplicado >24576. Sharing reversible de schemas args ($defs/$ref), expansión exacta al original, mensajes intactos:22530chars; Ollama fisico HTTP200 prompt4046tokens devuelve JSONvalido. No contexto/modelo/permisos ampliados. Navegacion alternativa preparada en scratch no aplicada porque web ya encontro manifiesto. CI completa en curso; nueva prueba WEB pendiente. CI oficial final por objetivo exit0 {"pass":1894,"fail":0,"skipped":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge14696 mantenimiento9e442077 detenido tras cancelacion fisica del ciclo Git y activeInferenceCalls=0; supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge7428 mantenimiento bec1af4d detenido inactivo tras cierre PARTIAL; supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -83,6 +83,9 @@
 - CI oficial completa exit0 {"pass":1885,"fail":0,"skipped":2}; incluye nueva suite transporte contexto. Replay real9inferencias obtiene proofGit/contexto y lectura nueva1-58. Retest WEB exacto pendiente tras commit/arranque limpio, sin certificacion general.
 - 2026-10-26 retest WEB9e442077: obtuvo Git8, estado limpio, contexto y lecturas completas de shim3lineas/policy13lineas, pero ciclo Git5/Git1. Cancelacion fisica diagnostica, Bridge14696 detenido inactivo; no COMPLETED. Causa comprobada: sharing lossless ocurria solo tras fallo total; vista expulsaba fuente completa124bytes mientras mantenia duplicados. Fix aplica sharing antes de truncar y preserva ambos contenidos completos dentro11607/12288chars; fixture real sin mutar originales. Frontera excluye prefijos Git integros ya obtenidos y revoca esa dedupe ante mutacion/historial distinto/truncacion. Auditoria repo.read resuelve archivos requeridos desde alcance/contexto, no agrega auxiliares; probe positivo4,5 y negativo falta4 rechaza. Replay exacto11inferencias: Git/contexto/doslecturas obtienen prueba independiente; siguiente lectura valida package.json desde31, explicacion/tests pendientes. Laptop vieja16/16 auxiliares snapshot contexto-frontier con hashes. CI del fix en curso; retest web pendiente. Sin push/deploy ni certificacion general.
 - CI final retencion exit0 {"pass":1887,"fail":0,"skipped":2}. Regresion formato legacy detectada y corregida: compartir anticipadamente solo en auditoria por objetivo con scope resuelto; recibos legacy mantienen contrato previo. Prueba fuente positiva/negativa fisica y replay11calls preservados. Pendiente commit/arranque limpio/retest web.
+- 2026-10-26 WEB bec1af4d MISSION-fd282c54-f976-4ddc-9a25-cc65cf8fa21f termino PARTIAL/PLANNER_UNAVAILABLE por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION tras110inferencias. Git/contexto/lecturas tuvieron proof independiente intermedio; luego numerosas lecturas parciales del manifiesto expulsaron cuerpos fuente pequeños y auditor exigio documento completo para reportar hechos. Bridge7428 detenidoidle0. Correccion en curso: rehidratar recibos originales por objetivo y acotar tambien verificador independiente, con identidades/rangos/flags preservados; no certificacion general. Se adelanta latestHandoff en JSON para coincidir con LEE ESTO PRIMERO del Markdown; historial íntegro.
+- Hito local siguiente: auditoria rehidrata originales SOLO de cada objetivo antes de acotarlos; verificador independiente usa misma proyeccion por alcance con guardas de identidad/hash/rangos/prefijo/flags y falla cerrado si desaparece fuente citada. Pruebas dirigidas nuevas+existentes54/54 y codec/proof29/29. Desbordamiento restante localizado en recuperacion: messages17345+schema7636 duplicado >24576. Sharing reversible de schemas args ($defs/$ref), expansión exacta al original, mensajes intactos:22530chars; Ollama fisico HTTP200 prompt4046tokens devuelve JSONvalido. No contexto/modelo/permisos ampliados. Navegacion alternativa preparada en scratch no aplicada porque web ya encontro manifiesto. CI completa en curso; nueva prueba WEB pendiente.
+- CI oficial final por objetivo exit0 {"pass":1894,"fail":0,"skipped":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -256,6 +259,15 @@
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-prefix-frontier-green.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/retention-ci-final.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/retention-ci-final-exit.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/retention-web-trace.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/retention-web-packet.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-regression.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-evidence-view-green.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/replay-objective-view-full.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/oversize-stage-requests.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/native-schema-sharing-physical.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci-exit.json`
 
 ### Reporte diario automatico
 
