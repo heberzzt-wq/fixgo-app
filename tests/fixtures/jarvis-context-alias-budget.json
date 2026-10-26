@@ -1,0 +1,545 @@
+[
+  {
+    "index": 0,
+    "name": "repo.gitHistory",
+    "args": {
+      "limit": 8
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ],
+    "observation": {
+      "status": "GIT_HISTORY_OK",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "gitEvidence": {
+        "kind": "git_committed_history",
+        "source": "LOCAL_GIT_LOG",
+        "commits": [
+          {
+            "sha": "315976d3cd037ae3aab892e4bcc860d7b8279b46",
+            "date": "2026-10-26T10:23:13-05:00",
+            "subject": "fix(jarvis): retain repository contract and stop after proven objectives",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tgestia-core/gestia-core.js",
+              "M\tgestia-core/jarvis/jarvis.current-turn-scope.js",
+              "M\tpackage.json",
+              "M\ttests/jarvis-current-turn-production-regressions.test.mjs",
+              "M\ttests/jarvis-mission-orchestrator.test.mjs",
+              "A\ttests/jarvis-repository-mission-contract.test.mjs",
+              "M\ttests/jarvis-repository-source-acquisition.test.cjs"
+            ],
+            "fileCount": 10,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "32737df3d976414c239ad21154ade6e0f8f2c82d",
+            "date": "2026-10-26T10:10:49-05:00",
+            "subject": "fix(jarvis): preserve evidence scope and usable partial mission results",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tgestia-core/gestia-core.js",
+              "M\tgestia-core/jarvis/jarvis.conversation.composer.js",
+              "M\tpackage.json",
+              "M\ttests/jarvis-evidence-context-budget.test.mjs",
+              "A\ttests/jarvis-mission-final-evidence.test.mjs",
+              "M\ttests/jarvis-mobile-web-research-recovery-v142.test.mjs",
+              "M\ttests/jarvis-partial-source-argument-cycle.test.cjs",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 12,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "9d58add72a1860dddfff0312ef1c04761dcf5515",
+            "date": "2026-10-26T09:43:06-05:00",
+            "subject": "docs(jarvis): record partial web retest and auxiliary laptop evidence",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md"
+            ],
+            "fileCount": 2,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "b81ebe2d1dfe6e0d207709aebfcd849c474cfff9",
+            "date": "2026-10-26T09:37:38-05:00",
+            "subject": "fix(jarvis): retain repository receipts within bounded audit transport",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 5,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "16ee3ba3079301a41e0fbb9747350443265c5c74",
+            "date": "2026-10-26T09:14:17-05:00",
+            "subject": "fix(jarvis): preserve objective scope through mission lifecycle",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tgestia-core/jarvis/jarvis.mission.orchestrator.js",
+              "M\ttests/jarvis-mission-orchestrator.test.mjs"
+            ],
+            "fileCount": 4,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "2da7b97c26a01cd5abb5d39bcd5e554f8bce9259",
+            "date": "2026-10-26T09:04:10-05:00",
+            "subject": "test(jarvis): isolate localhost perimeter from unpublished checkout",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\ttests/jarvis-local-intrusion-guard.test.mjs"
+            ],
+            "fileCount": 3,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "87cd24a122ab8599fda7e71fec543f8c17ae535a",
+            "date": "2026-10-25T23:23:17-05:00",
+            "subject": "docs(v142): record local maintenance commit and preflight",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md"
+            ],
+            "fileCount": 2,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "d32636f84a2941ed596bfcfe844584f74fa86d99",
+            "date": "2026-10-25T23:22:27-05:00",
+            "subject": "fix(jarvis): preserve objective evidence and add pinned local maintenance",
+            "files": [
+              "A\tdocs/jarvis-maintenance-local-v142.md",
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "A\tfunctions/jarvis-repository-objective-proof.cjs",
+              "M\tfunctions/jarvis-repository-objectives.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tjarvis-fs-bridge.js",
+              "M\tjarvis-qwen-pilot-version.js",
+              "M\tjarvis-upload-bridge.js",
+              "M\tjarvis-workstation-health.js",
+              "M\tpackage.json",
+              "M\tscripts/jarvis-workstation-start.cjs",
+              "M\ttests/jarvis-fs-bridge-v2.test.mjs"
+            ],
+            "fileCount": 22,
+            "filesOmitted": 8
+          }
+        ],
+        "reportedCommits": 8,
+        "limit": 8,
+        "detailsBounded": true,
+        "originalReceiptRetained": true
+      },
+      "repoCandidates": []
+    }
+  },
+  {
+    "index": 1,
+    "name": "repo.gitStatus",
+    "args": {
+      "cwd": ".",
+      "timeoutMs": 5000
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ],
+    "observation": {
+      "status": "GIT_STATUS_OK",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "gitEvidence": {
+        "kind": "git_worktree",
+        "branchLine": "## v142-official",
+        "files": [],
+        "totalFiles": 0,
+        "filesOmitted": 0,
+        "committedHistory": false
+      },
+      "repoCandidates": []
+    }
+  },
+  {
+    "index": 2,
+    "name": "repo.context",
+    "args": {
+      "files": [
+        "gestia-core/jarvis/jarvis.current-turn-scope.js",
+        "gestia-core/jarvis/jarvis.conversation.composer.js"
+      ]
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ],
+    "observation": {
+      "status": "REPO_CONTEXT_READY",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "contextPreview": {
+        "source": "LOCAL_REPOMIX_READ_ONLY",
+        "sha256": "c7bee449f8f6ed09c7a5fd2e1b4c75752e6ac7a88ead16c8c0293d61e2b9e889",
+        "files": [
+          {
+            "file": "gestia-core/jarvis/jarvis.current-turn-scope.js",
+            "sha256": "260ee2b6ae7662dd4ff614046969f88877c495d066f4e9b1ec245b0c925d98dd"
+          },
+          {
+            "file": "gestia-core/jarvis/jarvis.conversation.composer.js",
+            "sha256": "65866e69dd00e5c81c4a7e4b63353b8c6cdd4b56bdc4c11438ff8e47bbf05725"
+          }
+        ],
+        "excerpt": "<files> This section contains the contents of the repository's files. <file path=\"gestia-core/jarvis/jarvis.conversation.composer.js\"> export function isExplicitJsonResponseRequest( planOrCalls = null ) ⋮---- export function prepareEvidenceGroundedConversationPlan({ instruction = \"\", toolCalls = [], toolCatalog = [] } = ⋮---- export function mergeEvidenceGroundedToolCalls(...groups) ⋮---- // This contract is the same Qwen's complete ordered plan. Earlier // CURRENT_TURN candidates are provisional, not additional obligations. ⋮---- function boundedEvidenceValue(value, depth = 0) ⋮---- function compactEvidenceText(value = \"\", maximum = 800) ⋮---- function compactEvidenceTextArray( values = [], maximumItems = 8, maximumLength = 320 ) ⋮---- function compactMediaAnalysisPage(page = ⋮---- function compactMediaAnalysisSource(source = ⋮---- function compactMediaAnalysisObservation(observation = ⋮---- function findPrecisionVerifiedMediaObservation(evidenceItems = []) ⋮---- function constrainCompactEvidence( value, { stringLimit = 800, arrayLimit = 12 } = {}, depth = 0 ) ⋮---- function compactRepositoryObservation( observation = {}, { readLimit = 8000, stringLimit = 1200, arrayLimit = 16 } = {} ) ⋮---- export function buildBoundedConversationEvidence(evidenceItems = []) ⋮---- // The mission and runtime can both reference the same observation. // Remove exact duplicate facts, preserving different files/results. ⋮---- function findEvidenceField(value, field, depth = 0) ⋮---- export function buildCapabilityEvidenceBriefing(evidenceItems = []) ⋮---- function describeToolFailure(error, depth = 0) ⋮---- // Presentation consumes the canonical recovery ledger. Keep raw runtime results // and recovered attempts intact for diagnostics; a later live failure still wins. export function buildMissionConversationEvidence(mission = ⋮---- const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === \"object\" ? Object.fromEntries(Object.keys(value).sort().map(key const identity = item => JSON.stringify([item.name, canonical(item.args || {}), item.observation?.status || \"\", describeToolFailure(item.observation?.error)]); ⋮---- function observedRepositoryProgress(evidenceItems) ⋮---- export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) ⋮---- // The local semantic transport accepts a bounded message, not the complete DOM // matrix. Keep the original verification evidence intact and budget this prose // briefing by whole records; never truncate serialized JSON or imply that // omitted findings mean a clean viewport. async function serializeConversationBriefing(briefing) ⋮---- // Source bytes explain discovery; only authenticated query results and // objective coverage can support the operational answer. ⋮---- // This is byte transport only. Restore every receipt and coverage claim // before semantic evaluation; compression cannot certify omitted data. ⋮---- const elementRecord = element => ({ selector: element.selector, rect: element.rect, ...(element.display ? { display: element.display } : {}), ...(element.fontSize ? { fontSize: element.fontSize } : {}), ...(element.hiddenAttribute ? { hiddenAttribute: true } : {}), ...(element.interactive ? ⋮---- // Round-robin preserves coverage of both phases and the whole viewport // matrix before spending the remaining budget on additional detail. ⋮---- // An unusually large set of outcomes or mixed evidence cannot silently be // dropped to fit; let the caller report the explicit composition failure. ⋮---- // Preserve a complete JSON property index before the generic evidence preview // is shortened. Values may be abbreviated, never keys silently lost or invented. // This is a projection of a successful read, not a catalogue of canned answers. function projectCompleteJsonRead(read) ⋮---- function visit(value, segments, depth) ⋮---- export async function composeEvidenceGroundedConversation({ instruction = \"\", evidenceItems = [], executeConversation } = ⋮---- // These are the same Qwen's validated limitations. A second prose pass // must not turn the refused completion into an unsupported success. ⋮---- // Keep the observed outcome after the requested success format and the // evidence, so a long request cannot become the completion instruction. ⋮---- // Validate the receipt's explic",
+        "truncated": true,
+        "evidenceOnly": true,
+        "independentlyCertified": false
+      },
+      "repoCandidates": [],
+      "files": [
+        "gestia-core/jarvis/jarvis.current-turn-scope.js",
+        "gestia-core/jarvis/jarvis.conversation.composer.js"
+      ],
+      "inventoryExcerpt": true,
+      "sha256": "c7bee449f8f6ed09c7a5fd2e1b4c75752e6ac7a88ead16c8c0293d61e2b9e889"
+    }
+  },
+  {
+    "index": 3,
+    "name": "repo.read",
+    "args": {
+      "file": "gestia-core/jarvis/jarvis.current-turn-scope.js"
+    },
+    "allowedEvidenceKinds": [
+      "repository_source"
+    ],
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "gestia-core/jarvis/jarvis.current-turn-scope.js",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [],
+            "fieldPaths": [
+              "objective",
+              "explicitTools"
+            ],
+            "fieldPathsComplete": true,
+            "writeShapes": [],
+            "queryShapes": [],
+            "references": [],
+            "referencesComplete": true,
+            "collectionAnchors": [],
+            "complete": true,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+          }
+        },
+        "path": "gestia-core/jarvis/jarvis.current-turn-scope.js",
+        "startLine": 1,
+        "endLine": 58,
+        "readEndLine": 58,
+        "totalLines": 58,
+        "partial": false,
+        "truncated": false,
+        "evidenceTextTruncated": false,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "// A narrow, deterministic capability boundary. It is not a second planner:\r\n // Qwen remains the only semantic authority for any substantive request.\r\nconst fold = text => String(text || \"\").normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\").toLowerCase().trim();\r\n\r\nexport function simpleJarvisGreeting(text = \"\") {\r\n    const s = fold(text).replace(/[!¡¿?.,]+/g, \"\").replace(/\\s+/g, \" \").trim();\r\n    if (!/^(hola|buenos dias|buen dia|buenas tardes|buenas noches|que onda|que tal)$/.test(s)) return null;\r\n    return /buenas noches/.test(s) ? \"¡Buenas noches! ¿En qué te ayudo?\" :\r\n        /buenas tardes/.test(s) ? \"¡Buenas tardes! ¿En qué te ayudo?\" :\r\n        \"¡Hola! ¿En qué te ayudo?\";\r\n}\r\n\r\nexport function jarvisExternalEducationQuery(text = \"\") {\r\n    const s=fold(text);\r\n    const education=/\\b(uveg|universidad|universidades|plan de estudios|materias|asignaturas|licenciatura|carrera|ingenieria de sistemas|modulos de estudio|programa academico|oferta educativa)\\b/.test(s);\r\n    const request=/\\b(busca|buscar|investiga|investigar|averigua|consulta|consultar|informacion|dime|explica|cuales|cuantos|que|quiero saber|plan de estudios)\\b/.test(s);\r\n    const coding=/\\b(mi repositorio|nuestro repositorio|codigo fuente|github|gitlab|fixgo|adjunto|jarvis|\\brepo\\b|\\bscript\\b|\\bdebug\\b|\\bpatch\\b)\\b/.test(s) ||\r\n        /\\b[\\w-]+\\.(js|mjs|ts|cjs|py)\\b/.test(s);\r\n    return education && request && !coding;\r\n}\r\nconst researchNames=new Set([\"web.research\",\"browser.inspect\",\"conversation.respond\"]);\r\n// Hard evidence boundary, not an intent-to-tool mapping or a second model.\r\n// A request to inspect *current* changes in the owner's repo cannot be\r\n// satisfied by conversation.respond without ever reading repository state.\r\nexport function jarvisRepositoryEvidenceRequest(text = \"\") {\r\n    const s=fold(text);\r\n    const repository=/\\b(?:repositorios?|repo|git|github|checkout|commits?|diff|rama|branch|codigo fuente)\\b/u.test(s);\r\n    const changes=/\\b(?:ultimos?|recientes?|actuales?|cambios?|modificad[oa]s?|modificaciones?|estado|historial|diferencias?|commits?|diff|sin publicar)\\b/u.test(s);\r\n    const request=/\\b(?:revisa|revisar|verifica|verificar|consulta|consultar|investiga|investigar|busca|buscar|muestra|mostrar|enumera|enumerar|lista|listar|dime|identifica|identificar|compara|comparar|analiza|analizar|checa|checar)\\b/u.test(s);\r\n    return repository && changes && request;\r\n}\r\nconst gitEvidenceNames=new Set([\"repo.gitStatus\",\"repo.gitHistory\",\"repo.gitDiff\",\"repo.search\",\"repo.grep\",\"repo.read\",\"repo.context\"]);\r\n// This follows an already validated semantic contract, never user keywords.\r\n// It only reduces the supplied authority; mixed or incomplete missions keep\r\n// their existing operational contract path.\r\nexport function scopeValidatedRepositoryMission({catalog=[],toolCalls=[],objectives=[],validated=false}={}) {\r\n    const kinds=new Set(['repository_source','repository_search','repository_inventory']);\r\n    if(validated!==true || !Array.isArray(objectives) || !objectives.length ||\r\n        objectives.some(goal=>!goal || typeof goal.objective!=='string' || !goal.objective.trim() || !kinds.has(goal.requiredEvidenceKind)) ||\r\n        !Array.isArray(toolCalls) || !toolCalls.length || !Array.isArray(catalog))return null;\r\n    const readers=catalog.filter(tool=>gitEvidenceNames.has(tool?.name) && tool.mutates===false &&\r\n        tool.requiresApproval!==true && tool.userArtifact!==true);\r\n    const names=new Set(readers.map(tool=>tool.name));\r\n    if(toolCalls.some(call=>!names.has(call?.name) || call.mutates===true || call.requiresApproval===true || call.userArtifact===true) ||\r\n        objectives.some(goal=>goal.explicitTools!==undefined && (!Array.isArray(goal.explicitTools) || goal.explicitTools.some(name=>!names.has(name)))))return null;\r\n    return readers;\r\n}\r\nexport function scopeJarvisToolsForQuestion(tools = [], instruction = \"\") {\r\n    const source=Array.isArray(tools)?tools:[];\r\n    if (jarvisExternalEducationQuery(instruction)) return source.filter(tool =>\r\n        researchNames.has(tool?.name) && tool?.mutates !== true &&\r\n        tool?.requiresApproval !== true);\r\n    if (jarvisRepositoryEvidenceRequest(instruction)) return source.filter(tool =>\r\n        gitEvidenceNames.has(tool?.name) && tool?.mutates !== true &&\r\n        tool?.requiresApproval !== true && tool?.userArtifact !== true);\r\n    return source.slice();\r\n}\r\n",
+        "contentLength": 4403,
+        "contentTruncated": false
+      },
+      "repoCandidates": []
+    }
+  },
+  {
+    "index": 4,
+    "name": "repo.read",
+    "args": {
+      "file": "gestia-core/jarvis/jarvis.conversation.composer.js"
+    },
+    "allowedEvidenceKinds": [
+      "repository_source"
+    ],
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "gestia-core/jarvis/jarvis.conversation.composer.js",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [],
+            "fieldPaths": [
+              "args.responseFormat",
+              "validSources.length",
+              "sources.length",
+              "evidence.interfaceEvidence",
+              "tool",
+              "observation.ok",
+              "observation.status",
+              "observation.interfaceEvidence",
+              "sources",
+              "observation.version",
+              "observation.sources",
+              "prototype.hasOwnProperty",
+              "hasOwnProperty",
+              "observation.error",
+              "missionExecution.name",
+              "missionExecution.args",
+              "observation.blocked",
+              "observation.reason",
+              "gitEvidence.commits",
+              "sha.length",
+              "sha",
+              "subject",
+              "contextPreview.files",
+              "contextPreview.files.length",
+              "files.length",
+              "files",
+              "evidence.evidenceKinds",
+              "evidence.requestedFile",
+              "args.file",
+              "platformRecordEvidence.length",
+              "measuredInterfaceEvidence",
+              "findingCounts.total",
+              "findingCounts.defect",
+              "findingCounts.recommendation",
+              "findingCounts.unverified",
+              "viewports",
+              "finding.selector",
+              "finding.kind",
+              "finding.classification",
+              "finding.severity",
+              "finding.certainty",
+              "finding.summary",
+              "finding.evidence",
+              "records.length",
+              "elements",
+              "element.selector",
+              "findings",
+              "hiddenStates",
+              "value.length",
+              "value",
+              "entries.length",
+              "entries",
+              "completionAssessment.objectives",
+              "objectives",
+              "limitation",
+              "completionAssessment.validationFailed",
+              "recordEvidence.source",
+              "inventoryEvidence.source",
+              "observation.verifiedRead",
+              "completionAssessment.objectives.length",
+              "objectives.length",
+              "response.data",
+              "data.response.data",
+              "data.response",
+              "requiredFactIds.length",
+              "requiredFactIds",
+              "selectedFactIds",
+              "grounding.scopedRecordPresentation"
+            ],
+            "fieldPathsComplete": true,
+            "writeShapes": [],
+            "queryShapes": [],
+            "references": [],
+            "referencesComplete": true,
+            "collectionAnchors": [],
+            "complete": true,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+          }
+        },
+        "path": "gestia-core/jarvis/jarvis.conversation.composer.js",
+        "startLine": 1,
+        "endLine": 274,
+        "readEndLine": 1557,
+        "totalLines": 1557,
+        "partial": true,
+        "truncated": true,
+        "evidenceTextTruncated": true,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "import { compactBrowserInterfaceEvidence } from \"./jarvis.browser.grounding.js\";\r\n\r\nconst MAX_EVIDENCE_ITEMS = 12;\r\nconst MAX_EVIDENCE_LENGTH = 8000;\r\n\r\nexport function isExplicitJsonResponseRequest(\r\n    planOrCalls = null\r\n) {\r\n    if (Array.isArray(planOrCalls)) {\r\n        if (\r\n            String(\r\n                planOrCalls.responseFormat ||\r\n                \"\"\r\n            ).trim().toLowerCase() === \"json\"\r\n        ) {\r\n            return true;\r\n        }\r\n        return planOrCalls.some(call =>\r\n            String(\r\n                call?.responseFormat ||\r\n                call?.args?.responseFormat ||\r\n                \"\"\r\n            ).trim().toLowerCase() === \"json\"\r\n        );\r\n    }\r\n\r\n    if (\r\n        planOrCalls &&\r\n        typeof planOrCalls === \"object\"\r\n    ) {\r\n        return String(\r\n            planOrCalls.responseFormat ||\r\n            \"\"\r\n        ).trim().toLowerCase() === \"json\";\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nexport function prepareEvidenceGroundedConversationPlan({\r\n    instruction = \"\",\r\n    toolCalls = [],\r\n    toolCatalog = []\r\n} = {}) {\r\n    const explicitJson = isExplicitJsonResponseRequest(toolCalls);\r\n    const operationalCalls = [];\r\n    const seen = new Set();\r\n    let conversationRequested = false;\r\n\r\n    for (const call of Array.isArray(toolCalls) ? toolCalls : []) {\r\n        if (!call?.name) continue;\r\n        if (call.name === \"conversation.respond\") {\r\n            conversationRequested = true;\r\n            continue;\r\n        }\r\n        const obligation = call.deferred === true ? String(call.obligationId || \"\") : \"\";\r\n        const signature = `${call.name}:${JSON.stringify(call.args || {})}:${obligation}`;\r\n        if (seen.has(signature)) continue;\r\n        seen.add(signature);\r\n        operationalCalls.push(call);\r\n    }\r\n\r\n    const hasCapabilities =\r\n        operationalCalls.some(call => call.name === \"system.capabilities\");\r\n    const hasLimitationEvidence =\r\n        operationalCalls.some(call =>\r\n            call.name === \"system.forensics\" ||\r\n            call.name === \"system.health\"\r\n        );\r\n    const forensicsAvailable =\r\n        (Array.isArray(toolCatalog) ? toolCatalog : [])\r\n            .some(tool => tool?.name === \"system.forensics\");\r\n\r\n    if (\r\n        hasCapabilities &&\r\n        !explicitJson &&\r\n        !hasLimitationEvidence &&\r\n        forensicsAvailable\r\n    ) {\r\n        operationalCalls.push({\r\n            name: \"system.forensics\",\r\n            args: {},\r\n            approved: false,\r\n            reason: \"CAPABILITY_LIMITATION_EVIDENCE_REQUIRED\"\r\n        });\r\n    }\r\n\r\n    return {\r\n        explicitJson,\r\n        conversationRequested,\r\n        operationalCalls,\r\n        requiresFinalConversation:\r\n            operationalCalls.length > 0 &&\r\n            !explicitJson\r\n    };\r\n}\r\n\r\nexport function mergeEvidenceGroundedToolCalls(...groups) {\r\n    const merged = [];\r\n    const seenSignatures = new Set();\r\n    const singletonEvidenceTools = new Set([\r\n        \"system.capabilities\",\r\n        \"system.forensics\",\r\n        \"system.health\",\r\n        \"media.analyze\"\r\n    ]);\r\n    const seenSingletons = new Set();\r\n    // This contract is the same Qwen's complete ordered plan. Earlier\r\n    // CURRENT_TURN candidates are provisional, not additional obligations.\r\n    const firstPlanKind =\r\n        String(\r\n            groups[0]?.planKind ||\r\n            \"\"\r\n        ).trim();\r\n    const authoritativeMissionContract =\r\n        firstPlanKind.startsWith(\r\n            \"MISSION_CONTRACT_\"\r\n        );\r\n    const candidates =\r\n        authoritativeMissionContract\r\n            ? groups[0]\r\n            : groups.flat();\r\n    for (const call of candidates) {\r\n        if (!call?.name || call.name === \"conversation.respond\") continue;\r\n        if (\r\n            singletonEvidenceTools.has(call.name) &&\r\n            seenSingletons.has(call.name)\r\n        ) {\r\n            continue;\r\n        }\r\n        const obligation = call.deferred === true ? String(call.obligationId || \"\") : \"\";\r\n        const signature = `${call.name}:${JSON.stringify(call.args || {})}:${obligation}`;\r\n        if (seenSignatures.has(signature)) continue;\r\n        seenSignatures.add(signature);\r\n        if (singletonEvidenceTools.has(call.name)) {\r\n            seenSingletons.add(call.name);\r\n        }\r\n        merged.push(call);\r\n    }\r\n\r\n    return merged;\r\n}\r\n\r\nfunction boundedEvidenceValue(value, depth = 0) {\r\n    if (depth > 5 || value == null) return value ?? null;\r\n    if (typeof value === \"string\") return value.slice(0, 1600);\r\n    if (typeof value === \"number\" || typeof value === \"boolean\") return value;\r\n    if (Array.isArray(value)) {\r\n        return value\r\n            .slice(0, 30)\r\n            .map(item => boundedEvidenceValue(item, depth + 1));\r\n    }\r\n    if (typeof value !== \"object\") return String(value).slice(0, 500);\r\n\r\n    const allowed = {};\r\n    for (const [key, item] of Object.entries(value).slice(0, 40)) {\r\n        if (\r\n            [\r\n                \"raw\",\r\n                \"bytes\",\r\n                \"base64\",\r\n                \"blob\",\r\n                \"html\",\r\n                \"content\",\r\n                \"numberedContent\"\r\n            ].includes(key)\r\n        ) {\r\n            continue;\r\n        }\r\n        allowed[key] = boundedEvidenceValue(item, depth + 1);\r\n    }\r\n    return allowed;\r\n}\r\n\r\n\r\nfunction compactEvidenceText(value = \"\", maximum = 800) {\r\n    return String(value ?? \"\").slice(0, maximum);\r\n}\r\n\r\nfunction compactEvidenceTextArray(\r\n    values = [],\r\n    maximumItems = 8,\r\n    maximumLength = 320\r\n) {\r\n    return (Array.isArray(values) ? values : [])\r\n        .slice(0, maximumItems)\r\n        .map(value =>\r\n            compactEvidenceText(\r\n                typeof value === \"string\"\r\n                    ? value\r\n                    : JSON.stringify(value),\r\n                maximumLength\r\n            )\r\n        );\r\n}\r\n\r\nfunction compactMediaAnalysisPage(page = {}) {\r\n    return {\r\n        page:\r\n            page?.page ??\r\n            page?.pageNumber ??\r\n            null,\r\n        summary:\r\n            compactEvidenceText(\r\n                page?.summary || \"\",\r\n                700\r\n            ),\r\n        evidence:\r\n            compactEvidenceTextArray(\r\n                page?.evidence,\r\n                6,\r\n                320\r\n            ),\r\n        uncertainty:\r\n            compactEvidenceTextArray(\r\n                page?.uncertainty,\r\n                4,\r\n                320\r\n            )\r\n    };\r\n}\r\n\r\nfunction compactMediaAnalysisSource(source = {}) {\r\n    return {\r\n        sourceId:\r\n            compactEvidenceText(\r\n                source?.sourceId || \"\",\r\n                120\r\n            ),\r\n        fileName:\r\n            compactEvidenceText(\r\n                source?.fileName ||\r\n                source?.name ||\r\n                \"\",\r\n                300\r\n            ),\r\n        mimeType:\r\n            compactEvidenceText(\r\n                source?.mimeType || \"\",\r\n                120\r\n            ),\r\n        description:\r\n            compactEvidenceText(\r\n                source?.description || \"\",\r\n                1600\r\n            ),\r\n        observations:\r\n            compactEvidenceTextArray(\r\n                source?.observations,\r\n                8,\r\n                320\r\n            ),\r\n        inferences:\r\n            compactEvidenceTextArray(\r\n                source?.inferences,\r\n                6,\r\n                320\r\n            ),\r\n        visibleData:\r\n            (Array.isArray(source?.visibleData)\r\n                ? source.visibleData\r\n                : [])\r\n                .slice(0, 10)\r\n                .map(item => ({\r\n                    kind:\r\n                        compactEvidenceText(\r\n                            item?.kind || \"text\",\r\n                            40\r\n                        ),\r\n                    value:\r\n                        compactEvidenceText(\r\n                            item?.value || \"\",\r\n                            300\r\n                        ),\r\n",
+        "contentLength": 68724,
+        "contentTruncated": true
+      },
+      "repoCandidates": []
+    }
+  },
+  {
+    "index": 5,
+    "name": "repo.read",
+    "args": {
+      "file": "gestia-core/jarvis/jarvis.conversation.composer.js",
+      "startLine": 275
+    },
+    "allowedEvidenceKinds": [
+      "repository_source"
+    ],
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "gestia-core/jarvis/jarvis.conversation.composer.js",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [],
+            "fieldPaths": [
+              "args.responseFormat",
+              "validSources.length",
+              "sources.length",
+              "evidence.interfaceEvidence",
+              "tool",
+              "observation.ok",
+              "observation.status",
+              "observation.interfaceEvidence",
+              "sources",
+              "observation.version",
+              "observation.sources",
+              "prototype.hasOwnProperty",
+              "hasOwnProperty",
+              "observation.error",
+              "missionExecution.name",
+              "missionExecution.args",
+              "observation.blocked",
+              "observation.reason",
+              "gitEvidence.commits",
+              "sha.length",
+              "sha",
+              "subject",
+              "contextPreview.files",
+              "contextPreview.files.length",
+              "files.length",
+              "files",
+              "evidence.evidenceKinds",
+              "evidence.requestedFile",
+              "args.file",
+              "platformRecordEvidence.length",
+              "measuredInterfaceEvidence",
+              "findingCounts.total",
+              "findingCounts.defect",
+              "findingCounts.recommendation",
+              "findingCounts.unverified",
+              "viewports",
+              "finding.selector",
+              "finding.kind",
+              "finding.classification",
+              "finding.severity",
+              "finding.certainty",
+              "finding.summary",
+              "finding.evidence",
+              "records.length",
+              "elements",
+              "element.selector",
+              "findings",
+              "hiddenStates",
+              "value.length",
+              "value",
+              "entries.length",
+              "entries",
+              "completionAssessment.objectives",
+              "objectives",
+              "limitation",
+              "completionAssessment.validationFailed",
+              "recordEvidence.source",
+              "inventoryEvidence.source",
+              "observation.verifiedRead",
+              "completionAssessment.objectives.length",
+              "objectives.length",
+              "response.data",
+              "data.response.data",
+              "data.response",
+              "requiredFactIds.length",
+              "requiredFactIds",
+              "selectedFactIds",
+              "grounding.scopedRecordPresentation"
+            ],
+            "fieldPathsComplete": true,
+            "writeShapes": [],
+            "queryShapes": [],
+            "references": [],
+            "referencesComplete": true,
+            "collectionAnchors": [],
+            "complete": true,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result.",
+            "structuralRead": {
+              "coverage": "COMPLETE_FILE",
+              "source": "SUPPLEMENTAL_READ_OF_SAME_FILE",
+              "startLine": 1,
+              "endLine": 1557,
+              "contentLength": 68724,
+              "requestedExcerptStartLine": 275,
+              "requestedExcerptEndLine": 374
+            }
+          }
+        },
+        "path": "gestia-core/jarvis/jarvis.conversation.composer.js",
+        "startLine": 275,
+        "endLine": 374,
+        "readEndLine": 374,
+        "totalLines": 1557,
+        "partial": true,
+        "truncated": false,
+        "evidenceTextTruncated": false,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "                    page:\r\n                        item?.page ??\r\n                        null,\r\n                    confidence:\r\n                        item?.confidence ??\r\n                        null,\r\n                    evidence:\r\n                        compactEvidenceText(\r\n                            item?.evidence || \"\",\r\n                            500\r\n                        ),\r\n                    legibility:\r\n                        compactEvidenceText(\r\n                            item?.legibility || \"\",\r\n                            40\r\n                        )\r\n                })),\r\n        pages:\r\n            (Array.isArray(source?.pages)\r\n                ? source.pages\r\n                : [])\r\n                .slice(0, 12)\r\n                .map(compactMediaAnalysisPage),\r\n        uncertainty:\r\n            compactEvidenceTextArray(\r\n                source?.uncertainty,\r\n                6,\r\n                320\r\n            ),\r\n        evidence:\r\n            compactEvidenceTextArray(\r\n                source?.evidence,\r\n                10,\r\n                320\r\n            )\r\n    };\r\n}\r\n\r\nfunction compactMediaAnalysisObservation(observation = {}) {\r\n    const sources =\r\n        Array.isArray(\r\n            observation?.sources\r\n        )\r\n            ? observation.sources\r\n            : Array.isArray(\r\n                observation?.validSources\r\n            )\r\n                ? observation.validSources\r\n                : [];\r\n\r\n    return {\r\n        ok:\r\n            observation?.ok,\r\n        status:\r\n            observation?.status,\r\n        engine:\r\n            observation?.engine,\r\n        version:\r\n            observation?.version,\r\n        expectedSources:\r\n            observation?.expectedSources,\r\n        receivedSources:\r\n            observation?.receivedSources,\r\n        sources:\r\n            sources\r\n                .slice(0, 12)\r\n                .map(compactMediaAnalysisSource),\r\n        comparison:\r\n            boundedEvidenceValue(\r\n                observation?.comparison\r\n            ),\r\n        recommendations:\r\n            compactEvidenceTextArray(\r\n                observation?.recommendations,\r\n                8,\r\n                320\r\n            ),\r\n        policy:\r\n            boundedEvidenceValue(\r\n                observation?.policy\r\n            ),\r\n        precisionAudit:\r\n            boundedEvidenceValue(\r\n                observation?.precisionAudit\r\n            )\r\n    };\r\n}\r\n\r\nfunction findPrecisionVerifiedMediaObservation(evidenceItems = []) {\r\n    const operational = (Array.isArray(evidenceItems) ? evidenceItems : [])\r\n        .filter(item =>\r\n            String(item?.name || item?.tool || \"\") !==\r\n            \"conversation.respond\"\r\n        );\r\n\r\n    const mediaItems = operational.filter(item =>\r\n        String(item?.name || item?.tool || \"\") === \"media.analyze\"\r\n    );\r\n    const allowedCompanionTools = new Set([\r\n        \"system.certify\"",
+        "contentLength": 2930,
+        "contentTruncated": false
+      },
+      "repoCandidates": []
+    }
+  }
+]

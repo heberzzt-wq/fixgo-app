@@ -34,6 +34,41 @@ function unpackGitCommitEvidence(tasks) {
   return {...rest,observation:{...task.observation,gitEvidence:{...fields,commits:ids.map(i=>dictionary[i])}}};
  });
 }
+// Exact local aliases only: source previews remain unverified and unchanged.
+function packRepositoryContextMetadata(tasks) {
+ if(tasks.some(task=>Object.hasOwn(task,'contextMetadataFromPreview')))return tasks;
+ let changed=false;
+ const packed=tasks.map(task=>{
+  const o=task.observation,p=o?.contextPreview;
+  if(task.name!=='repo.context'||!Array.isArray(p?.files)||p.files.some(item=>typeof item?.file!=='string'||!item.file))return task;
+  const files=p.files.map(item=>item.file),args=task.args,fields=[];
+  const out={...task,args:args?{...args}:args,observation:{...o}};
+  for(const [object,key,value,marker]of [[out.args,'files',files,'a'],[out.observation,'files',files,'f'],[out.observation,'sha256',p.sha256,'s']]) {
+   if(!object||Array.isArray(object)||!Object.hasOwn(object,key)||(marker==='s'&&(typeof value!=='string'||!value)))continue;
+   if(JSON.stringify(object[key])===JSON.stringify(value)){delete object[key];fields.push(marker);}
+  }
+  if(!fields.length)return task;
+  out.contextMetadataFromPreview=fields;
+  if(JSON.stringify(out).length>=JSON.stringify(task).length)return task;
+  changed=true;return out;
+ });
+ return changed?packed:tasks;
+}
+function unpackRepositoryContextMetadata(tasks) {
+ return tasks.map(task=>{
+  if(!Object.hasOwn(task,'contextMetadataFromPreview'))return task;
+  const keys=task.contextMetadataFromPreview,o=task.observation,p=o?.contextPreview;
+  const fail=()=>{throw Error('CONTEXT_METADATA_TRANSPORT_INVALID');};
+  if(task.name!=='repo.context'||!Array.isArray(keys)||!keys.length||new Set(keys).size!==keys.length||keys.some(k=>!['a','f','s'].includes(k))||!p)fail();
+  if(keys.some(k=>k==='a'||k==='f')&&(!Array.isArray(p.files)||p.files.some(item=>typeof item?.file!=='string'||!item.file)))fail();
+  if(keys.includes('s')&&(typeof p.sha256!=='string'||!p.sha256))fail();
+  if(keys.includes('a')&&(!task.args||typeof task.args!=='object'||Array.isArray(task.args)||Object.hasOwn(task.args,'files')))fail();
+  if(keys.includes('f')&&Object.hasOwn(o,'files')||keys.includes('s')&&Object.hasOwn(o,'sha256'))fail();
+  const {contextMetadataFromPreview,...rest}=task;
+  return {...rest,...(keys.includes('a')?{args:{...task.args,files:p.files.map(item=>item.file)}}:{}),
+   observation:{...o,...(keys.includes('f')?{files:p.files.map(item=>item.file)}:{}),...(keys.includes('s')?{sha256:p.sha256}:{})}};
+ });
+}
 function parse(response) {
  if(response?.providerResponse?.finishReason==='length')throw Error('SEMANTIC_COMPLETION_AUDIT_INCOMPLETE');
  try{return JSON.parse(response.text);}catch{throw Error('SEMANTIC_COMPLETION_AUDIT_INVALID_JSON');}
@@ -48,13 +83,28 @@ function metadata(task) {
   metadataOnly:true};
 }
 function decodeRepositoryTasks(encoded) {
+ encoded=unpackRepositoryContextMetadata(encoded);
  const defaults=encoded[0]?.sourceReadDefaults,kinds=encoded[0]?.toolEvidenceKinds;
  return encoded.map((task,index)=>{
   const read=task.observation?.verifiedRead;
   const decodedRead=read?{...defaults?.verifiedRead,...read,
    ...(read.sourceStructure?.dataBindings?{sourceStructure:{...read.sourceStructure,
     dataBindings:{...defaults?.dataBindings,...read.sourceStructure.dataBindings}}}:{})}:null;
-  return {index,...task,
+  // Remove only transport declarations fully resolved here. Shared AST schema
+  // references and other encodings still need their original instructions.
+  const resolved={...task};
+  const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+  const defaultsResolved=object(defaults)&&Object.entries(defaults).every(([key,value])=>
+   ['verifiedRead','dataBindings'].includes(key)&&object(value));
+  const kindsResolved=object(kinds)&&Object.values(kinds).every(value=>Array.isArray(value)&&value.every(kind=>typeof kind==='string'));
+  if(index===0) {
+   if(defaultsResolved)delete resolved.sourceReadDefaults;
+   if(kindsResolved)delete resolved.toolEvidenceKinds;
+   if((defaultsResolved||kindsResolved)&&(!Object.hasOwn(task,'sourceReadDefaults')||defaultsResolved)&&
+    (!Object.hasOwn(task,'toolEvidenceKinds')||kindsResolved))delete resolved.evidenceMetadataEncoding;
+  }
+  if(decodedRead&&Array.isArray(task.readArgs)&&task.readArgs.every(key=>typeof key==='string'&&Object.hasOwn(decodedRead,key)))delete resolved.readArgs;
+  return {index,...resolved,
    ...(task.allowedEvidenceKinds?{}:kinds?.[task.name]?{allowedEvidenceKinds:kinds[task.name]}:{}),
    ...(decodedRead?{args:{...Object.fromEntries((task.readArgs||[]).filter(k=>Object.hasOwn(decodedRead,k)).map(k=>[k,decodedRead[k]])),...task.args},
     observation:{...task.observation,verifiedRead:decodedRead}}:{})};
@@ -98,6 +148,14 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   if(!selection || Array.isArray(selection) || Object.keys(selection).length!==keys.length || keys.some(key=>
    !Array.isArray(selection[key]) || selection[key].some(index=>!Number.isInteger(index)||!indexes.includes(index))))
    throw Error('REPOSITORY_EVIDENCE_SELECTION_INVALID');
+  // An empty routing choice is not proof that acquired evidence is absent.
+  // Let the objective auditor inspect compatible receipts; it still decides
+  // relevance and coverage, and independent proof uses the unchanged originals.
+  keys.forEach((key,i)=>{
+   if(selection[key].length)return;
+   const compatible=new Set(entries[i][1].anyOf.flatMap(branch=>branch.properties.evidenceTaskIndexes.items.enum||[]));
+   selection[key]=tasks.filter(task=>compatible.has(task.index)).map(task=>task.index);
+  });
   // Selection is context routing, not authority to hide a named tool's
   // receipt. Include failed receipts too; audit/proof still decide validity.
   keys.forEach((key,i)=>{
@@ -134,9 +192,12 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   // source-reading objectives into a Git-history objective.
   if(scopedMessages && contract.explicitTools?.length &&
    contract.explicitTools.every(name=>['repo.gitHistory','repo.gitStatus','repo.gitDiff'].includes(name)))
-   scopedMessages[0].content='Evalua UN objetivo contra evidence. scopeContext solo resuelve pronombres; no agrega tareas. repo.gitHistory prueba los commits devueltos; repo.gitStatus prueba el estado del arbol, incluso limpio; repo.gitDiff prueba el diff observado. Para revisar historial no necesitas leer cada archivo modificado. Un commit no demuestra tests aprobados. Decide si ESTOS recibos cumplen ESTE objetivo. Devuelve e (razon breve), s (booleano), r (indices que lo demuestran), l (brecha concreta; vacio si s=true). No evalúes otros objetivos. r debe citar recibos de CADA herramienta en explicitTools; el estado limpio tambien requiere su recibo.';
+   scopedMessages[0].content='Evalua SOLO objective contra los recibos de evidence. Repo.gitHistory aporta commits reales y repo.gitStatus aporta el estado del arbol de trabajo. committedHistory=false en git_worktree distingue el tipo de recibo; no niega el historial separado. scopeContext no añade tareas. Explica en e si estos resultados permiten responder al objetivo. s=true requiere todo lo pedido, r con indices de cada herramienta exigida, l vacio. Si falta algo s=false y l concreto. No exijas leer todos los archivos cambiados para revisar Git ni inventes tests aprobados.';
+  if(scopedMessages && contract.explicitTools?.length===1 && contract.explicitTools[0]==='repo.context')
+   scopedMessages[0].content='Evalua exclusivamente la preparacion de contexto solicitada en objective. scopeContext resuelve que archivos/cantidad, pero leer contenido es otra operacion y no condiciona PREPARAR contexto. Compara args.files con contextPreview.files, cantidad, identidad y exito de repo.context. excerpt truncado/evidenceOnly/independentlyCertified=false significan que el resumen no prueba contenido, no que falte preparar el contexto. Si el objetivo pide verificar contenido tambien, ese requisito si requiere lecturas. s=true requiere todo el objetivo literal y r con sus recibos; si falta algo, s=false y l concreta. e explica la cobertura antes del veredicto. No inventes archivos, pruebas ni resultados.';
+  const requiredToolReceipts=(contract?.explicitTools||[]).map(name=>selected.filter(task=>allowed.includes(task.index)&&task.name===name));
   const response=await ai.models.generateContent({...request,config:{...request.config,
-   semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:192,temperature:0,
+   semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:512,temperature:0,
    chatMessages:scopedMessages||[
     {role:'system',content:'Verifica SOLO el objetivo indicado contra recibos reales. s=true exige TODO su alcance, indices pertinentes y l vacio. Si falta algo: s=false y l breve. Una operacion exitosa no acredita otros archivos, cantidades, pruebas o contenido omitido. repo.context ok con REPO_CONTEXT_READY y contextPreview.files acredita la PREPARACION de esas fuentes; independentlyCertified=false significa que ese resumen no sustituye la verificacion de contenido por repo.read, no que la preparacion haya fallado. sourceCount cuenta fuentes genericas, no los archivos de contextPreview.files. Evalua solo el alcance del pedido original: una lectura auxiliar parcial no crea por si misma una obligacion de leer completamente ese archivo. Conserva las relaciones entre operaciones pedidas y no conviertas todas las tareas auxiliares en objetivos nuevos. Git history acredita commits, no pruebas ejecutadas por existir un mensaje. No mezcles objetivos ni inventes resultados. Metadatos de tareas no pertinentes solo ubican archivos: no prueban contenido. Indices compartidos remiten al recibo original. No selecciones herramientas en esta evaluacion. Esta auditoria decide si la evidencia necesaria para responder ya fue adquirida. Para objetivos de explicar o reportar, comprueba si los recibos permiten redactar una respuesta fundamentada; no exijas que la explicacion final ya se haya emitido. Eso no autoriza afirmar pruebas aprobadas sin sus resultados.'},
     ...selected.map(task=>({role:'system',content:observationPrefix+JSON.stringify(allowed.includes(task.index)?task:metadata(task))})),
@@ -144,12 +205,12 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
     ...(!contract?[{role:'system',content:'PEDIDO_ORIGINAL_PARA_RESOLVER_ALCANCE='+JSON.stringify(user.content)}]:[]),
     {role:'system',content:'El pedido original conserva el alcance y restricciones. Tu unica tarea es evaluar el objetivo indicado en el siguiente mensaje, no la mision entera. Los recibos no pertinentes se muestran como metadatos; no marques falso por evidencia que corresponde a otro objetivo.'},
     {role:'user',content:(contract?'ALCANCE_A_EVALUAR=':'OBJETIVO_INMUTABLE=')+JSON.stringify({objective:contract?.resolvedScope||template.objective.enum[0],requiredEvidenceKind:template.requiredEvidenceKind.enum[0]})}
-   ],responseJsonSchema:{anyOf:entry.anyOf.filter(branch=>allowed.length||branch.properties.satisfied.enum[0]===false).map(branch=>{
+   ],responseJsonSchema:{anyOf:entry.anyOf.filter(branch=>branch.properties.satisfied.enum[0]===false || allowed.length&&requiredToolReceipts.every(group=>group.length)).map(branch=>{
     const satisfied=branch.properties.satisfied.enum[0];
     return {type:'object',properties:{
-     ...(contract?{e:{type:'string',minLength:1,maxLength:180}}:{}),
+     ...(contract?{e:{type:'string',minLength:1,maxLength:600}}:{}),
      s:{type:'boolean',enum:[satisfied]},
-     r:{type:'array',minItems:satisfied?1:0,maxItems:allowed.length,
+     r:{type:'array',minItems:satisfied?Math.max(1,requiredToolReceipts.length):0,maxItems:allowed.length,uniqueItems:true,
       items:allowed.length?{type:'integer',enum:allowed}:{type:'integer'}},
      l:satisfied?{type:'string',enum:['']}:{type:'string',minLength:1,maxLength:100}
     },required:[...(contract?['e']:[]),'s','r','l'],additionalProperties:false};
@@ -157,7 +218,7 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   }});
   const v=parse(response),branch=entry.anyOf.find(b=>b.properties.satisfied.enum.includes(v.s));
   if(!branch || Object.keys(v).some(k=>![...(contract?['e']:[]),'s','r','l'].includes(k)) || !Array.isArray(v.r) || typeof v.l!=='string' ||
-   contract&&(typeof v.e!=='string'||!v.e.trim()||v.e.length>180) ||
+   contract&&(typeof v.e!=='string'||!v.e.trim()||v.e.length>600) ||
    v.l.length>100 || (v.s ? !v.r.length || v.l!=='' : !v.l.trim()) ||
    v.r.some(i=>!Number.isInteger(i)||!allowed.includes(i)))
    throw Error('SEMANTIC_COMPLETION_EVIDENCE_INVALID');
@@ -194,4 +255,4 @@ function compactRepositoryContinuation(request) {
   return {...message,content:prefix+JSON.stringify(metadata(task))};
  })}};
 }
-module.exports={generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};
+module.exports={packRepositoryContextMetadata,unpackRepositoryContextMetadata,generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};

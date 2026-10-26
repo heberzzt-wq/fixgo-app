@@ -76,3 +76,23 @@ for(const disjoint of [false,true])test(`queued argument completion advances bey
  assert.equal(result.status,'PARTIAL');assert.equal(result.completionAssessment.objectives.length,3);
  assert.ok(result.completionAssessment.objectives.every(g=>g.satisfied===false&&g.requiredEvidenceKind==='platform_records'));
 });
+
+test('fully evicted complete source permits only an explicit bounded reread',()=>{
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['small.js']},startLine:{type:'integer',minimum:1},endLine:{type:'integer',minimum:1}},required:['file'],additionalProperties:false}};
+ const tasks=[{name:'repo.read',args:{file:'small.js'},observation:{ok:true,verifiedRead:{file:'small.js',startLine:1,endLine:null,readEndLine:58,totalLines:58,contentTruncated:true,partial:true}}}];
+ const before=JSON.stringify(tasks),catalog=eligibleEvidenceActionCatalog([reader],tasks),valid=args=>catalog.some(tool=>hasRequiredToolArguments(tool,args));
+ assert.equal(valid({file:'small.js'}),false);
+ assert.equal(valid({file:'small.js',startLine:1}),false);
+ assert.equal(valid({file:'small.js',startLine:1,endLine:30}),true);
+ assert.equal(valid({file:'other.js',startLine:1,endLine:30}),false);
+ assert.equal(JSON.stringify(tasks),before);
+});
+test('known Git history limit is not reoffered while different authorized limits remain available',()=>{
+ const history={name:'repo.gitHistory',mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',additionalProperties:false,properties:{limit:{type:'integer',minimum:1,maximum:8}}}};
+ const tasks=[{name:history.name,args:{limit:8},observation:{ok:true,gitEvidence:{commits:[{sha:'a'}]}}}];
+ const result=eligibleEvidenceActionCatalog([history],tasks),valid=args=>result.some(tool=>hasRequiredToolArguments(tool,args));
+ assert.equal(valid({limit:8}),false);assert.equal(valid({limit:7}),true);assert.equal(valid({limit:9}),false);
+ const denied=eligibleEvidenceActionCatalog([history],[{...tasks[0],observation:{ok:false}}]);assert.equal(hasRequiredToolArguments(denied[0],{limit:8}),true);
+ const scoped={...history,inputSchema:{...history.inputSchema,properties:{...history.inputSchema.properties,ref:{type:'string'}}}};
+ assert.deepEqual(eligibleEvidenceActionCatalog([scoped],tasks),[scoped]);
+});

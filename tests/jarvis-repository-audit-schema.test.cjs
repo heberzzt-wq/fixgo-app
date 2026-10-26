@@ -279,3 +279,38 @@ test('repository continuation restores compact read arguments and completeness b
  assert.equal(read.index,1);assert.deepEqual(read.allowedEvidenceKinds,['repository_source']);
  assert.equal(JSON.stringify(req),before);
 });
+
+test('positive audit grammar requires references for both explicit tools and forbids success when a tool is missing',async()=>{
+ for(const includeStatus of [true,false]){
+  const req=request();req.config.repositoryObjectiveScopes=[{objective:'Revisar commits reales',resolvedScope:'Revisar commits reales y estado Git',explicitTools:['repo.gitHistory','repo.gitStatus']}];
+  const tasks=[{index:0,name:'repo.gitHistory',observation:{ok:true,gitEvidence:{commits:[{sha:'a'.repeat(40)}]}}}];
+  if(includeStatus)tasks.push({index:1,name:'repo.gitStatus',observation:{ok:true,gitEvidence:{clean:true}}});
+  req.config.chatMessages.unshift(...tasks.map(t=>({role:'system',content:'OBSERVACION_EJECUTADA='+JSON.stringify(t)})));
+  let checked=false;
+  await generateRepositoryAudit({enabled:true,request:req,ai:{models:{generateContent:async r=>{
+   if(r.config.semanticStage==='REPOSITORY_EVIDENCE_SELECTION')return {text:'{"objective_0":[0]}'};
+   if(r.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT'){
+    const positive=r.config.responseJsonSchema.anyOf.find(b=>b.properties.s.enum[0]===true);
+    if(includeStatus){assert.ok(positive);assert.equal(positive.properties.r.minItems,2);assert.equal(positive.properties.r.uniqueItems,true);assert.deepEqual(positive.properties.r.items.enum,[0,1]);}
+    else assert.equal(positive,undefined);
+    checked=true;return {text:includeStatus?'{"e":"Ambos recibos disponibles","s":true,"r":[0,1],"l":""}':'{"e":"Falta status","s":false,"r":[0],"l":"Falta status"}'};
+   }
+   return {text:'{"toolCalls":[],"explanation":"Review finished"}'};
+  }}}});
+  assert.equal(checked,true);
+ }
+});
+test('empty routing inspects acquired compatible evidence without manufacturing a positive verdict',async()=>{
+ const req=request();req.config.repositoryObjectiveScopes=[{objective:'Revisar commits reales',resolvedScope:'Revisar commits reales'}];
+ for(const branch of req.config.responseJsonSchema.properties.completionAssessment.properties.objectives.properties.objective_0.anyOf)branch.properties.evidenceTaskIndexes.items.enum=[0];
+ const tasks=[{index:0,name:'repo.gitHistory',observation:{ok:true,gitEvidence:{commits:[]}}},{index:1,name:'repo.read',observation:{ok:true,verifiedRead:{file:'unrelated.js',content:'do not count me'}}}];
+ req.config.chatMessages.unshift(...tasks.map(task=>({role:'system',content:'OBSERVACION_EJECUTADA='+JSON.stringify(task)})));
+ const before=JSON.stringify(req);const result=await generateRepositoryAudit({enabled:true,request:req,ai:{models:{generateContent:async r=>{
+  if(r.config.semanticStage==='REPOSITORY_EVIDENCE_SELECTION')return{text:'{"objective_0":[]}'};
+  if(r.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT'){
+   const data=JSON.parse(r.config.chatMessages.at(-1).content);assert.deepEqual(data.evidence,tasks.slice(0,1));assert.equal(data.supportingEvidence,undefined);
+   return{text:'{"e":"El recibo disponible no demuestra commits.","s":false,"r":[0],"l":"No hay commits en el recibo."}'};
+  }return{text:'{"toolCalls":[],"explanation":"Pendiente."}'};
+ }}}});
+ assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);assert.equal(JSON.stringify(req),before);
+});

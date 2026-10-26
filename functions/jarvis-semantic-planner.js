@@ -390,6 +390,23 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         }));
     };
     return catalog.flatMap(tool=>{
+        // This bounded history contract has one argument and no alternate ref.
+        // Exclude exact successful limits; preserve every other native limit.
+        if(tool.name==='repo.gitHistory'&&tool.mutates===false) {
+            const schema=buildNativeInputSchema(tool.inputSchema),limit=schema.properties?.limit;
+            if(!schema.anyOf&&schema.additionalProperties===false&&Object.keys(schema.properties||{}).length===1&&
+                limit?.type==='integer'&&Number.isInteger(limit.minimum)&&Number.isInteger(limit.maximum)) {
+                const seen=[...new Set(successful.filter(task=>task.name===tool.name&&Object.keys(task.args||{}).length===1&&
+                    Number.isInteger(task.args.limit)).map(task=>task.args.limit))].filter(n=>n>=limit.minimum&&n<=limit.maximum).sort((a,b)=>a-b);
+                if(seen.length) {
+                    const ranges=[];let start=limit.minimum;
+                    for(const end of [...seen,limit.maximum+1]){if(start<end)ranges.push([start,end-1]);start=end+1;}
+                    const branches=ranges.map(([minimum,maximum])=>({...schema,required:[...new Set([...(schema.required||[]),'limit'])],
+                        properties:{...schema.properties,limit:{...limit,minimum,maximum}}}));
+                    return branches.length?[{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}]:[];
+                }
+            }
+        }
         if(!tool.evidenceKinds?.some(kind=>sourceKinds.has(kind)||kind==='platform_records'))return [tool];
         const original=buildNativeInputSchema(tool.inputSchema),branches=original.anyOf||[original],eligible=[];
         for(const branch of branches){
@@ -412,7 +429,13 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                     // A file is not a query. Partial reads, missing range metadata
                     // and bodies evicted by compaction must remain readable.
                     const retained=retainedSourceTasks ||= boundedAuditTasks(successful);
-                    const partial=partialSourceProgress(retained);
+                    // A totally evicted body has endLine=null. Represent zero
+                    // visible lines only in this gap calculation, never as evidence.
+                    const partial=partialSourceProgress(retained.map(task=>{
+                        const read=task.observation?.verifiedRead;
+                        return read&&read.endLine===null&&!read.content&&Number.isInteger(read.totalLines)&&read.totalLines>0
+                            ? {...task,observation:{...task.observation,verifiedRead:{...read,startLine:1,endLine:0}}}:task;
+                    }));
                     const available=allowed.filter(file=>{
                         if(!readFiles.has(file)||partial.some(read=>read.file===file))return true;
                         const total=Math.max(0,...retained.filter(task=>task.observation?.verifiedRead?.file===file)
@@ -2302,9 +2325,17 @@ function planningAuditTasks(tasks, missionState, {repositoryOnly = false} = {}) 
     try { return boundedAuditTasks(views,budget,bodyLimit); }
     catch(error) {
         if(error.message!=='SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED')throw error;
-        const packed=require('./jarvis-repository-audit-codec.cjs').packGitCommitEvidence(views);
-        if(packed===views)throw error;
-        return boundedAuditTasks(packed,budget,bodyLimit);
+        const {packGitCommitEvidence,packRepositoryContextMetadata}=require('./jarvis-repository-audit-codec.cjs');
+        const packed=packGitCommitEvidence(views);
+        try {
+            if(packed===views)throw error;
+            return boundedAuditTasks(packed,budget,bodyLimit);
+        } catch(finalError) {
+            if(finalError.message!=='SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED'||!repositoryOnly||!lowMemory)throw finalError;
+            const shared=packRepositoryContextMetadata(packed);
+            if(shared===packed)throw finalError;
+            return boundedAuditTasks(shared,budget,bodyLimit);
+        }
     }
 }
 
