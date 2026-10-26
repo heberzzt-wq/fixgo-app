@@ -2436,3 +2436,38 @@ test("mission accounting keeps local inference, paid calls and GPU rental distin
     assert.deepEqual(mission.accounting.providers, ["self-hosted"]);
     assert.deepEqual(mission.accounting.backends, ["wan22-ti2v-5b"]);
 });
+
+for (const seeded of [true, false]) test(`repository scope survives ${seeded ? 'initial contract' : 'planner contract'}, follow-up and storage without accepting prior success`, async () => {
+    const storage = memoryStorage();
+    const objective = {
+        objective: 'y repo.read para verificar su contenido.',
+        requiredEvidenceKind: 'repository_source',
+        requestQuote: 'y repo.read para verificar su contenido.',
+        scopeContext: 'Prepara contexto de dos archivos y repo.read para verificar su contenido.',
+        resolvedScope: 'y repo.read para verificar su contenido.',
+        explicitTools: ['repo.read']
+    };
+    let calls = 0;
+    const mission = await runJarvisMission({
+        instruction: objective.scopeContext,
+        initialEvidenceObjectives: seeded ? [{...objective, satisfied: true, evidenceTaskIndexes: [99]}] : [],
+        initialToolCalls: [{name: 'repo.read', args: {file: 'one.js'}}],
+        planner: async ({mission: current}) => {
+            calls++;
+            if (!seeded && calls === 1) return {
+                completionAssessment: {objectives: [{...objective, satisfied: false}]},
+                toolCalls: [{name: 'repo.read', args: {file: 'two.js'}}]
+            };
+            for (const [key, value] of Object.entries(objective)) assert.deepEqual(current.evidenceObjectives[0][key], value, key);
+            assert.equal(Object.hasOwn(current.evidenceObjectives[0], 'satisfied'), false);
+            assert.equal(Object.hasOwn(current.evidenceObjectives[0], 'evidenceTaskIndexes'), false);
+            return {toolCalls: [], missionComplete: false};
+        },
+        execute: async () => ({ok: true, status: 'READY'}), storage
+    });
+    assert.equal(mission.errors.some(error => error.status.includes('AssertionError') || error.tool === 'semantic.planner'), false,
+        JSON.stringify(mission.errors));
+    const restored = recoverJarvisMission(mission.missionId, {storage});
+    for (const [key, value] of Object.entries(objective)) assert.deepEqual(restored.evidenceObjectives[0][key], value, key);
+    assert.notEqual(mission.status, 'COMPLETED');
+});

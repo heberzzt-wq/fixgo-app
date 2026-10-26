@@ -2400,10 +2400,14 @@ export async function runJarvisMission({
         mission.rootInstruction || mission.originalInstruction,
         200000
     );
+    // Preserve the immutable contract through browser transport and recovery.
+    // Assessment flags and receipt indexes are outcomes, never initial proof.
+    const evidenceContract = item => Object.fromEntries([
+        'objective', 'requiredEvidenceKind', 'requestQuote', 'coverageMode',
+        'scope', 'groups', 'scopeContext', 'resolvedScope', 'explicitTools'
+    ].filter(key => Object.hasOwn(item, key)).map(key => [key, structuredClone(item[key])]));
     if (!recovered && initialEvidenceObjectives.length) {
-        mission.evidenceObjectives = initialEvidenceObjectives.map(({objective,requiredEvidenceKind,requestQuote,coverageMode,scope,groups})=>({
-            objective,requiredEvidenceKind,requestQuote,coverageMode,scope,groups
-        }));
+        mission.evidenceObjectives = initialEvidenceObjectives.map(evidenceContract);
         mission.completionAssessment = {evaluatedTaskCount:0,objectives:mission.evidenceObjectives.map(objective=>({
             ...objective,satisfied:false,evidenceTaskIndexes:[],limitation:"La investigación aún no ha obtenido la evidencia requerida."
         }))};
@@ -2598,7 +2602,7 @@ export async function runJarvisMission({
                 if (!mission.evidenceObjectives?.length && plan?.completionAssessment?.objectives?.length &&
                     plan.completionAssessment.objectives.every(item=>typeof item.objective==='string' && item.objective.trim() &&
                         typeof item.requiredEvidenceKind==='string' && item.requiredEvidenceKind.trim())) {
-                    mission.evidenceObjectives = plan.completionAssessment.objectives.map(({objective,requiredEvidenceKind})=>({objective,requiredEvidenceKind}));
+                    mission.evidenceObjectives = plan.completionAssessment.objectives.map(evidenceContract);
                 } else if (mission.evidenceObjectives?.length && plan?.completionAssessment?.objectives?.length) {
                     const proposed = plan.completionAssessment.objectives;
                     if (proposed.length !== mission.evidenceObjectives.length ||
