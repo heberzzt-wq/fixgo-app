@@ -67,3 +67,20 @@ test('oversized supporting source is explicitly evicted without removing require
  assert.equal(calls,1);assert.equal(result.proven,false);assert.equal(JSON.stringify(t),before);
  const denied=await reviewRepositoryObjective({objective:{...c,evidenceTaskIndexes:[0]},contract:c,tasks:t,evidenceView:()=>{throw Error('budget');},ai:{models:{generateContent:async()=>{throw Error('must not infer');}}}});assert.equal(denied.reason,'EVIDENCE_VIEW_UNAVAILABLE');
 });
+
+test('explicit context-to-read dependency rejects a missing file before a permissive model can approve',async()=>{
+ const c={...contract,explicitTools:['repo.read'],scopeContext:'Usa repo.context para preparar dos archivos, y repo.read para verificar su contenido.'};
+ for(const indexes of [[1],[2]]) {
+  const result=await reviewRepositoryObjective({objective:{...c,evidenceTaskIndexes:indexes,scopeTaskIndexes:indexes},contract:c,tasks,
+   ai:{models:{generateContent:async()=>{throw Error('missing prepared file reached semantic proof');}}}});
+  assert.equal(result.proven,false);assert.equal(result.reason,'REQUIRED_CONTEXT_SOURCE_RECEIPT_MISSING');
+ }
+ let calls=0;
+ const complete=await reviewRepositoryObjective({objective:{...c,evidenceTaskIndexes:[1,2],scopeTaskIndexes:[1,2]},contract:c,tasks,
+  ai:{models:{generateContent:async()=>{calls++;return{text:'{"reason":"Both prepared files present.","proven":true}'};}}}});
+ assert.equal(calls,1);assert.equal(complete.proven,true);
+ const direct={...c,scopeContext:'Lee a.js mediante repo.read.'};
+ const scoped=await reviewRepositoryObjective({objective:{...direct,evidenceTaskIndexes:[1]},contract:direct,tasks,
+  ai:{models:{generateContent:async()=>({text:'{"reason":"Only a.js requested.","proven":true}'})}}});
+ assert.equal(scoped.proven,true);
+});

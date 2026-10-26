@@ -5095,15 +5095,16 @@ async function runModelSemanticPlanner({
         // evicted for unrelated goals in the aggregate transport packet.
         const repositoryEvidenceView = indexedTasks => {
             const codec=require('./jarvis-repository-audit-codec.cjs');
-            const decoded=codec.decodeRepositoryEvidence(planningAuditTasks(indexedTasks,missionState,{repositoryOnly:true}));
-            const restored=decoded.map((task,index)=>{
-                const original=indexedTasks[index],read=task.observation?.verifiedRead,source=original.observation?.verifiedRead;
-                return {...task,index:original.index,args:original.args,...(read&&source?{observation:{...task.observation,
-                    verifiedRead:{...read,...(Object.hasOwn(source,'sha256')?{sha256:source.sha256}:{})}}}:{})};
+            const restored=indexedTasks.map(task=>{
+                const read=task.observation?.verifiedRead;
+                if(!read?.sourceStructure?.dataBindings)return task;
+                const {dataBindings,...structure}=read.sourceStructure;
+                return {...task,observation:{...task.observation,verifiedRead:{...read,
+                    sourceStructure:{...structure,sourceSchemaOmitted:true,
+                        omissionScope:'Repository-only projection; original AST retained in receipt. No operational authority.'}}}};
             });
-            const maximum=[4096,8192].includes(Number(missionState.modelContextTokens))?Math.floor(Number(missionState.modelContextTokens)*1.5):28000;
-            if(JSON.stringify(restored).length>maximum)throw Error('SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED');
-            return restored;
+            const maximum=[4096,8192].includes(Number(missionState.modelContextTokens))?Math.floor(Number(missionState.modelContextTokens)*2)-1024:28000;
+            return codec.boundDecodedRepositoryEvidence(restored,maximum);
         };
         const generateAudit = request => require('./jarvis-repository-audit-codec.cjs').generateRepositoryAudit({
             ai,request:{...request,config:{...request.config,repositoryObjectiveScopes:missionState.evidenceObjectives,

@@ -330,3 +330,32 @@ test('objective evidence rehydrates only its routed original receipts after aggr
   return{text:'{"toolCalls":[],"explanation":"Pendiente."}'};
  }}}});assert.equal(views,1);assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);assert.equal(transport[0].observation.verifiedRead.content,'');
 });
+
+test('decoded evidence budget clips literal prefixes conservatively without mutating originals',()=>{
+ const {boundDecodedRepositoryEvidence}=require('../functions/jarvis-repository-audit-codec.cjs');
+ const original=[{index:9,name:'repo.read',args:{file:'large.json'},observation:{verifiedRead:{file:'large.json',sha256:'a'.repeat(64),startLine:1,endLine:101,readEndLine:101,totalLines:101,content:'line\n'.repeat(100),partial:false,truncated:false}}},{index:10,name:'repo.read',args:{file:'shim.js'},observation:{verifiedRead:{file:'shim.js',startLine:1,endLine:1,totalLines:1,content:'export {};',partial:false}}}];
+ const before=JSON.stringify(original),limit=before.length-250;
+ const bounded=boundDecodedRepositoryEvidence(original,limit),read=bounded[0].observation.verifiedRead;
+ assert.ok(JSON.stringify(bounded).length<=limit);assert.equal(JSON.stringify(original),before);
+ assert.equal(read.sha256,original[0].observation.verifiedRead.sha256);assert.equal(read.readEndLine,101);
+ assert.ok(original[0].observation.verifiedRead.content.startsWith(read.content));
+ assert.equal(read.partial,true);assert.equal(read.truncated,true);assert.equal(read.contentTruncated,true);
+ assert.equal(read.endLine,read.content?1+read.content.split('\n').length-1:null);
+ assert.deepEqual(bounded[1],original[1]);
+ assert.throws(()=>boundDecodedRepositoryEvidence([{index:0,name:'repo.gitHistory',observation:{gitEvidence:{text:'x'.repeat(500)}}}],50),/CONTEXT_BUDGET_EXCEEDED/);
+});
+
+test('report routing cannot discard a compatible source receipt containing test evidence',async()=>{
+ const req=request();req.config.repositoryObjectiveScopes=[{objective:'Revisar commits reales',resolvedScope:'Revisar commits reales',explicitTools:[]}];
+ for(const branch of req.config.responseJsonSchema.properties.completionAssessment.properties.objectives.properties.objective_0.anyOf)branch.properties.requiredEvidenceKind.enum=['repository_source'];
+ const tasks=[{index:0,name:'repo.read',observation:{ok:true,verifiedRead:{file:'code.js',content:'export {};'}}},{index:1,name:'repo.read',observation:{ok:true,verifiedRead:{file:'receipt.json',content:'{"passed":0,"failed":1}'}}}];
+ req.config.chatMessages.unshift(...tasks.map(t=>({role:'system',content:'OBSERVACION_EJECUTADA='+JSON.stringify(t)})));
+ const result=await generateRepositoryAudit({enabled:true,request:req,ai:{models:{generateContent:async r=>{
+  if(r.config.semanticStage==='REPOSITORY_EVIDENCE_SELECTION')return{text:'{"objective_0":[0]}'};
+  if(r.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT'){
+   assert.deepEqual(JSON.parse(r.config.chatMessages.at(-1).content).evidence,tasks.map(t=>({...t,args:{}})));
+   return{text:'{"e":"Prueba fallida, no aprobada.","s":false,"r":[1],"l":"La prueba fallo."}'};
+  }return{text:'{"toolCalls":[],"explanation":"Pendiente."}'};
+ }}}});
+ assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);
+});

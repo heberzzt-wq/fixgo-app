@@ -161,9 +161,9 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   // Let the objective auditor inspect compatible receipts; it still decides
   // relevance and coverage, and independent proof uses the unchanged originals.
   keys.forEach((key,i)=>{
-   if(selection[key].length)return;
+   if(selection[key].length && (contracts[i].explicitTools?.length || entries[i][1].anyOf[0].properties.requiredEvidenceKind.enum[0]!=='repository_source'))return;
    const compatible=new Set(entries[i][1].anyOf.flatMap(branch=>branch.properties.evidenceTaskIndexes.items.enum||[]));
-   selection[key]=tasks.filter(task=>compatible.has(task.index)).map(task=>task.index);
+   selection[key]=[...new Set([...selection[key],...tasks.filter(task=>compatible.has(task.index)).map(task=>task.index)])];
   });
   // Selection is context routing, not authority to hide a named tool's
   // receipt. Include failed receipts too; audit/proof still decide validity.
@@ -188,11 +188,11 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
    task.observation?.contextPreview?.files?.some(file=>selectedFiles.has(typeof file==='string'?file:file.file)))).map(metadata);
   const scopedMessages=contract?[
    {role:'system',content:'Audita SOLO el objetivo literal. scopeContext conserva antecedentes y cantidades, no agrega otros objetivos de esa frase. Compara el alcance completo con los recibos; e explica la cobertura o brecha concreta ANTES de decidir s. r cita indices pertinentes de evidence, nunca metadatos de dependencies. s=true exige TODO el alcance, referencias validas y l=""; si falta evidencia s=false y l describe solo lo que falta. Dependencias metadataOnly identifican archivos preparados, no prueban su lectura. repo.context ok acredita PREPARACION de contextPreview.files; independentlyCertified=false y evidenceOnly=true limitan usar el resumen como contenido, no invalidan la preparacion. sourceCount no cuenta archivos preparados/leidos. Un archivo faltante, distinto o truncado no acredita todos los contenidos. Commits no prueban tests aprobados. Para explicar/reportar verifica evidencia suficiente para redactar, no exijas una respuesta final ya emitida. No inventes resultados ni cumplimiento.'},
-   {role:'user',content:JSON.stringify({objective:template.objective.enum[0],scopeContext:contract.scopeContext||contract.objective,
+   {role:'user',content:JSON.stringify({scopeContext:contract.scopeContext||contract.objective,
     requiredEvidenceKind:template.requiredEvidenceKind.enum[0],explicitTools:contract.explicitTools||[],
     evidence:selected.filter(task=>allowed.includes(task.index)),
     ...(selected.some(task=>!allowed.includes(task.index))?{supportingEvidence:selected.filter(task=>!allowed.includes(task.index))}:{}),
-    dependencies,failedAttempts:failures.map(m=>m.content)})}
+    dependencies,failedAttempts:failures.map(m=>m.content),objective:template.objective.enum[0]})}
   ]:null;
   if(scopedMessages && selected.some(task=>!allowed.includes(task.index)))
    scopedMessages[0].content+=' supportingEvidence conserva recibos seleccionados de otros tipos para interpretar cambios y antecedentes. No sustituye evidence del tipo requerido ni admite sus indices en r; los metadatos y afirmaciones sin recibo no prueban resultados.';
@@ -214,7 +214,7 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
    scopedMessages[0].content="Evalua SOLO objective literal. scopeContext permite recuperar el verbo o antecedente de un fragmento; no añade los otros objetivos separados. Distingue informar hechos observados de verificar un archivo entero. Un fragmento parcial puede probar los hechos concretos presentes en content, con su fecha y alcance; no prueba lo omitido, ausencia global ni cobertura total. No exijas leer todo un documento para informar un resultado que aparece literalmente en la ventana observada. Si el objetivo exige totalidad, conserva esa exigencia. Los commits describen historial, no prueban tests aprobados; scripts de tests tampoco prueban su ejecucion. Resultados documentados permiten informar lo documentado con sus limites, no certificar produccion ni afirmar una ejecucion nueva. Verifica que hay evidencia suficiente para redactar el informe solicitado; no exijas que el informe ya haya sido emitido. e explica cobertura o brecha; s=true solo con todo el alcance solicitado y r pertinentes de evidence; l vacio. Si falta algo s=false y l concreta. supportingEvidence no sustituye indices del tipo requerido.";
   const requiredToolReceipts=(contract?.explicitTools||[]).map(name=>selected.filter(task=>allowed.includes(task.index)&&task.name===name));
   const response=await ai.models.generateContent({...request,config:{...request.config,
-   semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:512,temperature:0,
+   semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:1024,temperature:0,
    chatMessages:scopedMessages||[
     {role:'system',content:'Verifica SOLO el objetivo indicado contra recibos reales. s=true exige TODO su alcance, indices pertinentes y l vacio. Si falta algo: s=false y l breve. Una operacion exitosa no acredita otros archivos, cantidades, pruebas o contenido omitido. repo.context ok con REPO_CONTEXT_READY y contextPreview.files acredita la PREPARACION de esas fuentes; independentlyCertified=false significa que ese resumen no sustituye la verificacion de contenido por repo.read, no que la preparacion haya fallado. sourceCount cuenta fuentes genericas, no los archivos de contextPreview.files. Evalua solo el alcance del pedido original: una lectura auxiliar parcial no crea por si misma una obligacion de leer completamente ese archivo. Conserva las relaciones entre operaciones pedidas y no conviertas todas las tareas auxiliares en objetivos nuevos. Git history acredita commits, no pruebas ejecutadas por existir un mensaje. No mezcles objetivos ni inventes resultados. Metadatos de tareas no pertinentes solo ubican archivos: no prueban contenido. Indices compartidos remiten al recibo original. No selecciones herramientas en esta evaluacion. Esta auditoria decide si la evidencia necesaria para responder ya fue adquirida. Para objetivos de explicar o reportar, comprueba si los recibos permiten redactar una respuesta fundamentada; no exijas que la explicacion final ya se haya emitido. Eso no autoriza afirmar pruebas aprobadas sin sus resultados.'},
     ...selected.map(task=>({role:'system',content:observationPrefix+JSON.stringify(allowed.includes(task.index)?task:metadata(task))})),
@@ -225,7 +225,7 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
    ],responseJsonSchema:{anyOf:entry.anyOf.filter(branch=>branch.properties.satisfied.enum[0]===false || allowed.length&&requiredToolReceipts.every(group=>group.length)).map(branch=>{
     const satisfied=branch.properties.satisfied.enum[0];
     return {type:'object',properties:{
-     ...(contract?{e:{type:'string',minLength:1,maxLength:600}}:{}),
+     ...(contract?{e:{type:'string',minLength:1,maxLength:1200}}:{}),
      s:{type:'boolean',enum:[satisfied]},
      r:{type:'array',minItems:satisfied?Math.max(1,requiredToolReceipts.length):0,maxItems:allowed.length,uniqueItems:true,
       items:allowed.length?{type:'integer',enum:allowed}:{type:'integer'}},
@@ -235,7 +235,7 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   }});
   const v=parse(response),branch=entry.anyOf.find(b=>b.properties.satisfied.enum.includes(v.s));
   if(!branch || Object.keys(v).some(k=>![...(contract?['e']:[]),'s','r','l'].includes(k)) || !Array.isArray(v.r) || typeof v.l!=='string' ||
-   contract&&(typeof v.e!=='string'||!v.e.trim()||v.e.length>600) ||
+   contract&&(typeof v.e!=='string'||!v.e.trim()||v.e.length>1200) ||
    v.l.length>100 || (v.s ? !v.r.length || v.l!=='' : !v.l.trim()) ||
    v.r.some(i=>!Number.isInteger(i)||!allowed.includes(i)))
    throw Error('SEMANTIC_COMPLETION_EVIDENCE_INVALID');
@@ -304,4 +304,19 @@ function compactRepositoryContinuation(request) {
   return {...message,content:prefix+JSON.stringify(metadata(task))};
  })}};
 }
-module.exports={decodeRepositoryEvidence,packRepositoryContextMetadata,unpackRepositoryContextMetadata,generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};
+// Decoding shared metadata can grow a previously bounded transport. Bound only
+// literal source prefixes; preserve every receipt identity and mark lost bytes.
+function boundDecodedRepositoryEvidence(tasks,maximum) {
+ const result=structuredClone(tasks);
+ while(JSON.stringify(result).length>maximum) {
+  const reads=result.map(t=>t.observation?.verifiedRead).filter(r=>typeof r?.content==='string'&&r.content.length);
+  reads.sort((a,b)=>b.content.length-a.content.length);
+  const read=reads[0];if(!read)throw Error('SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED');
+  const overflow=JSON.stringify(result).length-maximum;
+  read.content=read.content.slice(0,Math.max(0,read.content.length-Math.min(512,Math.max(128,overflow))));
+  read.endLine=read.content?(read.startLine||1)+read.content.split('\n').length-1:null;
+  read.partial=true;read.truncated=true;read.contentTruncated=true;read.evidenceTextTruncated=true;
+ }
+ return result;
+}
+module.exports={boundDecodedRepositoryEvidence,decodeRepositoryEvidence,packRepositoryContextMetadata,unpackRepositoryContextMetadata,generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};

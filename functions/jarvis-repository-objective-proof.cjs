@@ -29,6 +29,17 @@ async function reviewRepositoryObjective({ai,model,objective,contract,tasks,evid
  if(cited.some(t=>t.observation.verifiedRead))tasks.forEach((task,index)=>{
   if(task.observation?.ok===true&&task.observation.contextPreview?.files)selected.add(index);
  });
+ // An explicit context-to-read dependency cannot be certified from fewer files.
+ // This checks receipt identity/coverage before semantic interpretation.
+ if((contract.explicitTools||[]).includes('repo.read') && String(contract.scopeContext||'').includes('repo.context')) {
+  const prepared=[...selected].flatMap(index=>{
+   const task=tasks[index];return task?.name==='repo.context'&&task.observation?.ok===true?
+    files(task.observation.contextPreview?.files)||[]:[];
+  });
+  const readFiles=new Set(cited.filter(t=>t.name==='repo.read'&&typeof t.observation.verifiedRead?.content==='string'&&t.observation.verifiedRead.content.length)
+   .map(t=>t.observation.verifiedRead.file));
+  if(!prepared.length||prepared.some(file=>!readFiles.has(file)))return deny('REQUIRED_CONTEXT_SOURCE_RECEIPT_MISSING');
+ }
  const dependencies=[...selected].filter(index=>!indexes.includes(index)&&Number.isInteger(index)&&tasks[index]).map(index=>{
   const task=tasks[index];return {index,name:task.name,args:task.args,metadataOnly:true,
    contextFiles:task.observation?.contextPreview?.files,sourceFile:task.observation?.verifiedRead?.file};
@@ -67,21 +78,21 @@ async function reviewRepositoryObjective({ai,model,objective,contract,tasks,evid
   }
   cited=projected.slice(0,cited.length);supportingEvidence=projected.slice(cited.length);
  }
- const input={objective:contract.objective,scopeContext:contract.scopeContext||contract.objective,
+ const input={scopeContext:contract.scopeContext||contract.objective,
   resolvedScope:contract.resolvedScope,requiredEvidenceKind:contract.requiredEvidenceKind,explicitTools:contract.explicitTools||[],dependencies,evidence:cited,
-  ...(supportingEvidence.length?{supportingEvidence}:{})};
+  ...(supportingEvidence.length?{supportingEvidence}:{}),objective:contract.objective};
  const response=await ai.models.generateContent({model,contents:JSON.stringify(input),config:{
-  semanticStage:'CLOSURE_OBJECTIVE_VERIFICATION',temperature:0,maxOutputTokens:192,
+  semanticStage:'CLOSURE_OBJECTIVE_VERIFICATION',temperature:0,maxOutputTokens:1024,
   responseMimeType:'application/json',responseJsonSchema:{type:'object',properties:{
-   reason:{type:'string',minLength:1,maxLength:180},proven:{type:'boolean'}},required:['reason','proven'],additionalProperties:false},
-  chatMessages:[{role:'system',content:'Revisor independiente de UN objetivo. Compara el objetivo literal con los recibos, usando scopeContext SOLO para resolver antecedentes y cantidades, no para evaluar otros objetivos de esa frase. resolvedScope es una interpretacion a comprobar, no evidencia: si omite o cambia un requisito, proven=false. Explica en reason la cobertura o brecha concreta de ESTE objetivo y luego decide proven. Necesitas todo el alcance y todos los archivos/cantidades pedidos. Dependencias metadataOnly identifican archivos preparados, no prueban su lectura. repo.context ok con REPO_CONTEXT_READY acredita PREPARACION de contextPreview.files; independentlyCertified=false y evidenceOnly=true limitan usar el resumen como contenido, no invalidan la preparacion. sourceCount es un contador generico, no la cantidad de archivos preparados/leidos. Una lectura parcial no acredita contenido completo; un archivo equivocado no sustituye al solicitado. Para informar hechos concretos, una ventana parcial puede probar lo que contiene literalmente con su fecha y alcance; no exige leer todo el documento ni acredita lo omitido. Si el objetivo requiere totalidad, verifica esa totalidad. Un resultado documentado permite informar lo documentado, no afirmar una nueva ejecucion ni certificar produccion. Commits no prueban tests aprobados. Para explicar/reportar comprueba si hay evidencia suficiente para redactar, no exijas un informe ya emitido. No aceptes afirmaciones de cumplimiento del planner ni inventes resultados.'},
+   reason:{type:'string',minLength:1,maxLength:1200},proven:{type:'boolean'}},required:['reason','proven'],additionalProperties:false},
+  chatMessages:[{role:'system',content:'Revisor independiente de UN objetivo. Compara el objetivo literal con los recibos, usando scopeContext SOLO para resolver antecedentes y cantidades, no para evaluar otros objetivos de esa frase. resolvedScope es una interpretacion a comprobar, no evidencia: si omite o cambia un requisito, proven=false. Explica en reason la cobertura o brecha concreta de ESTE objetivo y luego decide proven. Necesitas todo el alcance y todos los archivos/cantidades pedidos. Dependencias metadataOnly identifican archivos preparados, no prueban su lectura. repo.context ok con REPO_CONTEXT_READY acredita PREPARACION de contextPreview.files; independentlyCertified=false y evidenceOnly=true limitan usar el resumen como contenido, no invalidan la preparacion. sourceCount es un contador generico, no la cantidad de archivos preparados/leidos. Una lectura parcial no acredita contenido completo; un archivo equivocado no sustituye al solicitado. Para informar hechos concretos, una ventana parcial puede probar lo que contiene literalmente con su fecha y alcance; no exige leer todo el documento ni acredita lo omitido. Si el objetivo requiere totalidad, verifica esa totalidad. Un resultado documentado permite informar lo documentado, no afirmar una nueva ejecucion ni certificar produccion. Commits no prueban tests aprobados. Para explicar/reportar comprueba si hay evidencia suficiente para redactar, no exijas un informe ya emitido. La integridad de repo.read se determina por archivo, rango, totalLines y banderas de truncamiento del recibo. Un archivo corto o un compatibility shim puede estar completo; no infieras lineas ausentes por su estilo, complejidad o por importar otro modulo. Leer un archivo no requiere leer sus imports salvo que el objetivo lo pida. sourceSchemaOmitted indica omision del AST, no del texto content. No aceptes afirmaciones de cumplimiento del planner ni inventes resultados.'},
    ...(supportingEvidence.length?[{role:'system',content:'supportingEvidence contiene recibos de apoyo seleccionados, no reemplaza la evidencia citada requerida en evidence. Un historial Git no sustituye contenido leido ni resultados de pruebas; conserva diferencias de tipo, integridad e identidad.'}]:[]),
    {role:'user',content:JSON.stringify(input)}]
  }});
  if(response?.providerResponse?.finishReason==='length')return deny('INDEPENDENT_PROOF_TRUNCATED');
  let value;try{value=JSON.parse(response.text);}catch{return deny('INDEPENDENT_PROOF_INVALID_JSON');}
  if(!value||Object.keys(value).some(key=>!['reason','proven'].includes(key))||typeof value.proven!=='boolean'||
-  typeof value.reason!=='string'||!value.reason.trim()||value.reason.length>180)return deny('INDEPENDENT_PROOF_INVALID');
+  typeof value.reason!=='string'||!value.reason.trim()||value.reason.length>1200)return deny('INDEPENDENT_PROOF_INVALID');
  return value;
 }
 module.exports={reviewRepositoryObjective};
