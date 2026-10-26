@@ -448,8 +448,8 @@ test("mission decomposition retains the full instruction; selection is scoped to
         assert.equal(body.messages[0].role, "system");
         if (body.messages.at(-1).content === instruction) {
             assert.equal(body.messages.at(-1).content, instruction);
-            assert.equal(body.format.properties.work.type, "string", 'one complete result operation has native shape without a tool-name enum');
-            assert.equal(body.format.properties.verification.type,"string","requested executable verification remains independent of creation");
+            assert.equal(body.format.anyOf[1].properties.work.type, "string", 'one complete result operation has native shape without a tool-name enum');
+            assert.equal(body.format.anyOf[1].properties.verification.type,"string","requested executable verification remains independent of creation");
             assert.equal(body.model,'qwen3.5:9b');
             assert.equal(body.think, false);
             assert.ok(body.options.num_predict >= 256);
@@ -474,7 +474,7 @@ test("compact contract accepts one exact name and rejects multiple or invented n
         const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-native-select-')),'cache.json')},fetchImpl:async(_url,options)=>{
             const body=JSON.parse(options.body);
             if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
-            if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'auditar repositorio',work:[],delivery:''})},done_reason:'stop'})};
+            if(body.format?.anyOf?.[0]?.properties?.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'auditar repositorio',work:[],delivery:''})},done_reason:'stop'})};
             assert.ok(body.tools.some(tool=>tool.function.name==='repo.audit'));
             return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({name:names.length===1?names[0]:names})},done_reason:'stop'})};
         }});
@@ -488,7 +488,7 @@ test("verification retains Qwen's contract stage and selects a name without exec
     const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-verification-')),'cache.json')},fetchImpl:async(_url,options)=>{
         const body=JSON.parse(options.body);
         if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
-        if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'',verification:'ejecutar las pruebas solicitadas',delivery:''})},done_reason:'stop'})};
+        if(body.format?.anyOf?.[0]?.properties?.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'',verification:'ejecutar las pruebas solicitadas',delivery:''})},done_reason:'stop'})};
         const current=JSON.parse(body.messages.at(-1).content);
         assert.equal(current.stage,'verification');
         assert.equal(body.tools,undefined);
@@ -508,7 +508,7 @@ test("empty contract selection recovers the same operation with a name-only sche
     const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-contract-recovery-')),'cache.json')},fetchImpl:async(_url,options)=>{
         const body=JSON.parse(options.body);
         if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
-        if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'crear un archivo HTML descargable',verification:'',delivery:''})},done_reason:'stop'})};
+        if(body.format?.anyOf?.[0]?.properties?.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'crear un archivo HTML descargable',verification:'',delivery:''})},done_reason:'stop'})};
         if(body.tools){nativeAttempts++;return{ok:true,text:async()=>JSON.stringify({message:{content:''},done_reason:'stop'})};}
         recovered++;
         assert.deepEqual(Object.keys(body.format.properties),['name']);

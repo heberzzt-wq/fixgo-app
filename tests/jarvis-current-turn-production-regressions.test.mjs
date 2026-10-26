@@ -5554,13 +5554,20 @@ test('query rejection schema can deliver its reason without authorizing a replac
 test('deterministic mission contract selection failures are not retried as transient transport errors',async()=>{
  const source=readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
  const start=source.indexOf('let missionContractToolCalls ='),end=source.indexOf('if (lastMissionContractError)',start);
- const body=source.slice(start,end);let calls=0;
- const run=runInNewContext('(async()=>{'+body+'return {calls:readCalls(),error:lastMissionContractError?.message};})',{
-  boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,operationalInitialToolCalls:[],effectiveMissionInstruction:'Read entries',context:{},missionToolCatalog:[],semanticMemoryContext:null,
-  compactJarvisSemanticMemoryForPlanner:()=>null,isSemanticTimeout:()=>false,console:{warn(){}},setTimeout:fn=>fn(),readCalls:()=>calls,
-  buildJarvisMultifunctionToolCalls:async()=>{calls++;throw Error('SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_CONTRACT_SELECTION_INVALID');}
- });
- const result=await run();assert.equal(result.calls,1);assert.match(result.error,/CONTRACT_SELECTION_INVALID/);
+ const body=source.slice(start,end);
+ for(const [message,expected,retryable] of [
+  ['SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_CONTRACT_SELECTION_INVALID',1],
+  ...['UNGROUNDED','INCOMPLETE','INVALID_JSON','TRUNCATED'].map(code=>['SEMANTIC_AUTHENTICATED_PROVIDER_REPOSITORY_OBJECTIVES_'+code,1]),
+  ['EXPLICIT_NONRETRYABLE_FAILURE',1,false],['TRANSIENT_NETWORK_ERROR',3]
+ ]){
+  let calls=0;
+  const run=runInNewContext('(async()=>{'+body+'return {calls:readCalls(),error:lastMissionContractError?.message};})',{
+   boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,operationalInitialToolCalls:[],effectiveMissionInstruction:'Read entries',context:{},missionToolCatalog:[],semanticMemoryContext:null,
+   compactJarvisSemanticMemoryForPlanner:()=>null,isSemanticTimeout:()=>false,console:{warn(){}},setTimeout:fn=>fn(),readCalls:()=>calls,
+   buildJarvisMultifunctionToolCalls:async()=>{calls++;throw Object.assign(Error(message),{retryable});}
+  });
+  const result=await run();assert.equal(result.calls,expected,message);assert.equal(result.error,message);
+ }
 });
 
 

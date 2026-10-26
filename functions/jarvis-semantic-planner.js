@@ -3336,7 +3336,18 @@ async function runModelSemanticPlanner({
                     {role:"user", content:instruction}
                 ],
                 responseMimeType:"application/json",
-                responseJsonSchema:{type:"object",properties:{sourceReview:{anyOf:[{type:"string"},{type:"array",maxItems:12,items:{type:"string"}}]},sourceKind:{type:"string",enum:["advertising","material","web","repository","none"]},work:{type:"string"},workKind:{type:"string",enum:["image","video","page","document","code","plan","none"]},verification:{type:"string"},delivery:{type:"string"}},required:["sourceReview","sourceKind","work","workKind","verification","delivery"],additionalProperties:false},
+                responseJsonSchema:{anyOf:[true,false].map(noWork=>({
+                    type:"object",
+                    properties:{
+                        sourceReview:{anyOf:[{type:"string"},{type:"array",maxItems:12,items:{type:"string"}}]},
+                        sourceKind:{type:"string",enum:["advertising","material","web","repository","none"]},
+                        workKind:noWork?{const:"none"}:{type:"string",enum:["image","video","page","document","code","plan"]},
+                        work:noWork?{const:""}:{type:"string",minLength:1},
+                        verification:{type:"string"},delivery:{type:"string"}
+                    },
+                    required:["sourceReview","sourceKind","workKind","work","verification","delivery"],
+                    additionalProperties:false
+                }))},
                 maxOutputTokens:512,temperature:0
             }});
             const operationsObject = extractJsonObject(String(operationsResponse?.text || ""));
@@ -3348,7 +3359,8 @@ async function runModelSemanticPlanner({
                 {stage:"verification",operation:operationsObject?.verification},
                 {stage:"delivery",operation:operationsObject?.delivery}
             ].filter(item => typeof item.operation === "string" && item.operation.trim());
-            if (!Array.isArray(operations) || !operations.length || operationsResponse?.providerResponse?.finishReason === "length") {
+            if (!Array.isArray(operations) || !operations.length || operationsResponse?.providerResponse?.finishReason === "length" ||
+                (operationsObject?.workKind === "none" && work.some(value => typeof value === "string" && value.trim()))) {
                 const error = new Error("SEMANTIC_CONTRACT_OPERATIONS_INVALID");
                 error.evidence = {
                     finishReason: operationsResponse?.providerResponse?.finishReason || null,
