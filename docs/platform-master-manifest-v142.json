@@ -17,8 +17,9 @@
         "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/contract-reuse-ci.txt"
       },
       "pending": [
-        "Completar el informe Git/contexto/lecturas/pruebas/pendientes en Terminal autenticada; el ultimo intento complejo quedo PARTIAL.",
-        "Verificar repetibilidad y mantener rechazo cuando falta evidencia."
+        "Completar la mision compuesta Git/contexto/lecturas/pruebas/pendientes; las consultas acotadas Git y manifiesto ya completaron consecutivamente.",
+        "Ampliar repetibilidad y cobertura a pedidos libres; dos consultas verificadas no certifican autonomia general.",
+        "Laptop auxiliar verificada para pruebas aisladas; transferencia y reparto automatico de cargas siguen pendientes."
       ],
       "auxiliaryLaptop": {
         "passed": 29,
@@ -45,7 +46,7 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "54c9c6137a0c8eb2b0d6bd02282e13d705f74e63",
+      "testedCodeBaseCommit": "0d3837cd61d7d8bb50744c5cbeecdacfde829df1",
       "testedCodeFileSha256": {
         "functions/jarvis-semantic-planner.js": "71b6e4d5d6ace579967804be837bee9bad8b119239c2d1c631444f757bfd16c8",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
@@ -61,16 +62,37 @@
           "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados.",
           "durationMs": 32430,
           "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json"
+        },
+        {
+          "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+          "commit": "0d3837cd61d7d8bb50744c5cbeecdacfde829df1",
+          "executionStatus": "COMPLETED",
+          "responseComposed": true,
+          "userVisibleStatus": "COMPLETED",
+          "durationMs": 17929,
+          "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+          "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta.",
+          "status": "COMPLETED"
+        },
+        {
+          "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+          "commit": "0d3837cd61d7d8bb50744c5cbeecdacfde829df1",
+          "status": "COMPLETED",
+          "responseComposed": true,
+          "durationMs": 51443,
+          "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible.",
+          "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json"
         }
       ],
       "latestGitSummaryWeb": {
-        "missionId": "MISSION-b7ced91b-7f24-4acf-be48-5ae1b23fbaad",
-        "commit": "54c9c6137a0c8eb2b0d6bd02282e13d705f74e63",
-        "executionStatus": "PARTIAL",
-        "responseComposed": false,
-        "error": "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION",
-        "userVisibleStatus": "PARTIAL",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-composition-web-retest-trace.json"
+        "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+        "commit": "0d3837cd61d7d8bb50744c5cbeecdacfde829df1",
+        "executionStatus": "COMPLETED",
+        "responseComposed": true,
+        "userVisibleStatus": "COMPLETED",
+        "durationMs": 17929,
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+        "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -78,9 +100,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Consulta del manifiesto real ya COMPLETED con respuesta visible; consulta Git en 54c9c613 quedo PARTIAL al fallar MISSION_CONTRACT y reclasificar Git como platform_records. Reparacion: reutilizar llamadas repo de lectura ya validadas solo cuando Qwen confirma cobertura y objetivos literales completos, clasificados contra catalogo completo, nombran explicitamente operaciones presentes. Objetivos implicitos o mixtos conservan contrato completo; respuesta truncada no autoriza reutilizacion. Regresion conserva cuatro operaciones ante falsa cobertura. CI 1905 PASS, 0 FAIL, 2 SKIP. Retest web pendiente. Laptop vieja 29/29 en snapshot a62e5455. Mision compuesta original pendiente; sin certificacion general o productiva, sin push/deploy.",
+    "lastSessionSummary": "2026-10-26: Utilidad acotada comprobada en Terminal autenticada local, HEAD 0d3837cd61d7d8bb50744c5cbeecdacfde829df1: consulta Git MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416 COMPLETED17929ms, ocho commits adquiridos y resumen agregado visible con estado limpio. Consulta siguiente del manifiesto MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98 COMPLETED51443ms, respuesta1905PASS/0FAIL/2SKIP y pendientes reales. Ambas con respuesta SEMANTIC_RESPONSE_READY. CI completa1905PASS/0FAIL/2SKIP. Laptopvieja29/29 snapshotaislado a62e5455; no repartidor automatico. Mision compuesta original siguependiente. Capturas en bu/outputs y trazas en bu/work. Se registra cierre y se reinicia bridge contra HEAD documental limpio; supervisor pausado, sinpush/deploy y sin certificacion productiva.",
     "infrastructure": {
-      "bridge": "Bridge de mantenimiento detenido inactivo para corregir contrato; reinicio tras commit limpio. Supervisor3345 pausado.",
+      "bridge": "Bridge mantenimiento idle0 detenido para registrar evidencia. Reinicio contra commit documental limpio tras verificar manifiesto; supervisor3345 permanece pausado.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",

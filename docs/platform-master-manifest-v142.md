@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: Consulta del manifiesto real ya COMPLETED con respuesta visible; consulta Git en 54c9c613 quedo PARTIAL al fallar MISSION_CONTRACT y reclasificar Git como platform_records. Reparacion: reutilizar llamadas repo de lectura ya validadas solo cuando Qwen confirma cobertura y objetivos literales completos, clasificados contra catalogo completo, nombran explicitamente operaciones presentes. Objetivos implicitos o mixtos conservan contrato completo; respuesta truncada no autoriza reutilizacion. Regresion conserva cuatro operaciones ante falsa cobertura. CI 1905 PASS, 0 FAIL, 2 SKIP. Retest web pendiente. Laptop vieja 29/29 en snapshot a62e5455. Mision compuesta original pendiente; sin certificacion general o productiva, sin push/deploy.
+**Resumen:** 2026-10-26: Utilidad acotada comprobada en Terminal autenticada local, HEAD 0d3837cd61d7d8bb50744c5cbeecdacfde829df1: consulta Git MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416 COMPLETED17929ms, ocho commits adquiridos y resumen agregado visible con estado limpio. Consulta siguiente del manifiesto MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98 COMPLETED51443ms, respuesta1905PASS/0FAIL/2SKIP y pendientes reales. Ambas con respuesta SEMANTIC_RESPONSE_READY. CI completa1905PASS/0FAIL/2SKIP. Laptopvieja29/29 snapshotaislado a62e5455; no repartidor automatico. Mision compuesta original siguependiente. Capturas en bu/outputs y trazas en bu/work. Se registra cierre y se reinicia bridge contra HEAD documental limpio; supervisor pausado, sinpush/deploy y sin certificacion productiva.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge de mantenimiento detenido inactivo para corregir contrato; reinicio tras commit limpio. Supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge mantenimiento idle0 detenido para registrar evidencia. Reinicio contra commit documental limpio tras verificar manifiesto; supervisor3345 permanece pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
