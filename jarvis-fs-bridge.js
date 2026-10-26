@@ -10265,7 +10265,7 @@ export function createJarvisFsBridgeApp({
             return res.status(422).json({
                 ok:false,status:'REPO_CONTEXT_UNAVAILABLE',
                 error:/^REPO_CONTEXT_[A-Z_]+$/.test(code)?code:'REPO_CONTEXT_PACK_FAILED',
-                ...(code==='REPO_CONTEXT_SOURCE_TOO_LARGE' && error.details
+                ...(['REPO_CONTEXT_SOURCE_TOO_LARGE','REPO_CONTEXT_SOURCE_NOT_FOUND'].includes(code) && error.details
                     ? {errorDetails:error.details} : {})
             });
         }

@@ -1665,7 +1665,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             tool.name === "repo.context" && tool.mutates !== true && tool.requiresApproval !== true &&
             context?.missionState?.blockedTasks?.some(task => task.name === tool.name &&
                 typeof task.obligationId === "string" && task.obligationId === candidate.obligationId &&
-                task.observation?.errorCode === "REPO_CONTEXT_SOURCE_TOO_LARGE" &&
+                ["REPO_CONTEXT_SOURCE_TOO_LARGE","REPO_CONTEXT_SOURCE_NOT_FOUND"].includes(task.observation?.errorCode) &&
                 task.observation.errorDetails?.requiresDifferentSources === true)
             ? String(candidate.obligationId).slice(0, 300) : "";
         const signature =

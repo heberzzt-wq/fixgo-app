@@ -3823,7 +3823,7 @@ async function runModelSemanticPlanner({
         // The model still selects new sources; runtime scope and size checks stay
         // authoritative. This branch cannot declare completion or widen access.
         const contextFailure=[...(missionState.blockedTasks||[])].reverse().find(task=>
-            task.name==="repo.context" && task.observation?.errorCode==="REPO_CONTEXT_SOURCE_TOO_LARGE" &&
+            task.name==="repo.context" && ["REPO_CONTEXT_SOURCE_TOO_LARGE","REPO_CONTEXT_SOURCE_NOT_FOUND"].includes(task.observation?.errorCode) &&
             task.observation.errorDetails?.requiresDifferentSources===true);
         const contextTool=selectableCatalog.find(tool=>tool.name==="repo.context");
         const contextRecovered=completedTasksForAudit.some(task=>task.name==="repo.context" &&
@@ -3853,7 +3853,7 @@ async function runModelSemanticPlanner({
                         explanation:{type:"string",maxLength:160}
                     },required:["toolCalls","explanation"],additionalProperties:false},
                     chatMessages:[
-                        {role:"system",content:"Recupera SOLO la lectura repo.context rechazada por tamano. Elige otras fuentes de codigo pertinentes entre las rutas permitidas con tamano fisicamente observado; conserva la cantidad de archivos y el presupuesto del intento fallido. Prefiere fuentes pequenas de alcance acotado. Usa exclusivamente el schema ofrecido; el runtime comprobara permisos, existencia y limites. No repitas rutas rechazadas, no escribas y no declares objetivos satisfechos. Esta seleccion repara una lectura; no es una auditoria de cierre. Si el pedido exige archivos exactos y no admite sustitucion, devuelve toolCalls=[] y explica el limite."},
+                        {role:"system",content:"Recupera SOLO la lectura repo.context rechazada por tamano o fuente inexistente. Elige otras fuentes de codigo pertinentes entre las rutas permitidas con tamano fisicamente observado; conserva la cantidad de archivos y el presupuesto del intento fallido. Prefiere fuentes pequenas de alcance acotado. Usa exclusivamente el schema ofrecido; el runtime comprobara permisos, existencia y limites. No repitas rutas rechazadas, no escribas y no declares objetivos satisfechos. Esta seleccion repara una lectura; no es una auditoria de cierre. Si el pedido exige archivos exactos y no admite sustitucion, devuelve toolCalls=[] y explica el limite."},
                         {role:"system",content:"FALLO_REAL="+JSON.stringify({args:contextFailure.args,errorDetails:contextFailure.observation.errorDetails})},
                         {role:"system",content:"FUENTES_PERMITIDAS_OBSERVADAS_CON_TAMANO="+JSON.stringify(candidates)},
                         {role:"user",content:instruction}

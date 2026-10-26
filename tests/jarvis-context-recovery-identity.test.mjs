@@ -20,11 +20,11 @@ test('both production audit handoffs preserve the failed obligation identity',()
   assert.equal(rows[0].obligationId,id);
  }
 });
-test('validated recovery retains original obligation through backend, browser normalization and archival',async()=>{
- const p=fixture(),before=JSON.stringify(p);
- const plan=await runJarvisSemanticPlanner({...p,ai:{models:{generateContent:async()=>({text:JSON.stringify({
+for(const errorCode of ['REPO_CONTEXT_SOURCE_TOO_LARGE','REPO_CONTEXT_SOURCE_NOT_FOUND'])test('validated recovery retains obligation through all boundaries: '+errorCode,async()=>{
+ const p=fixture();p.missionState.blockedTasks[0].observation.errorCode=errorCode;const before=JSON.stringify(p);
+ const plan=await runJarvisSemanticPlanner({...p,ai:{models:{generateContent:async req=>{assert.equal(req.config.semanticStage,'REPOSITORY_CONTEXT_RECOVERY');return {text:JSON.stringify({
   toolCalls:[{name:'repo.context',args:{files,tokenBudget:1800},obligationId:'MODEL_FORGED_ID'}],explanation:'Fuentes permitidas mas pequenas.'
- })})}}});
+ })};}}}});
  assert.equal(plan.missionComplete,false);
  assert.equal(plan.toolCalls[0].obligationId,id,'bind runtime identity, never model-supplied identity');
  const calls=frontend.trustedPlanCalls(plan,p.catalog,{originalInstruction:p.input,missionState:p.missionState});

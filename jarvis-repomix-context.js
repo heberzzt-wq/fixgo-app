@@ -71,7 +71,12 @@ export async function packAuthorizedRepositoryContext({
         try {real=await fs.realpath(target);}
         catch(error){
             if(['ENOENT','ENOTDIR'].includes(error?.code))
-                throw new Error('REPO_CONTEXT_SOURCE_NOT_FOUND');
+                throw Object.assign(Error('REPO_CONTEXT_SOURCE_NOT_FOUND'),{details:{
+                    file,sourceLimitBytes:85000,totalLimitBytes:240000,
+                    requiresDifferentSources:true,
+                    recoveryAction:'SELECT_EXISTING_OBSERVED_AUTHORIZED_SOURCES',
+                    sourceDiscovery:await contextRecoveryCandidates(resolvedRoot)
+                }});
             throw error;
         }
         if(!real.startsWith(resolvedRoot+path.sep)||real!==target)

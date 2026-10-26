@@ -153,3 +153,38 @@ test('Git read tools declare repository evidence so real commits remain eligible
   assert.equal(definition.mutates,false);assert.equal(definition.requiresApproval,false);
  }
 });
+
+test('missing authorized source offers real bounded alternatives without exposing denied paths',async()=>{
+ const root=fixture();
+ try{
+  fs.writeFileSync(path.join(root,'jarvis-secret.js'),'private');
+  fs.writeFileSync(path.join(root,'outside.js'),'not authorized');
+  await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-absent.js']}),error=>{
+   assert.equal(error.message,'REPO_CONTEXT_SOURCE_NOT_FOUND');
+   assert.equal(error.details.file,'jarvis-absent.js');
+   assert.equal(error.details.requiresDifferentSources,true);
+   assert.equal(error.details.sourceLimitBytes,85000);
+   assert.deepEqual(error.details.sourceDiscovery.candidates,[{file:'jarvis-safe.js',sourceBytes:fs.statSync(path.join(root,'jarvis-safe.js')).size}]);
+   const compact=compactMissionPlannerObservation(safeObservation({ok:false,tool:'repo.context',errorCode:error.message,errorDetails:error.details}));
+   assert.deepEqual(compact.errorDetails.sourceDiscovery,error.details.sourceDiscovery);
+   return true;
+  });
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Bridge forwards missing-source recovery metadata but never attaches it to a permission denial',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const source=fs.readFileSync(new URL('../jarvis-fs-bridge.js',import.meta.url),'utf8');
+ const start=source.indexOf('    app.post("/repo/context",');
+ const end=source.indexOf('    app.post("/git",',start);
+ const root=fixture();let handler;
+ try{
+  runInNewContext(source.slice(start,end),{root,packAuthorizedRepositoryContext,app:{post:(_route,fn)=>{handler=fn;}}});
+  for(const files of [['jarvis-absent.js'],['.env']]){
+   let code,body;const res={status(value){code=value;return this;},json(value){body=value;return this;}};
+   await handler({body:{files}},res);assert.equal(code,422);assert.equal(body.ok,false);
+   if(files[0]==='.env'){assert.equal(body.error,'REPO_CONTEXT_FILE_SCOPE_DENIED');assert.equal(body.errorDetails,undefined);}
+   else{assert.equal(body.error,'REPO_CONTEXT_SOURCE_NOT_FOUND');assert.equal(body.errorDetails.sourceDiscovery.candidates[0].file,'jarvis-safe.js');}
+  }
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
