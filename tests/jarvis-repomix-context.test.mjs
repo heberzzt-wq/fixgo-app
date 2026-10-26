@@ -188,3 +188,15 @@ test('Bridge forwards missing-source recovery metadata but never attaches it to 
   }
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('Git status arguments remain inside the registered official repository root',async()=>{
+ const {runInNewContext}=await import('node:vm'),{createRequire}=await import('node:module');
+ const {hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const source=fs.readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const marker=source.indexOf('"repo.gitStatus"',source.indexOf('// Local Repomix'));
+ const start=source.lastIndexOf('JarvisToolRuntime.register({',marker),end=source.indexOf('\n});',marker)+4;
+ let tool;runInNewContext(source.slice(start,end),{JarvisToolRuntime:{register:t=>{tool=t;}}});
+ for(const cwd of ['/','..','C:/','another-repository'])assert.equal(hasRequiredToolArguments(tool,{cwd}),false,cwd);
+ assert.equal(hasRequiredToolArguments(tool,{cwd:'.'}),true);
+ assert.equal(hasRequiredToolArguments(tool,{}),true);
+});

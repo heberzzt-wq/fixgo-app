@@ -4926,7 +4926,7 @@ JarvisToolRuntime.register({
     name:
         "repo.gitStatus",
     evidenceKinds: ["repository_search"],
-    inputSchema: {type: "object", properties: {cwd: {type: "string"}, timeoutMs: {type: "number"}}, additionalProperties: false},
+    inputSchema: {type: "object", properties: {cwd: {type: "string", const: ".", description: "Raiz del repositorio oficial registrado en el Bridge."}, timeoutMs: {type: "number"}}, additionalProperties: false},
     description:
         "Ejecuta git status --short --branch mediante Local FS Bridge.",
     mutates:

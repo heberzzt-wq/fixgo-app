@@ -3262,7 +3262,14 @@ async function runModelSemanticPlanner({
                 return tool && !tool.mutates && !tool.userArtifact && !tool.requiresApproval &&
                     call.deferred !== true && hasRequiredToolArguments(tool, call.args || {});
             });
-        if (reusableCalls) {
+        // A coverage boolean is not an immutable repository objective contract.
+        // Provisional repository calls must pass through the complete contract
+        // and later grounded arguments, even when the model says coversAll.
+        const repositoryContractRequired = [4096,8192].includes(Number(missionState?.modelContextTokens)) &&
+            String(ai.lastProvider || "").includes("ollama-openai-compatible-local") &&
+            existingCalls.some(call => normalizedCatalog.some(tool =>
+                tool.name === call?.name && tool.name.startsWith("repo.") && tool.mutates === false));
+        if (reusableCalls && !repositoryContractRequired) {
             // The same Qwen assesses the whole instruction, not just the first
             // action. Reuse arguments only when it confirms complete coverage.
             const coverage = await ai.models.generateContent({

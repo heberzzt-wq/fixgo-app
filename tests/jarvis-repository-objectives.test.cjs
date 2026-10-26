@@ -83,3 +83,25 @@ test('contradictory no-work operation fails before selecting duplicate evidence 
  }),/SEMANTIC_CONTRACT_OPERATIONS_INVALID/);
  assert.equal(selections,0);
 });
+
+test('repository current-turn calls cannot bypass literal objectives through a false coverage approval',async()=>{
+ const {runJarvisSemanticPlanner}=require('../functions/jarvis-semantic-planner.js');
+ const input='Revisa Git. Prepara contexto. Lee los archivos. Explica pruebas y pendientes.';
+ const names=['repo.gitHistory','repo.gitStatus','repo.context','repo.read'],stages=[];
+ const tools=names.map(name=>({name,mutates:false,evidenceKinds:[name==='repo.read'?'repository_source':'repository_search'],inputSchema:{type:'object',properties:{},additionalProperties:false}}));
+ const plan=await runJarvisSemanticPlanner({input,catalog:tools,
+  missionState:{phase:'MISSION_CONTRACT',modelContextTokens:8192,existingInitialToolCalls:[{name:'repo.gitHistory',args:{}},{name:'repo.gitStatus',args:{}}]},
+  retrieveToolCandidates:async()=>{throw Error('CANONICAL_IDS_NEED_NO_RETRIEVAL');},
+  ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async req=>{
+   stages.push(req.config.semanticStage);
+   if(!req.config.semanticStage)return {text:'{"coversAll":true}'};
+   if(req.config.semanticStage==='REPOSITORY_OBJECTIVE_CONTRACT')return {text:JSON.stringify({scopes:{scope_0:'repository_search',scope_1:'repository_search',scope_2:'repository_source',scope_3:'repository_source'}})};
+   return {text:JSON.stringify({sourceReview:names,sourceKind:'repository',workKind:'none',work:'',verification:'',delivery:''})};
+  }}}
+ });
+ assert.deepEqual(stages,['MISSION_CONTRACT_OPERATIONS','REPOSITORY_OBJECTIVE_CONTRACT']);
+ assert.equal(plan.planKind,'MISSION_CONTRACT_COMPACT_LOCAL');
+ assert.equal(plan.completionAssessment.objectives.length,4);
+ assert.deepEqual(plan.toolCalls.map(t=>t.name),names);
+ assert.ok(plan.toolCalls.every(t=>t.deferred===true));assert.equal(plan.missionComplete,false);
+});
