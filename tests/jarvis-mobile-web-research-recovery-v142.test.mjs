@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { buildMissionConversationEvidence } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 
 import {
     buildCrossSourceResearchRecoveryQuery,
@@ -77,16 +78,28 @@ test("v142 critical ADJUNTO boot graph is release-aligned and cannot bypass the 
         "../gestia-core/jarvis/jarvis.multitool.pack.js",
         "../gestia-core/jarvis/jarvis.actuator.pack.js"
     ];
+    // These two entry points intentionally invalidate their own browser cache.
+    // Bind exceptions to the exact source and resource, never permit a tag on
+    // any import merely because another import happens to use that version.
+    const versionedEntries = new Map([
+        ["../gestia-terminal.html|/gestia-core/gestia-core.js", "v142-local-mission-cancel-20261021-v1"],
+        ["../gestia-core/jarvis/jarvis.actuator.pack.js|./jarvis.image.adapter.js", "v142-local-ad-composition-20261002"]
+    ]);
+    const seenEntries = new Set();
 
     for (const relative of criticalFiles) {
         const source = fs.readFileSync(new URL(relative, import.meta.url), "utf8");
         const versions = [...source.matchAll(/\?v=([^"'\s)]+)/g)].map(match => match[1]);
         assert.ok(versions.length > 0, relative);
-        const expectedVersions = relative.endsWith("jarvis.actuator.pack.js")
-            ? [releaseTag, "v142-local-ad-composition-20261002"]
-            : [releaseTag];
-        assert.deepEqual([...new Set(versions)], expectedVersions, relative);
+        const resources = [...source.matchAll(/["']([^"'\s]*?)\?v=([^"'\s)]+)["']/g)];
+        assert.equal(resources.length, versions.length, 'every version must belong to an explicit resource: ' + relative);
+        for (const [, resource, version] of resources) {
+            const key = relative + "|" + resource;
+            assert.equal(version, versionedEntries.get(key) || releaseTag, key);
+            if (versionedEntries.has(key)) seenEntries.add(key);
+        }
     }
+    assert.deepEqual([...seenEntries].sort(), [...versionedEntries.keys()].sort());
 
     const core = fs.readFileSync(
         new URL("../gestia-core/gestia-core.js", import.meta.url),
@@ -161,7 +174,7 @@ test("v142 pure semantic conversation bypasses mission orchestration", () => {
     );
 });
 
-test("v142 current-turn semantic planner gates conversation before the full catalog", () => {
+test("v142 current-turn semantic planner gates conversation while retaining required repository evidence", () => {
     const core = fs.readFileSync(
         new URL("../gestia-core/gestia-core.js", import.meta.url),
         "utf8"
@@ -174,7 +187,8 @@ test("v142 current-turn semantic planner gates conversation before the full cata
     assert.doesNotMatch(block, /\.slice\(0, 80\)/);
     assert.doesNotMatch(block, /inputSchema:/);
     assert.match(block, /allowCurrentTurnDelegationOnEmpty:\s*true/);
-    assert.match(block, /conversationalGate:\s*true/);
+    assert.match(block, /const repositoryEvidenceRequired = jarvisRepositoryEvidenceRequest\(inputRaw\)/);
+    assert.match(block, /conversationalGate:\s*!repositoryEvidenceRequired/);
     const gateStart = block.indexOf("toolCatalog: currentTurnToolCatalog");
     const gateEnd = block.indexOf("if (lastCurrentTurnPlannerError)");
     assert.ok(gateStart >= 0);
@@ -327,14 +341,13 @@ test("v142 final conversation includes raw repo runtime evidence with candidates
         new URL("../gestia-core/gestia-core.js", import.meta.url),
         "utf8"
     );
-    assert.match(
-        core,
-        /const runtimeRepositoryEvidenceItems =[\s\S]*?missionExecution\?\.name[\s\S]*?startsWith\("repo\."\)/
-    );
-    assert.match(
-        core,
-        /const missionEvidenceItems = \[[\s\S]*?\.\.\.runtimeRepositoryEvidenceItems/
-    );
+    assert.match(core, /const missionEvidenceItems = buildMissionConversationEvidence\(missionResult, toolObservations\)/);
+    const observation = { ok: true, candidates: [{ file: "source.js", score: 0.9 }],
+        missionExecution: { name: "repo.rankCandidates", args: { query: "source" } } };
+    const evidence = buildMissionConversationEvidence({ completedTasks: [], blockedTasks: [] }, [observation]);
+    assert.equal(evidence[0].name, "repo.rankCandidates");
+    assert.deepEqual(evidence[0].observation.candidates, observation.candidates);
+    assert.deepEqual(evidence[0].args, observation.missionExecution.args);
 });
 
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {

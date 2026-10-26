@@ -245,3 +245,37 @@ test('semantic selection cannot hide receipts of tools explicitly required by th
  }}}});
  assert.equal(audited,true);assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);
 });
+
+test('named source tool does not expand selected file scope to unrelated auxiliary reads',async()=>{
+ const req=request();req.config.repositoryObjectiveScopes=[{objective:'Revisar commits reales',resolvedScope:'Revisar commits reales',explicitTools:['repo.read']}];
+ for(const branch of req.config.responseJsonSchema.properties.completionAssessment.properties.objectives.properties.objective_0.anyOf)
+  branch.properties.requiredEvidenceKind.enum=['repository_source'];
+ req.config.chatMessages.unshift(...[
+  {index:0,name:'repo.read',observation:{ok:true,verifiedRead:{file:'selected.js',content:'export const a=1;',partial:false}}},
+  {index:1,name:'repo.read',observation:{ok:true,verifiedRead:{file:'auxiliary.json',content:'{"partial":',partial:true}}}
+ ].map(t=>({role:'system',content:'OBSERVACION_EJECUTADA='+JSON.stringify(t)})));
+ await generateRepositoryAudit({enabled:true,request:req,ai:{models:{generateContent:async r=>{
+  if(r.config.semanticStage==='REPOSITORY_EVIDENCE_SELECTION')return {text:'{"objective_0":[0]}'};
+  if(r.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT'){
+   const input=JSON.parse(r.config.chatMessages.find(m=>m.role==='user').content);
+   assert.deepEqual(input.evidence.map(t=>t.observation.verifiedRead.file),['selected.js']);
+   return {text:'{"e":"Selected source available","s":true,"r":[0],"l":""}'};
+  }
+  return {text:'{"toolCalls":[],"explanation":"Selected source reviewed"}'};
+ }}}});
+});
+
+test('repository continuation restores compact read arguments and completeness before proposing a new action',()=>{
+ const {compactRepositoryContinuation}=require('../functions/jarvis-repository-audit-codec.cjs');
+ const tasks=[
+  {name:'repo.gitStatus',sourceReadDefaults:{verifiedRead:{partial:true,truncated:true}},toolEvidenceKinds:{'repo.read':['repository_source']},observation:{ok:true}},
+  {name:'repo.read',args:{},readArgs:['file','startLine'],observation:{ok:true,verifiedRead:{file:'report.json',startLine:250,endLine:300}}}
+ ];
+ const req={config:{chatMessages:tasks.map(t=>({role:'system',content:'EVIDENCIA_OBTENIDA='+JSON.stringify(t)}))}};
+ const before=JSON.stringify(req),output=compactRepositoryContinuation(req);
+ const read=JSON.parse(output.config.chatMessages[1].content.slice('EVIDENCIA_OBTENIDA='.length));
+ assert.deepEqual(read.args,{file:'report.json',startLine:250});
+ assert.equal(read.observation.verifiedRead.partial,true);
+ assert.equal(read.index,1);assert.deepEqual(read.allowedEvidenceKinds,['repository_source']);
+ assert.equal(JSON.stringify(req),before);
+});

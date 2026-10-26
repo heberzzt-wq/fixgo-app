@@ -447,9 +447,18 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                             // Runtime continuation/definition anchors can reveal
                             // new bytes; arbitrary unobserved offsets cannot.
                             // Preserve an anchored overlap that reaches a gap.
-                            eligible.push({...schema,required:[...new Set([...(schema.required||[]),...(gap.start===1?[]:['startLine'])])],properties:{...properties,
-                                file:{...properties.file,enum:[file]},startLine:{...properties.startLine,enum:starts},
-                                ...(properties.endLine?{endLine:{...properties.endLine,minimum:Math.max(gap.start,properties.endLine.minimum||1)}}:{})}});
+                            // An evicted prefix must not reopen the identical
+                            // default whole-file call. Recover it with explicit
+                            // bounds using the same 100-line anchor window.
+                            for(const windowStarts of (gap.start===1 ? starts.map(start=>[start]) : [starts])){
+                                const minimumEnd=Math.max(gap.start,properties.endLine?.minimum||1,...(gap.start===1?windowStarts:[]));
+                                const prefixEnd=gap.start===1 ? Math.min(gap.end,windowStarts[0]+99,properties.endLine?.maximum||progress.totalLines) : null;
+                                if(gap.start===1 && (!properties.endLine || prefixEnd<minimumEnd))continue;
+                                eligible.push({...schema,required:[...new Set([...(schema.required||[]),'startLine',...(gap.start===1?['endLine']:[])])],properties:{...properties,
+                                    file:{...properties.file,enum:[file]},startLine:{...properties.startLine,enum:windowStarts},
+                                    ...(properties.endLine?{endLine:{...properties.endLine,minimum:minimumEnd,
+                                        ...(prefixEnd===null?{}:{maximum:prefixEnd})}}:{})}});
+                            }
                         }
                     }
                     continue;

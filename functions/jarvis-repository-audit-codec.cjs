@@ -47,6 +47,19 @@ function metadata(task) {
    ...(o.sharedGitEvidenceTaskIndex!==undefined?{sharedGitEvidenceTaskIndex:o.sharedGitEvidenceTaskIndex}:{})},
   metadataOnly:true};
 }
+function decodeRepositoryTasks(encoded) {
+ const defaults=encoded[0]?.sourceReadDefaults,kinds=encoded[0]?.toolEvidenceKinds;
+ return encoded.map((task,index)=>{
+  const read=task.observation?.verifiedRead;
+  const decodedRead=read?{...defaults?.verifiedRead,...read,
+   ...(read.sourceStructure?.dataBindings?{sourceStructure:{...read.sourceStructure,
+    dataBindings:{...defaults?.dataBindings,...read.sourceStructure.dataBindings}}}:{})}:null;
+  return {index,...task,
+   ...(task.allowedEvidenceKinds?{}:kinds?.[task.name]?{allowedEvidenceKinds:kinds[task.name]}:{}),
+   ...(decodedRead?{args:{...Object.fromEntries((task.readArgs||[]).filter(k=>Object.hasOwn(decodedRead,k)).map(k=>[k,decodedRead[k]])),...task.args},
+    observation:{...task.observation,verifiedRead:decodedRead}}:{})};
+ });
+}
 async function generateRepositoryAudit({ai,request,enabled=false}) {
  const original=request.config.responseJsonSchema,goals=original?.properties?.completionAssessment?.properties?.objectives;
  if(!enabled || !goals?.properties)return ai.models.generateContent(request);
@@ -58,17 +71,7 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
  // The bounded transport omits indexes equal to their position. Decode before
  // selecting objective evidence; otherwise every receipt becomes metadata-only.
  const encoded=unpackGitCommitEvidence(messages.filter(m=>m.content.startsWith(observationPrefix)).map(m=>JSON.parse(m.content.slice(observationPrefix.length))));
- const defaults=encoded[0]?.sourceReadDefaults,kinds=encoded[0]?.toolEvidenceKinds;
- const tasks=encoded.map((task,index)=>{
-  const read=task.observation?.verifiedRead;
-  const decodedRead=read?{...defaults?.verifiedRead,...read,
-   ...(read.sourceStructure?.dataBindings?{sourceStructure:{...read.sourceStructure,
-    dataBindings:{...defaults?.dataBindings,...read.sourceStructure.dataBindings}}}:{})}:null;
-  return {index,...task,
-   ...(task.allowedEvidenceKinds?{}:kinds?.[task.name]?{allowedEvidenceKinds:kinds[task.name]}:{}),
-   ...(decodedRead?{args:{...Object.fromEntries((task.readArgs||[]).filter(k=>Object.hasOwn(decodedRead,k)).map(k=>[k,decodedRead[k]])),...task.args},
-    observation:{...task.observation,verifiedRead:decodedRead}}:{})};
- });
+ const tasks=decodeRepositoryTasks(encoded);
  const user=messages.findLast(m=>m.role==='user');
  const failures=messages.filter(m=>m.content.startsWith('INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=')).map(m=>{
   const prefix='INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=';
@@ -98,8 +101,9 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   // Selection is context routing, not authority to hide a named tool's
   // receipt. Include failed receipts too; audit/proof still decide validity.
   keys.forEach((key,i)=>{
-   const explicit=contracts[i].explicitTools||[];
-   selection[key]=[...new Set([...selection[key],...tasks.filter(t=>explicit.includes(t.name)).map(t=>t.index)])];
+   const missing=(contracts[i].explicitTools||[]).filter(name=>
+    !tasks.some(t=>selection[key].includes(t.index)&&t.name===name));
+   selection[key]=[...new Set([...selection[key],...tasks.filter(t=>missing.includes(t.name)).map(t=>t.index)])];
   });
  }
  for(const [key,entry] of entries){
@@ -126,6 +130,11 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   if(scopedMessages && selected.some(task=>allowed.includes(task.index) &&
    (task.observation?.verifiedRead || task.name==='repo.gitHistory' || task.name==='repo.gitStatus')))
    scopedMessages[0].content+=' sourceStructure describe cobertura de analisis estatico AST, distinta de la integridad de lectura. Conserva ese dato para evaluar afirmaciones estructurales. Para verificar contenido leido examina content, partial, truncated, contentTruncated y rangos reales; si falta un archivo del conjunto preparado, rechaza. gitStatus con cero cambios es evidencia de estado limpio, no ausencia de recibo. No deduzcas aprobacion de pruebas de ese estado.';
+  // Use the named tools' evidence contract without importing requirements from
+  // source-reading objectives into a Git-history objective.
+  if(scopedMessages && contract.explicitTools?.length &&
+   contract.explicitTools.every(name=>['repo.gitHistory','repo.gitStatus','repo.gitDiff'].includes(name)))
+   scopedMessages[0].content='Evalua UN objetivo contra evidence. scopeContext solo resuelve pronombres; no agrega tareas. repo.gitHistory prueba los commits devueltos; repo.gitStatus prueba el estado del arbol, incluso limpio; repo.gitDiff prueba el diff observado. Para revisar historial no necesitas leer cada archivo modificado. Un commit no demuestra tests aprobados. Decide si ESTOS recibos cumplen ESTE objetivo. Devuelve e (razon breve), s (booleano), r (indices que lo demuestran), l (brecha concreta; vacio si s=true). No evalúes otros objetivos. r debe citar recibos de CADA herramienta en explicitTools; el estado limpio tambien requiere su recibo.';
   const response=await ai.models.generateContent({...request,config:{...request.config,
    semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:192,temperature:0,
    chatMessages:scopedMessages||[
@@ -176,9 +185,12 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
 // already fed the objective auditors and remain unchanged in missionState.
 function compactRepositoryContinuation(request) {
  const prefix='EVIDENCIA_OBTENIDA=';
+ const decoded=decodeRepositoryTasks(unpackGitCommitEvidence(request.config.chatMessages
+  .filter(m=>m.content.startsWith(prefix)).map(m=>JSON.parse(m.content.slice(prefix.length)))));
+ let index=0;
  return {...request,config:{...request.config,chatMessages:request.config.chatMessages.map(message=>{
   if(!message.content.startsWith(prefix))return message;
-  const task=JSON.parse(message.content.slice(prefix.length));
+  const task=decoded[index++];
   return {...message,content:prefix+JSON.stringify(metadata(task))};
  })}};
 }

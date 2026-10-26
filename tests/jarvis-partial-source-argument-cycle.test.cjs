@@ -1,5 +1,26 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments,eligibleEvidenceActionCatalog}=require('../functions/jarvis-semantic-planner.js');
+test('evicted source prefix requires an explicit bounded reread and never reoffers the default whole file',()=>{
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',additionalProperties:false,properties:{file:{type:'string',enum:['source.js']},startLine:{type:'integer',minimum:1},endLine:{type:'integer',minimum:1,maximum:300}},required:['file']}};
+ const tasks=[
+  {name:'repo.read',args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:null,totalLines:300,readEndLine:300,partial:true,contentTruncated:true}}},
+  {name:'repo.read',args:{file:'source.js',startLine:162,endLine:170},observation:{ok:true,verifiedRead:{file:'source.js',startLine:162,endLine:170,totalLines:300,readEndLine:170,partial:true,content:'retained window',sourceStructure:{dataBindings:{references:[{startLine:120}]}}}}}
+ ];
+ const before=JSON.stringify({reader,tasks}),catalog=eligibleEvidenceActionCatalog([reader],tasks);
+ assert.equal(catalog.length,1);
+ const valid=args=>hasRequiredToolArguments(catalog[0],args);
+ assert.equal(valid({file:'source.js'}),false,'the exact completed default call must not remain in the model schema');
+ assert.equal(valid({file:'source.js',startLine:1}),false,'start=1 alone still requests the entire source');
+ assert.equal(valid({file:'source.js',endLine:30}),false,'the recovery range must be explicit at both ends');
+ assert.equal(valid({file:'source.js',startLine:1,endLine:30}),true,'evicted bytes remain recoverable');
+ assert.equal(valid({file:'source.js',startLine:1,endLine:300}),false,'a full-body replay cannot masquerade as bounded recovery');
+ assert.equal(valid({file:'source.js',startLine:120,endLine:140}),true,'observed anchors within the evicted prefix remain usable');
+ assert.equal(valid({file:'source.js',startLine:120,endLine:100}),false,'a prefix anchor cannot receive an end before its start');
+ assert.equal(valid({file:'source.js',startLine:162,endLine:170}),false,'retained ranges remain excluded');
+ assert.equal(valid({file:'source.js',startLine:171,endLine:200}),true,'forward progress remains available');
+ assert.equal(valid({file:'other.js',startLine:1,endLine:30}),false,'recovery does not expand source authority');
+ assert.equal(JSON.stringify({reader,tasks}),before,'source receipts and tool contract remain intact');
+});
 test('queued full read uses retained context gaps instead of replaying its evicted full body',async()=>{
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');

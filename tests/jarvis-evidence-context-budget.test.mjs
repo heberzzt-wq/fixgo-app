@@ -294,6 +294,7 @@ test('six recorded tool envelopes traverse orchestrator argument completion and 
 });
 
 test('recorded search and rehydrated read reach argument completion inside the mission loop',async()=>{
+ const originalReceipt=JSON.stringify(receipt);
  assert.equal(createHash('sha256').update(content).digest('hex'),receipt.provenance.sourceSha256,'the rehydrated source must be the exact recorded source');
  const catalog=[{name:'repo.search',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}},
   {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},
@@ -304,7 +305,23 @@ test('recorded search and rehydrated read reach argument completion inside the m
   const stage=request.config.semanticStage;stages.push(stage);
   if(stage==='GROUNDED_ARGUMENT_COMPLETION'){
    const message=request.config.chatMessages.find(message=>message.content.includes('TAREAS_YA_OBSERVADAS='));
-   assert.ok(message?.content.includes('resultsSameAsCandidates'),'deferred argument completion must use the compact recorded search envelope');
+   assert.ok(message,'deferred argument completion must receive the observed tasks');
+   const prefix='TAREAS_YA_OBSERVADAS=',line=message.content.split('\n').find(line=>line.startsWith(prefix));
+   assert.ok(line,'observed task packet must have a separate envelope');
+   const packet=JSON.parse(line.slice(prefix.length));
+   const search=packet.find(task=>task.name==='repo.search')?.observation;
+   // The frontend now projects discovery receipts before the backend budget
+   // codec runs. Verify preserved evidence rather than its former encoding tag.
+   const candidates=search?.repoCandidates,recorded=receipt.tasks[0].observation.evidence;
+   assert.deepEqual(candidates?.map(item=>item.file),recorded.candidates.map(item=>item.file),'all recorded candidate identities and ordering reach argument selection');
+   for(const candidate of candidates){
+    const actual=recorded.candidates.find(item=>item.file===candidate.file);
+    assert.ok(candidate.controls.length>0 && candidate.controls.every(value=>actual.controls.includes(value)),'discovery controls must remain observed and nonempty');
+    assert.ok(candidate.reasons.length>0 && candidate.reasons.every(value=>actual.reasons.includes(value)),'ranking explanations must remain observed and nonempty');
+   }
+   assert.deepEqual(search.repositoryTarget,recorded.repositoryTarget,'source repository identity must survive transport');
+   assert.equal(search.recordEvidence,undefined,'discovery cannot become operational evidence');
+   assert.equal(search.verifiedRead,undefined,'search candidates do not certify source content');
    return{text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:discovered}}],missionComplete:false})};
   }
   assert.equal(stage,'EVIDENCE_NEXT_ACTION');
@@ -333,6 +350,7 @@ test('recorded search and rehydrated read reach argument completion inside the m
  assert.ok(!JSON.stringify(result.errors).includes('SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED'));
  assert.equal(result.status,'PARTIAL');assert.equal(result.reason,'PLANNER_NO_GROUNDED_ACTION');
  assert.deepEqual(result.completionAssessment.objectives.map(o=>[o.objective,o.satisfied]),receipt.objectives.map(o=>[o.objective,false]));
+ assert.equal(JSON.stringify(receipt),originalReceipt,'the recorded diagnostic remains unchanged');
 });
 
 test('search then real panel read reaches the planner inside the mission loop instead of budget failure',async()=>{

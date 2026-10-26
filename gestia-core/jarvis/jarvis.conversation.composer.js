@@ -1035,6 +1035,55 @@ function describeToolFailure(error, depth = 0) {
     return [...new Set([error.code, error.message, error.error, error.status].map(value => describeToolFailure(value, depth + 1)).filter(Boolean))].join(": ").slice(0, 500);
 }
 
+// Presentation consumes the canonical recovery ledger. Keep raw runtime results
+// and recovered attempts intact for diagnostics; a later live failure still wins.
+export function buildMissionConversationEvidence(mission = {}, runtimeResults = []) {
+    const canonical = value => Array.isArray(value) ? value.map(canonical) :
+        value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+    const identity = item => JSON.stringify([item.name, canonical(item.args || {}),
+        item.observation?.status || "", describeToolFailure(item.observation?.error)]);
+    const blocked = Array.isArray(mission.blockedTasks) ? mission.blockedTasks : [];
+    const liveFailures = new Set(blocked.map(identity));
+    const recovered = new Set((Array.isArray(mission.recoveredToolAttempts) ? mission.recoveredToolAttempts : []).map(identity));
+    const repositoryResults = (Array.isArray(runtimeResults) ? runtimeResults : []).map(observation => ({
+        name: observation?.missionExecution?.name || observation?.tool || observation?.name || "",
+        args: observation?.missionExecution?.args || {}, observation
+    })).filter(item => String(item.name).startsWith("repo.") &&
+        !(item.observation?.ok !== true && recovered.has(identity(item)) && !liveFailures.has(identity(item))));
+    return [
+        ...(Array.isArray(mission.completedTasks) ? mission.completedTasks : []),
+        ...repositoryResults,
+        ...blocked.map(item => ({ ...item, observation: { ...(item.observation || {}), blocked: true,
+            reason: item.reason || item.observation?.status || "CAPABILITY_BLOCKED" } }))
+    ];
+}
+
+function observedRepositoryProgress(evidenceItems) {
+    const facts = [];
+    for (const item of Array.isArray(evidenceItems) ? evidenceItems : []) {
+        const observation = item?.observation || item?.response || item?.data || {};
+        if (observation.ok !== true || observation.executionOk === false || observation.blocked === true || observation.requiresInput === true) continue;
+        const tool = item.name || item.tool;
+        if (tool === "repo.gitHistory") {
+            for (const commit of (Array.isArray(observation.gitEvidence?.commits) ? observation.gitEvidence.commits : []).slice(0, 8)) {
+                if (typeof commit.sha === "string" && commit.sha.length === 40 &&
+                    [...commit.sha.toLowerCase()].every(character => "0123456789abcdef".includes(character)) && typeof commit.subject === "string")
+                    facts.push(`Commit observado ${commit.sha.slice(0, 12)}: ${commit.subject.slice(0, 200)}`);
+            }
+        }
+        if (tool === "repo.read") {
+            const read = observation.verifiedRead;
+            if (read?.file && Number.isInteger(read.startLine) && Number.isInteger(read.endLine))
+                facts.push(`Lectura obtenida: ${read.file}; rango reportado ${read.startLine}-${read.endLine}${read.partial === true ? " (parcial)" : ""}.`);
+        }
+        if (tool === "repo.context" && Array.isArray(observation.contextPreview?.files) && observation.contextPreview.files.length) {
+            const files = observation.contextPreview.files.map(file => typeof file === "string" ? file : file?.file).filter(Boolean);
+            facts.push(`Contexto preparado: ${files.join(", ")}. Preparación no acredita lectura completa.`);
+        }
+    }
+    return [...new Set(facts)].slice(0, 16);
+}
+
 export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
     return (Array.isArray(evidenceItems) ? evidenceItems : [])
         .filter(item => String(item?.name || item?.tool || "") !== "conversation.respond")
@@ -1304,6 +1353,8 @@ export async function composeEvidenceGroundedConversation({
             ok: true,
             status: "CONVERSATIONAL_EVIDENCE_INSUFFICIENT",
             text: ["No hay evidencia suficiente para completar lo solicitado.",
+                ...(missionOutcomeObservation?.reason ? [`Motivo final: ${missionOutcomeObservation.reason}.`] : []),
+                ...observedRepositoryProgress(evidenceItems),
                 ...(attemptedOperations.some(item => item.error)
                     ? [...new Set(attemptedOperations.filter(item => item.error).map(item => item.tool + " — " + item.error + (item.requestedFile ? "; archivo: " + item.requestedFile : "")))]
                     : [...new Set(missingEvidence)])].join("\n"),

@@ -48,6 +48,7 @@ import {
     shouldCompleteJarvisPlanningArguments
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v142-adjunto-flow-alignment-20261001';
 import {
+    buildMissionConversationEvidence,
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
     prepareEvidenceGroundedConversationPlan
@@ -6527,38 +6528,7 @@ if (
             : "Escrituras y publicaciones automaticas: no ejecutadas.";
 
     let semanticMissionFinalResponse = null;
-    const runtimeRepositoryEvidenceItems =
-        (Array.isArray(toolObservations)
-            ? toolObservations
-            : [])
-            .map(observation => ({
-                name:
-                    observation?.missionExecution?.name ||
-                    observation?.tool ||
-                    observation?.name ||
-                    "",
-                observation
-            }))
-            .filter(item =>
-                String(item.name || "").startsWith("repo.")
-            );
-    const missionEvidenceItems = [
-        ...missionResult.completedTasks,
-        ...runtimeRepositoryEvidenceItems,
-        ...missionResult.blockedTasks.map(item => ({
-            name:
-                item.name,
-            observation: {
-                ...(item.observation || {}),
-                blocked:
-                    true,
-                reason:
-                    item.reason ||
-                    item.observation?.status ||
-                    "CAPABILITY_BLOCKED"
-            }
-        })),
-    ];
+    const missionEvidenceItems = buildMissionConversationEvidence(missionResult, toolObservations);
     const missionEvidenceReceipt =
         buildMissionEvidenceReceipt(
             missionEvidenceItems
