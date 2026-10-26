@@ -1113,3 +1113,28 @@ test("authoritative mission contract may keep multiple independent searches sele
     assert.equal(merged.length, 2);
     assert.deepEqual(merged.map(call => call.args.query), ["tecnico", "payout settlement"]);
 });
+
+test('eight observed Git commits receive enough bounded response budget without counting failed or duplicate receipts', async()=>{
+    const commits=Array.from({length:8},(_,i)=>({sha:String(i).repeat(40),subject:'Preserve verified source evidence and independent completion checks '+i}));
+    const history={name:'repo.gitHistory',observation:{ok:true,executionOk:true,status:'GIT_HISTORY_OK',gitEvidence:{kind:'git_committed_history',source:'LOCAL_GIT_LOG',commits}}};
+    const capture=async items=>{let options;const result=await composeEvidenceGroundedConversation({instruction:'Resume los ocho commits observados.',evidenceItems:items,executeConversation:async(_prompt,opt)=>{options=opt;return{ok:true,message:'Resumen de los ocho commits observados.'};}});assert.equal(result.ok,true);return options.maxOutputTokens;};
+    const budget=await capture([history]);assert.ok(budget>=768);assert.ok(budget<=1200);
+    assert.equal(await capture([history,history]),budget);
+    assert.equal(await capture([{name:'system.capabilities',observation:{ok:true,executionOk:true,totalTools:1}},{...history,observation:{...history.observation,ok:false,blocked:true}}]),256);
+});
+
+test('completed Git reply retains observed commit subjects and status instead of only audit conclusions',async()=>{
+    const commits=[{sha:'a'.repeat(40),subject:'Fix source evidence retention'},{sha:'b'.repeat(40),subject:'Preserve missing-file rejection'}];
+    let briefing;
+    const result=await composeEvidenceGroundedConversation({instruction:'Resume los commits y el estado.',evidenceItems:[
+        {name:'repo.gitHistory',observation:{ok:true,executionOk:true,gitEvidence:{kind:'git_committed_history',commits}}},
+        {name:'repo.gitStatus',observation:{ok:true,executionOk:true,gitEvidence:{kind:'git_worktree',branchLine:'## v142-official',totalFiles:0,filesOmitted:0,files:[]}}},
+        {name:'repo.gitHistory',observation:{ok:false,gitEvidence:{commits:[{sha:'c'.repeat(40),subject:'Unverified claim'}]}}},
+        {name:'mission.outcome',observation:{ok:true,status:'COMPLETED',reason:'ALL_EXECUTABLE_TASKS_COMPLETED'}}
+    ],executeConversation:async(_prompt,options)=>{briefing=JSON.parse(options.responseBriefing);return{ok:true,message:'Resumen basado en los recibos.'};}});
+    assert.equal(result.ok,true);assert.deepEqual(briefing.repositoryProgress,[
+        'Commit observado aaaaaaaaaaaa: Fix source evidence retention',
+        'Commit observado bbbbbbbbbbbb: Preserve missing-file rejection',
+        'Estado Git observado: ## v142-official; archivos reportados: 0; detalles omitidos: 0.'
+    ]);
+});

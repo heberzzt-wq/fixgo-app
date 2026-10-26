@@ -9,12 +9,12 @@
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
-        "passed": 1902,
+        "passed": 1904,
         "failed": 0,
         "skipped": 2,
         "exitCode": 0,
         "scope": "Pruebas locales automatizadas; no certifican produccion.",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/navigation-ci.txt"
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/composition-ci.txt"
       },
       "pending": [
         "Completar el informe Git/contexto/lecturas/pruebas/pendientes en Terminal autenticada; el ultimo intento complejo quedo PARTIAL.",
@@ -45,11 +45,31 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "a62e54550d37c026ad6baa1e5f4b54f6e1b81108",
+      "testedCodeBaseCommit": "f95a9d60e87d9bdfc9634599fe8e79a4abbe1d31",
       "testedCodeFileSha256": {
         "functions/jarvis-semantic-planner.js": "636b3751f8e49cd9578005caaef353ce847383b8f313985c96d355577ae39121",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
-        "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764"
+        "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764",
+        "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100"
+      },
+      "verifiedWebQueries": [
+        {
+          "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+          "commit": "f95a9d60e87d9bdfc9634599fe8e79a4abbe1d31",
+          "status": "COMPLETED",
+          "responseComposed": true,
+          "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados.",
+          "durationMs": 32430,
+          "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json"
+        }
+      ],
+      "latestGitSummaryWeb": {
+        "missionId": "MISSION-60c3e8f8-1073-4ce6-8414-377dc388beaa",
+        "commit": "f95a9d60e87d9bdfc9634599fe8e79a4abbe1d31",
+        "executionStatus": "COMPLETED",
+        "responseComposed": false,
+        "error": "SEMANTIC_RESPONSE_INCOMPLETE",
+        "userVisibleStatus": "PARTIAL"
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -57,9 +77,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Ultima misión compleja a62e5455 MISSION-5a63dffe-a74e-4220-978e-f7807e675efe duró407091ms, adquirió Git/contexto/doslecturas completas y fuentes auxiliares, pero no localizó informe de tests/pendientes; terminó PARTIAL/PLANNER_UNAVAILABLE con timeout registrado y cancelación visible. No certificarla. Bridge8528 detenidoidle0. Consulta simple de política local COMPLETED sigue certificada en315976d3. Hito siguiente: pistas históricas de rutas/subjects SOLO en next-action, max2900chars, navigationOnly y currentExistenceVerifiedfalse; no amplían permisos ni aprueban tests. Statusraíz completo se reutiliza hasta cambio/acción desconocida; diff solo si contrato cwdestáacotado, se preserva cwdlibre real. 12 dirigidas PASS y CI completa1902PASS/0FAIL/2SKIP exit0. Laptop vieja29/29 en snapshot7archivos a62e5455 con hashes iguales, no Qwen ni instalaciones. Próximo retest: manifiesto acotado y Git para utilidad inmediata, conservando pendiente misióncompuesta. Sin push/deploy ni certificación producción.",
+    "lastSessionSummary": "2026-10-26: Manifiesto acotado COMPLETED con respuesta visible en f95a9d60, MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a,32430ms:1902/0/2 y pendientesdocumentados; lectura real1-86 parcial declarada. Consulta Git siguiente MISSION-60c3e8f8-1073-4ce6-8414-377dc388beaa completó adquisición42586ms, pero redacción final falló SEMANTIC_RESPONSE_INCOMPLETE y UI correctamentePARTIAL. Causa verificada: cap256tokens y briefing descartabaSHA/asuntosGit. Corrección: hechosGitobservados pasan alcompositorfinal, estadoGitdesde recibo, presupuesto porhechos reales máx1200; fallos/duplicados no inflan. ReplayQwen con mismosrecibos devuelve8commits y árbollimpio; no sustituye retestweb.35tests compositor PASS, CIcompleta1904PASS/0FAIL/2SKIP exit0. Bridge20488 detenidoidle0; commit y retestGit pendiente. Laptopvieja29/29 snapshot7archivos a62e5455. Misióncompuesta original siguePARTIAL, no certificación general ni producción. Sinpush/deploy.",
     "infrastructure": {
-      "bridge": "Bridge8528 detenido inactivo; nuevo commit/arranque de mantenimiento pendiente, supervisor3345 pausado.",
+      "bridge": "Bridge20488 detenido inactivo para corregir composición; nuevo arranque de mantenimiento pendiente. Supervisor3345 pausado.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",

@@ -1071,6 +1071,11 @@ function observedRepositoryProgress(evidenceItems) {
                     facts.push(`Commit observado ${commit.sha.slice(0, 12)}: ${commit.subject.slice(0, 200)}`);
             }
         }
+        if (tool === "repo.gitStatus") {
+            const git=observation.gitEvidence;
+            if(git?.kind==='git_worktree' && typeof git.branchLine==='string' && Number.isInteger(git.totalFiles) && Number.isInteger(git.filesOmitted))
+                facts.push('Estado Git observado: '+git.branchLine+'; archivos reportados: '+git.totalFiles+'; detalles omitidos: '+git.filesOmitted+'.');
+        }
         if (tool === "repo.read") {
             const read = observation.verifiedRead;
             if (read?.file && Number.isInteger(read.startLine) && Number.isInteger(read.endLine))
@@ -1458,13 +1463,17 @@ export async function composeEvidenceGroundedConversation({
     try {
         const result = await executeConversation(prompt, {
             responseMode: "grounded_conversation",
-            maxOutputTokens: platformRecordEvidence.length
-                ? Math.min(1200, Math.max(256, 128 + Math.ceil(JSON.stringify(platformRecordEvidence).length / 3)))
-                : 256,
+            // Size the answer from acquired facts, not user keywords or invented checks.
+            // Eight commit subjects need more than the old fixed 256-token cap.
+            maxOutputTokens: Math.max(
+                platformRecordEvidence.length ? Math.min(1200, Math.max(256, 128 + Math.ceil(JSON.stringify(platformRecordEvidence).length / 3))) : 256,
+                Math.min(1200, Math.max(256, 128 + observedRepositoryProgress(evidenceItems).join('\n').length))
+            ),
             responseInstruction: String(instruction || "").slice(0, 12000),
             responseBriefing: await serializeConversationBriefing({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",
+                ...(observedRepositoryProgress(evidenceItems).length ? {repositoryProgress: observedRepositoryProgress(evidenceItems)} : {}),
                 ...(missionOutcomeObservation?.completionAssessment?.objectives?.length ? {objectiveCoverage:missionOutcomeObservation.completionAssessment.objectives} : {}),
                 executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),
                 ...(hasMeasuredInterfaceEvidence ? { measuredInterfaceEvidence } : {}),
