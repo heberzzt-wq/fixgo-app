@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26 continuacion autorizada: corregido alcance de lecturas auxiliares, contrato Git y decodificacion de argumentos/defaults al continuar. Replay Qwen exacto obtiene3/5 objetivos con proof (Git,contexto,lecturas), explicacion/tests aun pendientes. UI parcial conserva hechos observados y motivo final; excluye solo fallos correlacionados como recuperados. Frontera de lectura ya no ofrece default repetido: exige rango explicito acotado para prefijo evictado; paquete real y hashes intactos. CI oficial exit0 {'pass': 1868, 'fail': 0, 'skipped': 2}. Cuatro suites antes externas incluidas en CI;3 aserciones obsoletas reemplazadas por comportamiento/evidencia sin rebajar negativos. Vieja14/14 con SHA256 en continuation-fix. Pendiente commit local, recuperacion autorizada Bridge mantenimiento y pruebas web de utilidad. Sin push/deploy ni certificacion general.
+**Resumen:** 2026-10-26 hito contrato fuente: prueba WEB sobre32737df3 MISSION-3f13503a-7903-4ccc-be27-ccad6a5919c4 PARTIAL por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION. Causa fresca: core reemplaza contrato repository_source valido por OBJECTIVE_CONTRACT platform_records solo porque catalogo ofrece datos. Fix conserva contrato semantico validado y limita a7lectores existentes; mixtos/vacios/escritura siguen ruta anterior. Replay corregido exacto Qwen4 llamadas: objetivo independiente true y missionComplete=true, sin herramientas; no equivale a retest web. Fix adicional termina investigacion readonly tras todos los objetivos comprobados, no ejecuta propuesta opcional ajena; prueba negativa conserva investigacion. CI exit0 {'pass': 1873, 'fail': 0, 'skipped': 2}. Pendiente commit/recuperacion autorizada y retest WEB del mismo pedido simple y completo; no declarar Jarvis general terminado. Sin push/deploy.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -77,6 +77,7 @@
 - CI oficial final 2026-10-26 exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}, dirigida18/18; auxiliar vieja12/12. Regresion fuera de CI documentada por separado.
 - 2026-10-26 cierre: codigo local b81ebe2d, CI1825 PASS/0 FAIL/2 SKIP. Mision web autentica local MISSION-5b5549b2-eb43-4325-84f6-a97c3278dc9e termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en140073ms; NO hubo presupuesto excedido en ese cierre. Git obtuvo proof intermedia, luego el auditor revirtio el veredicto; no hay certificacion estable. Contexto obtuvo proof final; lecturas/explicacion pendientes por seleccion vacia, confusion de alcance y repeticion. UI conserva error recuperado repo.context REPO_CONTEXT_SOURCE_TOO_LARGE, distinto al motivo final; pendiente corregir presentacion con recibo vigente. Top-level accounting declara0 llamadas aunque hay inferencia real en planner.response: no usar ese contador como prueba. Correcciones conservadas y no publicadas. Bridge11668 detenido inactivo para commit documental; siguiente arranque mantenimiento limpio. Vieja auxiliar12/12 con SHA256 y run-audit.ps1 reproducible probado; no reparto automatico ni alivio de RAM cuantificado. Regresion preexistente fuera de CI queda abierta en budget-baseline.txt.
 - 2026-10-26 continuacion autorizada: corregido alcance de lecturas auxiliares, contrato Git y decodificacion de argumentos/defaults al continuar. Replay Qwen exacto obtiene3/5 objetivos con proof (Git,contexto,lecturas), explicacion/tests aun pendientes. UI parcial conserva hechos observados y motivo final; excluye solo fallos correlacionados como recuperados. Frontera de lectura ya no ofrece default repetido: exige rango explicito acotado para prefijo evictado; paquete real y hashes intactos. CI oficial exit0 {'pass': 1868, 'fail': 0, 'skipped': 2}. Cuatro suites antes externas incluidas en CI;3 aserciones obsoletas reemplazadas por comportamiento/evidencia sin rebajar negativos. Vieja14/14 con SHA256 en continuation-fix. Pendiente commit local, recuperacion autorizada Bridge mantenimiento y pruebas web de utilidad. Sin push/deploy ni certificacion general.
+- 2026-10-26 hito contrato fuente: prueba WEB sobre32737df3 MISSION-3f13503a-7903-4ccc-be27-ccad6a5919c4 PARTIAL por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION. Causa fresca: core reemplaza contrato repository_source valido por OBJECTIVE_CONTRACT platform_records solo porque catalogo ofrece datos. Fix conserva contrato semantico validado y limita a7lectores existentes; mixtos/vacios/escritura siguen ruta anterior. Replay corregido exacto Qwen4 llamadas: objetivo independiente true y missionComplete=true, sin herramientas; no equivale a retest web. Fix adicional termina investigacion readonly tras todos los objetivos comprobados, no ejecuta propuesta opcional ajena; prueba negativa conserva investigacion. CI exit0 {'pass': 1873, 'fail': 0, 'skipped': 2}. Pendiente commit/recuperacion autorizada y retest WEB del mismo pedido simple y completo; no declarar Jarvis general terminado. Sin push/deploy.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -92,7 +93,7 @@
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. VIGENTE: commit local, recuperacion autorizada de Bridge mantenimiento y verificar por web consulta util de fuente + mismo prompt Git/contexto/lecturas/pruebas; conservar motivo final y evidencia parcial si algo no cumple.
+1. VIGENTE: recuperacion autorizada de Bridge tras commit local, retest web exacto de consulta policy.js y pedido completo Git/contexto/lecturas/pruebas. Contrato fuente no se reemplaza por operativo; no depender solo del replay.
 1. Cerrar explicacion de cambios/pruebas con fuente pertinente y comprobar continuacion con rangos explicitos. Contador superior de inferencias sigue pendiente; no inferir0 llamadas de ese agregado.
 1. Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.
 1. Tras una mision completa, retestar negativos y las12 NS1; conservar pendientes OAuth, autorrecuperacion, aislamiento y pruebas sostenidas.
@@ -227,6 +228,12 @@
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/ui-budget-compatibility-green.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/prefix-reread-integrity.json`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/old-laptop-continuation-receipt.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/usable-simple-trace.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/simple-contract-retained.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/repository-contract-scope-green.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/repository-contract-real-scope.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/source-contract-ci-exit.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/source-contract-ci-final.txt`
 
 ### Reporte diario automatico
 

@@ -5244,7 +5244,10 @@ async function runModelSemanticPlanner({
                     }
                     const allSatisfied=evaluatedAudit.completionAssessment?.objectives?.length && evaluatedAudit.completionAssessment.objectives.every(objective=>objective.satisfied===true);
                     if(allSatisfied) {
-                        validatedAudit.toolCalls=validatedAudit.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call));
+                        // A repository investigation ends after every immutable
+                        // objective passes independent proof. An optional model
+                        // proposal must not introduce unrelated work afterward.
+                        validatedAudit.toolCalls=repositoryReadOnlyAudit ? [] : validatedAudit.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call));
                         evaluatedAudit.toolCalls=validatedAudit.toolCalls;
                         evaluatedAudit.missionComplete=validatedAudit.missionComplete=validatedAudit.toolCalls.length===0;
                     }

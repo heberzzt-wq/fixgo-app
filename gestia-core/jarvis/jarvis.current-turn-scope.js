@@ -30,6 +30,21 @@ export function jarvisRepositoryEvidenceRequest(text = "") {
     return repository && changes && request;
 }
 const gitEvidenceNames=new Set(["repo.gitStatus","repo.gitHistory","repo.gitDiff","repo.search","repo.grep","repo.read","repo.context"]);
+// This follows an already validated semantic contract, never user keywords.
+// It only reduces the supplied authority; mixed or incomplete missions keep
+// their existing operational contract path.
+export function scopeValidatedRepositoryMission({catalog=[],toolCalls=[],objectives=[],validated=false}={}) {
+    const kinds=new Set(['repository_source','repository_search','repository_inventory']);
+    if(validated!==true || !Array.isArray(objectives) || !objectives.length ||
+        objectives.some(goal=>!goal || typeof goal.objective!=='string' || !goal.objective.trim() || !kinds.has(goal.requiredEvidenceKind)) ||
+        !Array.isArray(toolCalls) || !toolCalls.length || !Array.isArray(catalog))return null;
+    const readers=catalog.filter(tool=>gitEvidenceNames.has(tool?.name) && tool.mutates===false &&
+        tool.requiresApproval!==true && tool.userArtifact!==true);
+    const names=new Set(readers.map(tool=>tool.name));
+    if(toolCalls.some(call=>!names.has(call?.name) || call.mutates===true || call.requiresApproval===true || call.userArtifact===true) ||
+        objectives.some(goal=>goal.explicitTools!==undefined && (!Array.isArray(goal.explicitTools) || goal.explicitTools.some(name=>!names.has(name)))))return null;
+    return readers;
+}
 export function scopeJarvisToolsForQuestion(tools = [], instruction = "") {
     const source=Array.isArray(tools)?tools:[];
     if (jarvisExternalEducationQuery(instruction)) return source.filter(tool =>

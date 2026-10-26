@@ -44,3 +44,28 @@ test('truncated source selection fails recoverably without certifying a mission'
  }}}}),/SOURCE_SELECTION_INCOMPLETE/);
  assert.equal(calls,1);
 });
+
+for(const proven of [true,false])test('repository closure stops optional reads only after independent proof: '+proven,async()=>{
+ const objective={objective:'Lee target.js y explica su valor.',requestQuote:'Lee target.js y explica su valor.',
+  resolvedScope:'Lee target.js y explica su valor.',scopeContext:'Lee target.js y explica su valor.',requiredEvidenceKind:'repository_source',explicitTools:['repo.read']};
+ const reader={name:'repo.read',mutates:false,requiresApproval:false,investigationReadOnly:true,evidenceKinds:['repository_source'],
+  inputSchema:{type:'object',properties:{file:{type:'string',enum:['target.js','aux.js']},startLine:{type:'integer',minimum:1},endLine:{type:'integer',minimum:1}},required:['file']}};
+ const tasks=['target.js','aux.js'].map(file=>({name:'repo.read',args:{file},observation:{ok:true,executionOk:true,
+  verifiedRead:{file,content:'export const value=1;',startLine:1,endLine:1,totalLines:file==='target.js'?1:10,partial:file!=='target.js',truncated:false}}}));
+ let proofCalls=0;
+ const result=await runJarvisSemanticPlanner({input:objective.objective,catalog:[reader],missionState:{phase:'EVIDENCE_NEXT_ACTION',
+  modelContextTokens:8192,evidenceObjectives:[objective],completedTasks:tasks,blockedTasks:[],writeAllowed:false},
+  ai:{models:{generateContent:async req=>{
+   const stage=req.config.semanticStage;
+   if(stage==='REPOSITORY_EVIDENCE_SELECTION')return{text:'{"objective_0":[0]}'};
+   if(stage==='REPOSITORY_OBJECTIVE_AUDIT')return{text:'{"e":"Contenido completo observado","s":true,"r":[0],"l":""}'};
+   if(stage==='REPOSITORY_AUDIT_NEXT_ACTION')return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"aux.js","startLine":2,"endLine":5}}],"explanation":"Otra lectura"}'};
+   if(stage==='CLOSURE_OBJECTIVE_VERIFICATION'){proofCalls++;return{text:JSON.stringify({reason:proven?'Contenido solicitado completo':'Falta evidencia',proven})};}
+   throw Error('UNEXPECTED_STAGE:'+stage);
+  }}}});
+ assert.equal(proofCalls,1);
+ assert.equal(result.completionAssessment.objectives[0].independentProof.proven,proven);
+ assert.equal(result.missionComplete,proven);
+ if(proven)assert.deepEqual(result.toolCalls,[],'an optional proposal cannot prolong a fully verified read-only objective');
+ else assert.equal(result.toolCalls[0]?.args.file,'aux.js','negative proof preserves a valid pending investigation');
+});

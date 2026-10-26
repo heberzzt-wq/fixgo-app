@@ -82,6 +82,7 @@ import {
 import {
     simpleJarvisGreeting,
     scopeJarvisToolsForQuestion,
+    scopeValidatedRepositoryMission,
     jarvisRepositoryEvidenceRequest
 } from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
@@ -4889,7 +4890,7 @@ if (
                 !registeredMissionTools.some(existing => existing.name === tool.name))
         ].filter(tool => repairPreparationToolNames.has(tool.name))
         : registeredMissionTools;
-    const missionToolCatalog =
+    let missionToolCatalog =
         [
             ...missionCatalogSource.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...missionCatalogSource.filter(tool => !operationalMissionToolNames.has(tool.name))
@@ -4993,6 +4994,12 @@ if (
             toolCalls: missionContractToolCalls,
             catalog: missionToolCatalog
         });
+    const repositoryContractCatalog = scopeValidatedRepositoryMission({
+        catalog: missionToolCatalog, toolCalls: missionContractToolCalls,
+        objectives: missionContractEvidenceObjectives, validated: lastMissionContractError === null
+    });
+    const repositoryContractMission = repositoryContractCatalog !== null;
+    if (repositoryContractMission) missionToolCatalog = repositoryContractCatalog;
     const hasRepositoryMission =
         missionContractToolCalls.some(call =>
             String(call?.name || "")
@@ -5071,7 +5078,7 @@ if (
     const missionInitialToolCalls =
         missionIsIsolated
             ? missionContractToolCalls
-            : boundedCurrentTurnMission || observationFirstCurrentTurnMission
+            : boundedCurrentTurnMission || observationFirstCurrentTurnMission || repositoryContractMission
                 ? appendExplicitReadOnlySourceCalls({
                     toolCalls: missionContractToolCalls,
                     explicitReadCalls: explicitRepositoryReadCalls,
@@ -5139,7 +5146,7 @@ if (
             }
             throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
         };
-    const initialCoverageContract = !pendingMissionId && !missionIsIsolated &&
+    const initialCoverageContract = !pendingMissionId && !missionIsIsolated && !repositoryContractMission &&
         missionToolCatalog.some(tool => tool.evidenceKinds?.includes("platform_records"))
         ? await buildMissionToolCallsWithTransientRetry(effectiveMissionInstruction, {
             ...context, throwOnUnavailable:true, toolCatalog:missionToolCatalog,
@@ -5155,7 +5162,7 @@ if (
             requiredRepositorySourceFiles: missionIsIsolated ? [] : explicitRepositoryTargets,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
-            toolCatalog: boundedCurrentTurnMission || observationFirstCurrentTurnMission ? missionToolCatalog : registeredMissionTools,
+            toolCatalog: boundedCurrentTurnMission || observationFirstCurrentTurnMission || repositoryContractMission ? missionToolCatalog : registeredMissionTools,
             executionContractLocked:
                 missionIsIsolated ||
                 (
@@ -5221,7 +5228,7 @@ if (
                         // authority. A file read does not authorize an automatic
                         // read -> diagnose -> impact sequence.
                         const completionAuditCatalog =
-                            (boundedCurrentTurnMission || observationFirstCurrentTurnMission ? missionToolCatalog : registeredMissionTools)
+                            (boundedCurrentTurnMission || observationFirstCurrentTurnMission || repositoryContractMission ? missionToolCatalog : registeredMissionTools)
                                 .slice(0, 80);
 
                         if (completionAuditCatalog.length > 0) {
