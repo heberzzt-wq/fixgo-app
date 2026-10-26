@@ -1,9 +1,78 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {execFileSync} from 'node:child_process';
 import {createJarvisFsBridgeApp} from '../jarvis-fs-bridge.js';
 import {evaluateJarvisWebPerimeter,JARVIS_BROWSER_ORIGINS,
  localIntrusionSnapshot,createJarvisLocalIntrusionGuard} from '../jarvis-local-intrusion-guard.js';
+
+// Use a real isolated Git identity: unpublished developer commits must not
+// determine whether these HTTP perimeter tests can reach the release gate.
+const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
+    ? "C:/Program Files/Git/cmd/git.exe" : "git";
+
+function createPerimeterIdentityFixture({
+    repository = "test-owner/fixgo-test",
+    branch = "v142-official"
+} = {}) {
+    const fixtureRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), "jarvis-perimeter-identity-")
+    );
+    const root = path.join(fixtureRoot, "worktree");
+    const remoteRoot = path.join(fixtureRoot, "remote.git");
+    fs.mkdirSync(root);
+    execFileSync(gitExecutable, ["init", "--bare", remoteRoot], {
+        stdio: "ignore"
+    });
+    execFileSync(gitExecutable, ["init", "-b", branch], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    const runGit = args => execFileSync(gitExecutable, ["-c", "protocol.allow=never", "-c", "protocol.file.allow=always", ...args], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+    runGit(["config", "user.email", "jarvis-identity@example.invalid"]);
+    runGit(["config", "user.name", "Jarvis Identity Test"]);
+    const canonicalRemote = `https://github.com/${repository}.git`;
+    runGit(["remote", "add", "origin", canonicalRemote]);
+    runGit(["remote", "set-url", "--push", "origin", pathToFileURL(remoteRoot).href]);
+    runGit([
+        "config",
+        `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+        canonicalRemote
+    ]);
+    fs.writeFileSync(
+        path.join(root, "jarvis-runtime-contract.json"),
+        JSON.stringify({
+            projectId: repository.split("/").at(-1),
+            repository,
+            branch,
+            releaseId: "test-release"
+        })
+    );
+    fs.writeFileSync(
+        path.join(root, "identity-marker.txt"),
+        "initial identity\n"
+    );
+    runGit(["add", "."]);
+    runGit(["commit", "-m", "initial identity"]);
+    runGit(["push", "-u", "origin", branch]);
+    return {
+        branch,
+        fixtureRoot,
+        remoteRoot,
+        repository,
+        root,
+        runGit
+    };
+}
+
 
 test('local bridge perimeter allows only exact loopback host and known browser origins',()=>{
  const options={host:'127.0.0.1:3344',localPort:3344,localAddress:'127.0.0.1'};
@@ -54,9 +123,12 @@ test('intrusion events reveal no authorization headers, tokens, query or request
  assert.ok(!JSON.stringify(saved).includes('PRIVATE_SECRET'));
 });
 test('real ephemeral bridge rejects spoofed Host, foreign Origin and originless cross-site probes before route logic',async t=>{
- const root=new URL('../',import.meta.url).pathname;
- const server=createJarvisFsBridgeApp({root:process.cwd()}).listen(0,'127.0.0.1');
- t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const fixture=createPerimeterIdentityFixture();
+ const server=createJarvisFsBridgeApp({root:fixture.root}).listen(0,'127.0.0.1');
+ t.after(async()=>{
+  await new Promise(resolve=>server.close(resolve));
+  fs.rmSync(fixture.fixtureRoot,{recursive:true,force:true});
+ });
  await new Promise(resolve=>server.once('listening',resolve));
  const port=server.address().port,base='http://127.0.0.1:'+port;
  const probe=async(headers={})=>new Promise((resolve,reject)=>{
@@ -126,8 +198,12 @@ test('security event status requires an independently verified owner token and n
 });
 
 test('owner does not get locked out after repeated rejected intrusions; legitimate browser sessions remain accessible',async t=>{
- const server=createJarvisFsBridgeApp({root:process.cwd()}).listen(0,'127.0.0.1');
- t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const fixture=createPerimeterIdentityFixture();
+ const server=createJarvisFsBridgeApp({root:fixture.root}).listen(0,'127.0.0.1');
+ t.after(async()=>{
+  await new Promise(resolve=>server.close(resolve));
+  fs.rmSync(fixture.fixtureRoot,{recursive:true,force:true});
+ });
  await new Promise(resolve=>server.once('listening',resolve));
  const port=server.address().port;
  const invoke=({host='127.0.0.1:'+port,origin,fetchSite,method='GET',route='/health',
