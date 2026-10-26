@@ -2165,6 +2165,72 @@ test("loopback health uses cached remote identity and does not require live GitH
     }
 });
 
+test("maintenance identity pins a clean local descendant without claiming remote publication", () => {
+    const fixture = createBridgeIdentityFixture({repository:'heberzzt-wq/fixgo-app',branch:'v142-official'});
+    try {
+        const remoteHead = fixture.runGit(['rev-parse','HEAD']);
+        fs.writeFileSync(path.join(fixture.root,'identity-marker.txt'),'authorized local maintenance\n');
+        fixture.runGit(['add','identity-marker.txt']);
+        fixture.runGit(['commit','-m','local maintenance']);
+        const localHead = fixture.runGit(['rev-parse','HEAD']);
+        const maintenanceIdentity = {localHead,remoteHead};
+        assert.equal(describeJarvisBridgeIdentity(fixture.root,{verifyRemote:false}).ok,false);
+        const actual = describeJarvisBridgeIdentity(fixture.root,{verifyRemote:false,maintenanceIdentity});
+        assert.equal(actual.ok,true);
+        assert.equal(actual.identityMode,'local_maintenance_pinned');
+        assert.equal(actual.contractHead,remoteHead);
+        assert.equal(actual.git.head,localHead);
+        assert.equal(actual.remoteVerified,false);
+        assert.equal(actual.localPublished,false);
+        for (const invalid of [{localHead:remoteHead,remoteHead},{localHead,remoteHead:localHead},{localHead:'',remoteHead}]) {
+            assert.equal(describeJarvisBridgeIdentity(fixture.root,{verifyRemote:false,maintenanceIdentity:invalid}).ok,false);
+        }
+        fs.writeFileSync(path.join(fixture.root,'untracked.txt'),'dirty');
+        assert.equal(describeJarvisBridgeIdentity(fixture.root,{verifyRemote:false,maintenanceIdentity}).ok,false);
+    } finally { fs.rmSync(fixture.fixtureRoot,{recursive:true,force:true}); }
+});
+
+test('maintenance runtime preserves authentication and invalidates disk or HEAD changes', async()=>{
+ const f=createBridgeIdentityFixture({repository:'heberzzt-wq/fixgo-app',branch:'v142-official'});
+ let server;
+ try {
+  const remoteHead=f.runGit(['rev-parse','HEAD']);
+  fs.writeFileSync(path.join(f.root,'identity-marker.txt'),'local candidate');
+  f.runGit(['add','.']);f.runGit(['commit','-m','local candidate']);
+  const localHead=f.runGit(['rev-parse','HEAD']);
+  server=createJarvisFsBridgeApp({root:f.root,maintenanceIdentity:{localHead,remoteHead}}).listen(0,'127.0.0.1');
+  await new Promise((resolve,reject)=>{server.once('listening',resolve);server.once('error',reject);});
+  const url=`http://127.0.0.1:${server.address().port}`;
+  const health=async()=> (await (await fetch(url+'/health')).json()).identity;
+  assert.equal((await health()).ok,true);
+  const noToken=await fetch(url+'/semantic/plan',{method:'POST',headers:{'Content-Type':'application/json','X-Jarvis-Release-Id':'test-release'},body:JSON.stringify({missionState:{phase:'DIRECT_READ_ONLY_ACTION'}})});
+  assert.equal(noToken.status,401);
+  fs.appendFileSync(path.join(f.root,'identity-marker.txt'),'dirty');
+  assert.equal((await health()).ok,false);
+  f.runGit(['add','.']);f.runGit(['commit','-m','changed head']);
+  assert.equal((await health()).ok,false);
+  const rejected=await fetch(url+'/semantic/plan',{method:'POST',headers:{'Content-Type':'application/json','X-Jarvis-Release-Id':'test-release'},body:'{}'});
+  assert.equal(rejected.status,503);assert.equal((await rejected.json()).error,'BRIDGE_IDENTITY_INVALID');
+ } finally {if(server)await new Promise(resolve=>server.close(resolve));fs.rmSync(f.fixtureRoot,{recursive:true,force:true});}
+});
+
+test('maintenance rejects another branch, repository and disconnected ancestry',()=>{
+ const f=createBridgeIdentityFixture({repository:'heberzzt-wq/fixgo-app',branch:'v142-official'});
+ try {
+  const remoteHead=f.runGit(['rev-parse','HEAD']);
+  const pins={localHead:remoteHead,remoteHead};
+  f.runGit(['checkout','-b','other']);
+  assert.equal(describeJarvisBridgeIdentity(f.root,{verifyRemote:false,maintenanceIdentity:pins}).ok,false);
+  f.runGit(['checkout','v142-official']);
+  f.runGit(['config','remote.origin.url','https://github.com/wrong/repo.git']);
+  assert.equal(describeJarvisBridgeIdentity(f.root,{verifyRemote:false,maintenanceIdentity:pins}).ok,false);
+  f.runGit(['config','remote.origin.url','https://github.com/heberzzt-wq/fixgo-app.git']);
+  const orphan=f.runGit(['commit-tree',f.runGit(['rev-parse','HEAD^{tree}']),'-m','disconnected candidate']);
+  f.runGit(['update-ref','refs/heads/v142-official',orphan]);
+  assert.equal(describeJarvisBridgeIdentity(f.root,{verifyRemote:false,maintenanceIdentity:{localHead:orphan,remoteHead}}).ok,false);
+ } finally {fs.rmSync(f.fixtureRoot,{recursive:true,force:true});}
+});
+
 test("run command output is bounded while retaining the most recent tail", () => {
     const source = fs.readFileSync(
         new URL("../jarvis-fs-bridge.js", import.meta.url),

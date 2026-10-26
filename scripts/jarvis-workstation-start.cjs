@@ -3,6 +3,10 @@ const{
     spawnSync}
 =require('child_process');
 const fs=require('fs'),http=require('http'),net=require('net');
+const maintenance=process.argv.includes('--maintenance');
+const preflightOnly=process.argv.includes('--preflight');
+if(process.argv.slice(2).some(arg=>!['--maintenance','--preflight'].includes(arg)) || preflightOnly&&!maintenance)
+    throw Error('JARVIS_WORKSTATION_MODE_INVALID');
 const EXPECTED='2.0.0-singleton-exact-sync';
 const runtimeContract=JSON.parse(fs.readFileSync('jarvis-runtime-contract.json','utf8'));
 const EXPECTED_MODEL=runtimeContract.semanticModel;
@@ -23,8 +27,17 @@ const beforeSync=spawnSync(git,['status','--porcelain'],{
 );
 if(beforeSync.status!==0||String(beforeSync.stdout||'').trim())throw new Error('JARVIS_WORKTREE_DIRTY_BEFORE_BRIDGE_SYNC');
 const rebaseActive=fs.existsSync('.git/rebase-merge')||fs.existsSync('.git/rebase-apply');
+if(maintenance){
+    if(rebaseActive)throw Error('JARVIS_MAINTENANCE_REBASE_ACTIVE');
+    const branch=spawnSync(git,['rev-parse','--abbrev-ref','HEAD'],{encoding:'utf8',windowsHide:true});
+    const remote=spawnSync(git,['config','--get','remote.origin.url'],{encoding:'utf8',windowsHide:true});
+    if(branch.status!==0||remote.status!==0||String(branch.stdout||'').trim()!=='v142-official'||
+        runtimeContract.branch!=='v142-official'||runtimeContract.repository!=='heberzzt-wq/fixgo-app'||
+        !['https://github.com/heberzzt-wq/fixgo-app.git','git@github.com:heberzzt-wq/fixgo-app.git'].includes(String(remote.stdout||'').trim()))
+        throw Error('JARVIS_MAINTENANCE_IDENTITY_INVALID');
+}
 let syncOk=true;
-if(rebaseActive){
+if(!maintenance&&rebaseActive){
     const quit=spawnSync(git,['rebase','--quit'],{
         stdio:'inherit',windowsHide:true,timeout:15000}
     );
@@ -32,13 +45,13 @@ if(rebaseActive){
     if(syncOk)console.warn('[JARVIS_GIT_REBASE_STATE_CLEARED] stale rebase metadata cleared before sync');
     else console.warn('[JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE] could not clear stale rebase; continuing with local HEAD');
 }
-if(syncOk){
+if(!maintenance&&syncOk){
     const fetchSync=spawnSync(git,['fetch','--quiet','origin','+refs/heads/v142-official:refs/remotes/origin/v142-official'],{
         stdio:'inherit',windowsHide:true,timeout:45000}
     );
     syncOk=fetchSync.status===0;
 }
-if(syncOk){
+if(!maintenance&&syncOk){
     const rebaseSync=spawnSync(git,['rebase','origin/v142-official'],{
         stdio:'inherit',windowsHide:true,timeout:45000}
     );
@@ -53,7 +66,32 @@ const statusResult=spawnSync(git,['status','--porcelain'],{
     encoding:'utf8',windowsHide:true}
 );
 const localClean=String(statusResult.stdout||'').trim()==='';
-if(!localClean)throw new Error('JARVIS_WORKTREE_DIRTY_BEFORE_BRIDGE_START');
+if(statusResult.status!==0||!localClean)throw new Error('JARVIS_WORKTREE_DIRTY_BEFORE_BRIDGE_START');
+if(headResult.status!==0||!/^[a-f0-9]{40}$/.test(localHead))throw Error('JARVIS_WORKSTATION_HEAD_INVALID');
+if(!maintenance){
+    const remoteHead=spawnSync(git,['rev-parse','refs/remotes/origin/v142-official'],{encoding:'utf8',windowsHide:true});
+    if(remoteHead.status!==0||String(remoteHead.stdout||'').trim()!==localHead)
+        throw Error('JARVIS_NORMAL_HEAD_NOT_REMOTE');
+}
+let maintenanceIdentity=null;
+if(maintenance){
+    // No fetch, ref rewrite, or publication. Pin the actual advertised base.
+    const resolvedRemote=spawnSync(git,['remote','get-url','origin'],{encoding:'utf8',windowsHide:true});
+    if(resolvedRemote.status!==0||!['https://github.com/heberzzt-wq/fixgo-app.git','git@github.com:heberzzt-wq/fixgo-app.git'].includes(String(resolvedRemote.stdout||'').trim()))
+        throw Error('JARVIS_MAINTENANCE_REMOTE_INVALID');
+    const remote=spawnSync(git,['ls-remote','--exit-code','--heads','origin','refs/heads/v142-official'],{
+        encoding:'utf8',windowsHide:true,timeout:30000,env:{...process.env,GIT_TERMINAL_PROMPT:'0'}});
+    const match=String(remote.stdout||'').trim().match(/^([a-f0-9]{40})\s+refs\/heads\/v142-official$/);
+    if(remote.status!==0||!match)throw Error('JARVIS_MAINTENANCE_REMOTE_UNVERIFIED');
+    const remoteHead=match[1];
+    const base=spawnSync(git,['merge-base',remoteHead,localHead],{encoding:'utf8',windowsHide:true,timeout:5000});
+    if(base.status!==0||String(base.stdout||'').trim()!==remoteHead)throw Error('JARVIS_MAINTENANCE_NOT_REMOTE_DESCENDANT');
+    maintenanceIdentity=Object.freeze({localHead,remoteHead});
+}
+if(preflightOnly){
+    console.log('[JARVIS_MAINTENANCE_PREFLIGHT_OK] '+JSON.stringify({head:localHead,branch:'v142-official',clean:true,syncEnabled:false,workerStarted:false,maintenanceIdentity,localPublished:false}));
+    process.exit(0);
+}
 const inspect=()=>new Promise(resolve=>{
     const req=http.get({
         host:'127.0.0.1',port:3344,path:'/health',timeout:2000}
@@ -154,10 +192,17 @@ const inspectBridge=()=>new Promise(resolve=>{
         healthy:false,version:'',head:'',clean:false}
     ))}
 );
-Promise.all([import('../jarvis-upload-bridge.js'),import('../jarvis-github-worker.js')]).then(async([bridge,worker])=>{
+Promise.all([import('../jarvis-upload-bridge.js'),maintenance?Promise.resolve(null):import('../jarvis-github-worker.js')]).then(async([bridge,worker])=>{
     let server=null;
+    if(maintenance)await new Promise((resolve,reject)=>{
+        const socket=net.connect({host:'127.0.0.1',port:3345});
+        socket.once('connect',()=>{socket.destroy();reject(Error('JARVIS_MAINTENANCE_SUPERVISOR_MUST_BE_PAUSED'));});
+        socket.once('error',error=>error.code==='ECONNREFUSED'?resolve():reject(error));
+        socket.setTimeout(2000,()=>{socket.destroy();reject(Error('JARVIS_MAINTENANCE_SUPERVISOR_STATE_UNCERTAIN'));});
+    });
     const existing=await inspect();
     const bridgeState=await inspectBridge();
+    if(maintenance&&await occupied())throw Error('JARVIS_MAINTENANCE_BRIDGE_ALREADY_RUNNING');
     const singletonCurrent=existing.healthy&&existing.isJarvis&&existing.contractVersion===EXPECTED&&existing.workerStarted&&existing.loadedHead===localHead&&bridgeState.healthy&&bridgeState.version===EXPECTED_BRIDGE_VERSION&&bridgeState.head===localHead&&bridgeState.clean===true&&bridgeState.model===EXPECTED_MODEL&&bridgeState.conversationModel===EXPECTED_MODEL&&bridgeState.localOnly;
     if(singletonCurrent){
         console.log('[JARVIS_WORKSTATION] singleton already current head='+localHead+' bridgeVersion='+EXPECTED_BRIDGE_VERSION+' http://127.0.0.1:3344');
@@ -186,15 +231,20 @@ Promise.all([import('../jarvis-upload-bridge.js'),import('../jarvis-github-worke
         ' context='+process.env.JARVIS_LOCAL_LLM_CONTEXT_TOKENS+
         ' inferenceCapMs='+process.env.JARVIS_LOCAL_LLM_MAX_INFERENCE_MS);
     bridge.markJarvisWorkstationRuntime({
-        bridgeStarted:true,workerStarted:true,workerPollMs:Math.max(5000,Number(process.env.SIA7_POLL_MS)||30000),loadedHead:localHead}
+        bridgeStarted:true,workerStarted:!maintenance,workerPollMs:maintenance?null:Math.max(5000,Number(process.env.SIA7_POLL_MS)||30000),loadedHead:localHead,
+        maintenanceMode:maintenance,gitSyncEnabled:!maintenance,remoteWorkerEnabled:!maintenance}
     );
-    server=bridge.startJarvisUploadBridge();
+    server=bridge.startJarvisUploadBridge({maintenanceIdentity});
     await new Promise((resolve,reject)=>{
         if(server.listening)return resolve();
         server.once('listening',resolve);
         server.once('error',reject)}
     );
     console.log('[JARVIS_WORKSTATION] online branch=v142-official bridge=http://127.0.0.1:3344 contract='+EXPECTED);
+    if(maintenance){
+        console.log('[JARVIS_MAINTENANCE] local clean HEAD; Git synchronization and publishing worker disabled; supervisor must remain paused');
+        return;
+    }
     const poll=worker.createWorkerPoller();
     const runPoll=async()=>{
         bridge.markJarvisWorkstationRuntime({

@@ -72,3 +72,9 @@ test('supervisor heartbeat is minimal and its GET does not bypass owner authenti
  assert.equal(await authorized(req,res),false);
  assert.equal(code,401);
 });
+test('maintenance heartbeat explicitly reports disabled synchronization and publisher',async()=>{
+ const {supervisorHeartbeat}=await import('../jarvis-workstation-health.js');
+ const report=supervisorHeartbeat({state:{maintenanceMode:true,workerStarted:false,gitSyncEnabled:false,remoteWorkerEnabled:false}});
+ assert.equal(report.maintenanceMode,true);assert.equal(report.workerStarted,false);
+ assert.equal(report.gitSyncEnabled,false);assert.equal(report.remoteWorkerEnabled,false);
+});

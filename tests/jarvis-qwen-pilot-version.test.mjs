@@ -78,4 +78,14 @@ test('V142 official activates Qwen only with matching clean Git, release contrac
   {...semantic,mode:'EXTERNAL'}, {...semantic,model:'another-model'},
   {...semantic,fallbackAllowed:true}, {...semantic,selfHosted:false}
  ])assert.equal(qwenRuntimeEnabled(identity,{env,semantic:wrong}),false);
+ const localHead='b'.repeat(40);
+ const maintenance={...identity,identityMode:'local_maintenance_pinned',git:{...identity.git,head:localHead},
+  localPublished:false,remoteBaseVerified:true,maintenanceIdentity:{localHead,remoteHead:head}};
+ assert.equal(qwenRuntimeEnabled(maintenance,{env,semantic}),true);
+ for(const wrong of [
+  {...maintenance,identityMode:'branch_contract_head'},
+  {...maintenance,localPublished:true}, {...maintenance,remoteBaseVerified:false},
+  {...maintenance,maintenanceIdentity:{localHead:head,remoteHead:head}},
+  {...maintenance,git:{...maintenance.git,clean:false}}, {...maintenance,ok:false}
+ ])assert.equal(qwenRuntimeEnabled(wrong,{env,semantic}),false);
 });

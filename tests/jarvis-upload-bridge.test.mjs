@@ -108,7 +108,7 @@ test("bridge startup preserves dirty edits before any Git synchronization", () =
             if (name === "fs") return { existsSync: () => false, readFileSync: file => file==='jarvis-runtime-contract.json'
                 ? JSON.stringify({semanticModel:'qwen3.5:9b',inferencePolicy:'LOCAL_ONLY'}) : 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' };
             return {};
-        }, process: { platform: "win32",env:{} }
+        }, process: { platform: "win32",env:{},argv:['node','scripts/jarvis-workstation-start.cjs'] }
     }), /DIRTY_BEFORE_BRIDGE_SYNC/);
     assert.deepEqual(commands.map(args => Array.from(args)), [["status", "--porcelain"]]);
     assert.doesNotMatch(readWorkstationScript("bridge"), /--autostash/);
@@ -120,7 +120,7 @@ test('startup rejects a model override before synchronizing Git or contacting in
  const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
  const source=readWorkstationScript("bridge").split('const git=')[0];
  for(const override of [{JARVIS_LOCAL_LLM_MODEL:'other-model'},{JARVIS_CONVERSATION_MODEL:'other-model'},{}]){
-  const runtime={env:{...override}};let sideEffects=0;
+  const runtime={env:{...override},argv:['node','scripts/jarvis-workstation-start.cjs']};let sideEffects=0;
   const run=()=>runInNewContext(source+'\nEXPECTED_BRIDGE_VERSION',{process:runtime,require(name){
    if(name==='fs')return{readFileSync(file){return file==='jarvis-runtime-contract.json'
     ? JSON.stringify({semanticModel:'qwen3.5:9b',inferencePolicy:'LOCAL_ONLY'}) : 'JARVIS_FS_BRIDGE_VERSION = "1.0.0-fixture-v142";';}};
@@ -210,13 +210,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(readWorkstationScript("bridge"), /workerLastPollError/);
     assert.match(readWorkstationScript("bridge"), /loadedHead:localHead/);
     assert.match(readWorkstationScript("bridge"), /existing\.loadedHead===localHead/);
-    assert.ok(
-        readWorkstationScript("bridge").indexOf(
-            "bridge.markJarvisWorkstationRuntime({bridgeStarted:true,workerStarted:true,workerPollMs:5000,loadedHead:localHead})"
-        ) <
-        readWorkstationScript("bridge").indexOf(
-            "server=bridge.startJarvisUploadBridge()"
-        ),
+    const markPosition=readWorkstationScript("bridge").indexOf('bridge.markJarvisWorkstationRuntime(');
+    const startPosition=readWorkstationScript("bridge").indexOf('server=bridge.startJarvisUploadBridge(');
+    assert.ok(markPosition>=0 && startPosition>=0 && markPosition<startPosition,
         "bridge runtime identity must be marked current before port 3344 becomes visible"
     );
     assert.match(readWorkstationScript("bridge"), /JARVIS_GIT_SYNC_DEGRADED/);

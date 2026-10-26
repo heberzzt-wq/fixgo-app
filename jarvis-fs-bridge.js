@@ -3345,7 +3345,8 @@ function advertisedBranchHead(
 export function describeJarvisBridgeIdentity(
     root = DEFAULT_ROOT,
     {
-        verifyRemote = true
+        verifyRemote = true,
+        maintenanceIdentity = null
     } = {}
 ) {
     const contract =
@@ -3397,7 +3398,23 @@ export function describeJarvisBridgeIdentity(
     const detachedHead =
         git.branch === "";
 
-    const compatible =
+    // Explicit host-owned maintenance pins never masquerade as a published SHA.
+    // Recheck disk cleanliness and ancestry; missing/changed pins fail closed.
+    let maintenanceValid = false;
+    if (maintenanceIdentity !== null) {
+        const localHead = String(maintenanceIdentity?.localHead || '');
+        const remoteHead = String(maintenanceIdentity?.remoteHead || '');
+        try {
+            git.clean = gitText(['status','--porcelain=v1','--untracked-files=all'], root, {timeout:5000}) === '';
+            maintenanceValid = repositoryMatches && branchMatches &&
+                contract.repository === 'heberzzt-wq/fixgo-app' && contract.branch === 'v142-official' &&
+                /^[a-f0-9]{40}$/.test(localHead) && /^[a-f0-9]{40}$/.test(remoteHead) &&
+                localHead === git.head && remoteHead === contractHead &&
+                git.clean === true &&
+                gitText(['merge-base',remoteHead,localHead], root, {timeout:5000}) === remoteHead;
+        } catch { maintenanceValid = false; git.clean = false; }
+    }
+    const compatible = maintenanceIdentity !== null ? maintenanceValid :
         repositoryMatches &&
         (
             branchMatches ||
@@ -3417,7 +3434,7 @@ export function describeJarvisBridgeIdentity(
         git,
         identityMode:
             compatible
-                ? branchMatches
+                ? maintenanceIdentity !== null ? 'local_maintenance_pinned' : branchMatches
                     ? "branch_contract_head"
                     : "detached_contract_head"
                 : "invalid",
@@ -3425,11 +3442,16 @@ export function describeJarvisBridgeIdentity(
             contractHead ||
             null,
         remoteVerified:
-            verifyRemote === true &&
+            maintenanceIdentity === null && verifyRemote === true &&
             Boolean(contractHead),
         cachedRemoteVerified:
-            verifyRemote !== true &&
+            maintenanceIdentity === null && verifyRemote !== true &&
             Boolean(contractHead),
+        ...(maintenanceIdentity !== null ? {
+            maintenanceIdentity: {localHead:maintenanceIdentity?.localHead,remoteHead:maintenanceIdentity?.remoteHead},
+            localPublished: false,
+            remoteBaseVerified: Boolean(contractHead) && contractHead === maintenanceIdentity?.remoteHead
+        } : {}),
         repositoryMatches,
         worktreeClean:
             git.clean === true
@@ -3649,6 +3671,12 @@ function refreshJarvisBridgeIdentitySnapshot(
     snapshot = {},
     root = DEFAULT_ROOT
 ) {
+    if (snapshot.maintenanceIdentity) {
+        return describeJarvisBridgeIdentity(root, {
+            verifyRemote: false,
+            maintenanceIdentity: snapshot.maintenanceIdentity
+        });
+    }
     const fast =
         readGitHeadFast(root);
 
@@ -6780,7 +6808,8 @@ export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT,
     localVideoEngine = null,
     localSemanticEngine = null,
-    privateMemoryRoot = ""
+    privateMemoryRoot = "",
+    maintenanceIdentity = null
 } = {}) {
     const app =
         express();
@@ -6819,7 +6848,7 @@ export function createJarvisFsBridgeApp({
     const requestIdentitySnapshot =
         describeJarvisBridgeIdentity(
             root,
-            { verifyRemote: false }
+            { verifyRemote: false, maintenanceIdentity }
         );
     const requestIdentity =
         () => refreshJarvisBridgeIdentitySnapshot(

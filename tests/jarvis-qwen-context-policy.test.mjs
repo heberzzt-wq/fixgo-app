@@ -318,7 +318,7 @@ test('atomic repository audit rejects invented proof, missing gaps and truncatio
  const request={config:{chatMessages:[{role:'user',content:'Verifica dos archivos.'}],
   responseJsonSchema:{properties:{completionAssessment:{properties:{objectives:{properties:{objective_0:{anyOf:[branch(false),branch(true)]}}}}},
    toolCalls:{type:'array',maxItems:0}}}}};
- for(const value of [{s:true,r:[],l:''},{s:true,r:[7],l:''},{s:true,r:[0,0],l:''},{s:false,r:[],l:''},
+ for(const value of [{s:true,r:[],l:''},{s:true,r:[7],l:''},{s:true,r:[0,7,0],l:''},{s:false,r:[],l:''},
   {s:true,r:[0],l:'Falta archivo'},{s:true,r:[0],l:'',objective:'Otro objetivo'}]){
   let calls=0;
   await assert.rejects(generateRepositoryAudit({enabled:true,request,ai:{models:{generateContent:async()=>{

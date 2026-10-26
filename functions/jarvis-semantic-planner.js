@@ -5024,7 +5024,8 @@ async function runModelSemanticPlanner({
             evidenceRecoveryUsed=true;
         }
         const generateAudit = request => require('./jarvis-repository-audit-codec.cjs').generateRepositoryAudit({
-            ai,request,enabled:repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens))
+            ai,request:{...request,config:{...request.config,repositoryObjectiveScopes:missionState.evidenceObjectives}},
+            enabled:repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens))
         });
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
             let auditPlan = null;
@@ -5174,23 +5175,40 @@ async function runModelSemanticPlanner({
                             continue;
                         }
                         if(!objective.satisfied)continue;
+                        if(objective.resolvedScope && (objective.resolvedScope!==contract?.resolvedScope ||
+                            !Array.isArray(objective.scopeTaskIndexes) || objective.scopeTaskIndexes.some(index=>
+                                !Number.isInteger(index)||index<0||!completedTasksForAudit[index])))
+                            throw new Error("SEMANTIC_COMPLETION_EVIDENCE_INVALID");
+                        // Context references resolve the target of a reading. They do
+                        // not supply source content or replace the cited proof.
+                        const scopeReferences=(objective.scopeTaskIndexes||[]).filter(index=>!objective.evidenceTaskIndexes.includes(index)).map(index=>{
+                            const task=completedTasksForAudit[index],o=task.observation||{};
+                            return {index,name:task.name,args:task.args,metadataOnly:true,
+                                contextFiles:o.contextPreview?.files,sourceFile:o.verifiedRead?.file};
+                        });
                         const cited=objective.evidenceTaskIndexes.map(index=>{
                             const task=completedTasksForAudit[index];
                             const {objectiveSatisfied, ...observation}=task?.observation||{};
                             return {index,name:task?.name,args:task?.args,
                                 observation:observation.recordEvidence || observation};
                         });
-                        const review=await ai.models.generateContent({model,contents:instruction,config:{
+                        const repositoryProof=objective.resolvedScope
+                            ? await require('./jarvis-repository-objective-proof.cjs').reviewRepositoryObjective({
+                                ai,model,objective,contract,tasks:completedTasksForAudit}) : null;
+                        if(repositoryProof)objective.independentProof=repositoryProof;
+                        const review=repositoryProof ? {text:JSON.stringify(repositoryProof)} : await ai.models.generateContent({model,contents:instruction,config:{
                             semanticStage:"CLOSURE_OBJECTIVE_VERIFICATION",temperature:0,maxOutputTokens:64,
                             responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{proven:{type:"boolean"}},required:["proven"],additionalProperties:false},
                             chatMessages:[
                                 {role:"system",content:"Verifica sólo ESTE objetivo, por completo, contra las observaciones citadas. Una operación útil no demuestra cumplimiento. Un conteo sólo prueba su colección y filtros; no demuestra subconjuntos sin discriminación ni otras fuentes. Si el objetivo pide varios grupos, deben estar identificados por evidencia pertinente. La ausencia de un campo no demuestra cero registros de ese grupo. Una búsqueda o código no demuestra registros actuales. Para relaciones o fechas deben constar los valores, no sólo un conteo. Si falta alguna parte, proven=false. No combines con otros objetivos ni aceptes una afirmación del planner como prueba. Devuelve sólo proven."},
-                                {role:"user",content:JSON.stringify({objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind,evidence:cited})}
+                                ...(objective.resolvedScope?[{role:"system",content:"El alcance resuelto es una interpretacion a comprobar, nunca evidencia. Comprueba que conserva TODO el objetivo literal en el pedido original: cantidades, archivos y relaciones. Si lo altera, proven=false. Los metadatos de dependencia solo identifican fuentes; no prueban contenido. repo.context ok con REPO_CONTEXT_READY acredita PREPARACION de los archivos en contextPreview.files. independentlyCertified=false y evidenceOnly=true limitan usar el resumen como contenido, no invalidan la preparacion. sourceCount no cuenta contextPreview.files. Cuenta los archivos reales del recibo; un archivo no cumple dos. Una lectura parcial no acredita todo el contenido. Commits no prueban tests aprobados. Para una explicacion verifica si existe evidencia suficiente para redactarla; no exijas una respuesta final previa."}]:[]),
+                                {role:"user",content:JSON.stringify({objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind,
+                                    ...(objective.resolvedScope?{originalRequest:instruction,resolvedScope:objective.resolvedScope,scopeReferences}:{}),evidence:cited})}
                             ]
                         }});
                         if(review?.providerResponse?.finishReason==='length'||extractJsonObject(String(review?.text||""))?.proven!==true) {
                             objective.satisfied=false;
-                            objective.limitation="La evidencia citada no acredita todo el alcance de este objetivo; falta investigar o consultar la parte no demostrada.";
+                            objective.limitation=repositoryProof?.reason || "La evidencia citada no acredita todo el alcance de este objetivo; falta investigar o consultar la parte no demostrada.";
                             evaluatedAudit.missionComplete=false;validatedAudit.missionComplete=false;
                         }
                     }

@@ -2490,14 +2490,16 @@ export function registerJarvisUploadRoutes(
 }
 
 export function createJarvisUploadBridgeApp({
-    root = ""
+    root = "",
+    maintenanceIdentity = null
 } = {}) {
     const repoRoot =
         resolveBridgeRoot(root);
     const app =
         createJarvisFsBridgeApp({
             root:
-                repoRoot
+                repoRoot,
+            maintenanceIdentity
         });
 
     const legacyUploadRoutes =
@@ -2538,14 +2540,16 @@ export function startJarvisUploadBridge({
             process.env.JARVIS_FS_BRIDGE_PORT
         ) ||
         3344,
-    root = ""
+    root = "",
+    maintenanceIdentity = null
 } = {}) {
     const repoRoot =
         resolveBridgeRoot(root);
     const app =
         createJarvisUploadBridgeApp({
             root:
-                repoRoot
+                repoRoot,
+            maintenanceIdentity
         });
 
     return app.listen(port, "127.0.0.1", () => {

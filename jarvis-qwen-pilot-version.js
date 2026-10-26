@@ -45,7 +45,11 @@ export function qwenRuntimeEnabled(identity,{env=process.env,semantic=null}={}){
    identity?.contract?.branch==='v142-official'&&
    identity?.git?.branch==='v142-official'&&identity?.git?.clean===true&&
    typeof identity?.git?.head==='string'&&/^[a-f0-9]{40}$/.test(identity.git.head)&&
-   identity?.contractHead===identity.git.head&&
+   (identity?.identityMode==='local_maintenance_pinned'
+     ? identity.localPublished===false&&identity.remoteBaseVerified===true&&
+       identity.maintenanceIdentity?.localHead===identity.git.head&&
+       identity.maintenanceIdentity?.remoteHead===identity.contractHead
+     : identity?.contractHead===identity.git.head)&&
    semantic?.mode==='LOCAL_ONLY'&&semantic?.model==='qwen3.5:9b'&&
    semantic?.selfHosted===true&&semantic?.fallbackAllowed===false;
 }

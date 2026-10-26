@@ -54,6 +54,8 @@ export function supervisorHeartbeat({state=workstationRuntimeState,processId=pro
         loadedHead:state.loadedHead,
         workerStarted:state.workerStarted===true,
         processId,
-        bridgeVersion
+        bridgeVersion,
+        ...(state.maintenanceMode===true?{maintenanceMode:true,gitSyncEnabled:state.gitSyncEnabled===true,
+            remoteWorkerEnabled:state.remoteWorkerEnabled===true}:{})
     };
 }
