@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: Consulta simple de politica local COMPLETED en Terminal (315976d3) preservada. Ultima mision compleja ed6c4784 MISSION-123ad3d1-09f2-414d-b38a-c6f258c8096f registro PARTIAL/PLANNER_UNAVAILABLE y cancelacion visible; Bridge13020 detenido inactivo para diagnostico. Cambios locales en curso: objetivo literal al final de la auditoria, razon independiente1200chars/1024tokens con prueba fisica que reconoce ambos archivos completos, contenido original repartido por ventanas conservadoras, reportes conservan recibos fuente compatibles omitidos por routing. Ultimo replay Qwen prueba Git/contexto/lecturas con revision independiente; reporte cambios/tests/pendiente sigue falso, no COMPLETED. CI1894 corresponde a hashes anteriores, no a estos cambios. 28 regresiones codec/proof PASS, prueba completa y web pendientes. La laptop auxiliar conserva16 pruebas aisladas aprobadas; no planner distribuido ni ahorroRAM cuantificado. Sin push/deploy/produccion. Hito local: CI completa1897PASS/0FAIL/2SKIP exit0;29regresiones específicas. Negativo Qwen fisico con archivoausente fue falso positivo delmodelo: nuevo guard de dependencia explicita repo.context→repo.read rechaza faltantes ANTES de inferencia y mantiene evaluación de alcance. Pruebas completas no implican informe webcompletado. Proyección porobjetivo parte de originales, conserva prefijos repartidos y marca recortes; presupuesto15360chars a8192tokens conserva preflight total24576. Manifiesto adelanta pendientes juntoapruebas para lectura breve. Preparado commit/arranque y retest auténtico.
+**Resumen:** 2026-10-26: Ultima misión compleja a62e5455 MISSION-5a63dffe-a74e-4220-978e-f7807e675efe duró407091ms, adquirió Git/contexto/doslecturas completas y fuentes auxiliares, pero no localizó informe de tests/pendientes; terminó PARTIAL/PLANNER_UNAVAILABLE con timeout registrado y cancelación visible. No certificarla. Bridge8528 detenidoidle0. Consulta simple de política local COMPLETED sigue certificada en315976d3. Hito siguiente: pistas históricas de rutas/subjects SOLO en next-action, max2900chars, navigationOnly y currentExistenceVerifiedfalse; no amplían permisos ni aprueban tests. Statusraíz completo se reutiliza hasta cambio/acción desconocida; diff solo si contrato cwdestáacotado, se preserva cwdlibre real. 12 dirigidas PASS y CI completa1902PASS/0FAIL/2SKIP exit0. Laptop vieja29/29 en snapshot7archivos a62e5455 con hashes iguales, no Qwen ni instalaciones. Próximo retest: manifiesto acotado y Git para utilidad inmediata, conservando pendiente misióncompuesta. Sin push/deploy ni certificación producción.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge13020 ed6c4784 detenido tras verificar inactivo; supervisor3345 pausado durante mantenimiento.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge8528 detenido inactivo; nuevo commit/arranque de mantenimiento pendiente, supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 

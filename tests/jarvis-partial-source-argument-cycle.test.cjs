@@ -111,3 +111,24 @@ test('complete local Git prefixes subsume smaller limits only while their reposi
  for(const later of [{name:'unknown',observation:{ok:true}},{name:'repo.write',mutates:true,observation:{ok:true}}])assert.equal(valid([task,later],4),true);
  const before=JSON.stringify(task);valid([task],4);assert.equal(JSON.stringify(task),before);
 });
+
+test('complete root Git status and diff snapshots suppress only observed modes while readonly state remains stable',()=>{
+ const status={name:'repo.gitStatus',mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',additionalProperties:false,properties:{cwd:{type:'string',const:'.'},timeoutMs:{type:'number'}}}};
+ const diff={name:'repo.gitDiff',mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',additionalProperties:false,properties:{cwd:{type:'string',const:'.'},timeoutMs:{type:'number'},cached:{type:'boolean'}}}};
+ const statusTask={name:status.name,args:{cwd:'.',timeoutMs:5000},observation:{ok:true,gitEvidence:{kind:'git_worktree',branchLine:'## main',files:[],totalFiles:0,filesOmitted:0,committedHistory:false}}};
+ const diffTask={name:diff.name,args:{},observation:{ok:true,gitEvidence:{kind:'git_worktree_diff',files:[],totalFiles:0,filesOmitted:0,hasDiff:false,contentExcerpt:'',excerptTruncated:false,committedHistory:false}}};
+ const offered=(catalog,tasks,name,args)=>eligibleEvidenceActionCatalog(catalog,tasks).some(t=>t.name===name&&hasRequiredToolArguments(t,args));
+ assert.equal(offered([status],[statusTask],status.name,{}),false);
+ assert.equal(offered([diff],[diffTask],diff.name,{}),false);assert.equal(offered([diff],[diffTask],diff.name,{cached:false}),false);assert.equal(offered([diff],[diffTask],diff.name,{cached:true}),true);
+ const cached={...diffTask,args:{cached:true}};assert.equal(offered([diff],[cached],diff.name,{}),true);assert.equal(offered([diff],[cached],diff.name,{cached:false}),true);assert.equal(offered([diff],[cached],diff.name,{cached:true}),false);assert.equal(eligibleEvidenceActionCatalog([diff],[diffTask,cached]).length,0);
+ for(const [tool,task]of [[status,statusTask],[diff,diffTask]]){
+  for(const later of [{name:'unknown',observation:{ok:true}},{name:'write',mutates:true,observation:{ok:true}}])assert.equal(offered([tool],[task,later],tool.name,{}),true);
+  for(const mutate of [t=>t.observation.ok=false,t=>t.observation.gitEvidence.filesOmitted=1,t=>t.observation.gitEvidence.totalFiles=1,t=>t.args.cwd='other']){const changed=structuredClone(task);mutate(changed);assert.equal(offered([tool],[changed],tool.name,{}),true);}
+  const broad={...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,cwd:{type:'string'}}}};assert.equal(offered([broad],[task],tool.name,{}),true);
+  const extra={...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,ref:{type:'string'}}}};assert.equal(offered([extra],[task],tool.name,{}),true);
+ }
+ const truncated=structuredClone(diffTask);truncated.observation.gitEvidence.excerptTruncated=true;assert.equal(offered([diff],[truncated],diff.name,{}),true);assert.equal(offered([diff],[diffTask,truncated],diff.name,{}),true,'a later changed/incomplete snapshot revokes earlier reuse');
+ const changedStatus=structuredClone(statusTask);changedStatus.observation.gitEvidence.filesOmitted=1;assert.equal(offered([status],[statusTask,changedStatus],status.name,{}),true);
+ const constrained={...diff,inputSchema:{...diff.inputSchema,properties:{...diff.inputSchema.properties,cached:{type:'boolean',const:false}}}};assert.equal(eligibleEvidenceActionCatalog([constrained],[diffTask]).length,0,'never widen cached const:false to true');
+ const readonly={name:'repo.read',mutates:false};assert.equal(offered([status,readonly],[statusTask,{name:readonly.name,observation:{ok:true}}],status.name,{}),false);
+});

@@ -390,6 +390,42 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         }));
     };
     return catalog.flatMap(tool=>{
+        // Successful complete root snapshots are reusable until a later action
+        // could change the repository. A free cwd is never assumed to be root.
+        if(['repo.gitStatus','repo.gitDiff'].includes(tool.name)&&tool.mutates===false) {
+            const schema=buildNativeInputSchema(tool.inputSchema),p=schema.properties||{},isDiff=tool.name==='repo.gitDiff';
+            const keys=isDiff?['cwd','timeoutMs','cached']:['cwd','timeoutMs'];
+            const rootOnly=p.cwd?.type==='string'&&(p.cwd.const==='.'||p.cwd.const===undefined&&Array.isArray(p.cwd.enum)&&p.cwd.enum.length===1&&p.cwd.enum[0]==='.');
+            if(!schema.anyOf&&schema.additionalProperties===false&&rootOnly&&Object.keys(p).every(key=>keys.includes(key))&&
+                (!p.timeoutMs||p.timeoutMs.type==='number')&&(!p.cached||p.cached.type==='boolean')) {
+                const observed=new Set();
+                for(const task of successful) {
+                    const args=task.args||{},g=task.observation.gitEvidence;
+                    if(task.name!==tool.name||Object.keys(args).some(key=>!keys.includes(key))||args.cwd!==undefined&&args.cwd!=='.'||
+                        args.cached!==undefined&&typeof args.cached!=='boolean'||args.timeoutMs!==undefined&&typeof args.timeoutMs!=='number')continue;
+                    if(!g||g.kind!==(isDiff?'git_worktree_diff':'git_worktree')||g.committedHistory!==false||!Array.isArray(g.files)||
+                        g.filesOmitted!==0||g.totalFiles!==g.files.length||g.files.some(file=>typeof file!=='string'||file.length>=280))continue;
+                    if(isDiff ? g.excerptTruncated!==false||typeof g.contentExcerpt!=='string'||g.contentExcerpt.length>=1000||g.hasDiff!==(g.contentExcerpt.length>0)
+                        : typeof g.branchLine!=='string'||!g.branchLine||g.branchLine.length>=180)continue;
+                    const cached=args.cached===true;
+                    const stable=tasks.slice(tasks.indexOf(task)+1).every(next=>next.mutates!==true&&
+                        dependencyCatalog.some(entry=>entry.name===next.name&&entry.mutates===false)&&
+                        (next.name!==tool.name||(next.args?.cached===true)!==cached||
+                            next.observation?.ok===true&&next.observation.executionOk!==false&&next.observation.blocked!==true&&next.observation.requiresInput!==true&&
+                            JSON.stringify(next.observation.gitEvidence)===JSON.stringify(g)));
+                    if(stable)observed.add(cached);
+                }
+                if(observed.size) {
+                    if(!isDiff)return [];
+                    const modes=(p.cached?[false,true]:[false]).filter(mode=>!observed.has(mode)&&
+                        (p.cached?.const===undefined||p.cached.const===mode)&&(!Array.isArray(p.cached?.enum)||p.cached.enum.includes(mode)));
+                    if(!modes.length)return [];
+                    const mode=modes[0];
+                    return [{...tool,inputSchema:{...schema,properties:{...p,...(p.cached?{cached:{...p.cached,const:mode}}:{})},
+                        required:[...new Set([...(schema.required||[]),...(mode?['cached']:[])])]}}];
+                }
+            }
+        }
         // This bounded history contract has one argument and no alternate ref.
         // Exclude exact successful limits; preserve every other native limit.
         if(tool.name==='repo.gitHistory'&&tool.mutates===false) {
