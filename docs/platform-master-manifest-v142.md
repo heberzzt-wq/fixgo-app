@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: Manifiesto acotado COMPLETED con respuesta visible en f95a9d60, MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a,32430ms:1902/0/2 y pendientesdocumentados; lectura real1-86 parcial declarada. Consulta Git siguiente MISSION-60c3e8f8-1073-4ce6-8414-377dc388beaa completó adquisición42586ms, pero redacción final falló SEMANTIC_RESPONSE_INCOMPLETE y UI correctamentePARTIAL. Causa verificada: cap256tokens y briefing descartabaSHA/asuntosGit. Corrección: hechosGitobservados pasan alcompositorfinal, estadoGitdesde recibo, presupuesto porhechos reales máx1200; fallos/duplicados no inflan. ReplayQwen con mismosrecibos devuelve8commits y árbollimpio; no sustituye retestweb.35tests compositor PASS, CIcompleta1904PASS/0FAIL/2SKIP exit0. Bridge20488 detenidoidle0; commit y retestGit pendiente. Laptopvieja29/29 snapshot7archivos a62e5455. Misióncompuesta original siguePARTIAL, no certificación general ni producción. Sinpush/deploy.
+**Resumen:** 2026-10-26: Consulta del manifiesto real ya COMPLETED con respuesta visible; consulta Git en 54c9c613 quedo PARTIAL al fallar MISSION_CONTRACT y reclasificar Git como platform_records. Reparacion: reutilizar llamadas repo de lectura ya validadas solo cuando Qwen confirma cobertura y objetivos literales completos, clasificados contra catalogo completo, nombran explicitamente operaciones presentes. Objetivos implicitos o mixtos conservan contrato completo; respuesta truncada no autoriza reutilizacion. Regresion conserva cuatro operaciones ante falsa cobertura. CI 1905 PASS, 0 FAIL, 2 SKIP. Retest web pendiente. Laptop vieja 29/29 en snapshot a62e5455. Mision compuesta original pendiente; sin certificacion general o productiva, sin push/deploy.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge20488 detenido inactivo para corregir composición; nuevo arranque de mantenimiento pendiente. Supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge de mantenimiento detenido inactivo para corregir contrato; reinicio tras commit limpio. Supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 

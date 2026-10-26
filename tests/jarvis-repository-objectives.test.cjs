@@ -119,9 +119,42 @@ test('repository current-turn calls cannot bypass literal objectives through a f
    return {text:JSON.stringify({sourceReview:names,sourceKind:'repository',workKind:'none',work:'',verification:'',delivery:''})};
   }}}
  });
- assert.deepEqual(stages,['MISSION_CONTRACT_OPERATIONS',...Array(4).fill('REPOSITORY_OBJECTIVE_CONTRACT')]);
+ assert.deepEqual(stages,[undefined,...Array(4).fill('REPOSITORY_OBJECTIVE_CONTRACT'),'MISSION_CONTRACT_OPERATIONS',...Array(4).fill('REPOSITORY_OBJECTIVE_CONTRACT')]);
  assert.equal(plan.planKind,'MISSION_CONTRACT_COMPACT_LOCAL');
  assert.equal(plan.completionAssessment.objectives.length,4);
  assert.deepEqual(plan.toolCalls.map(t=>t.name),names);
  assert.ok(plan.toolCalls.every(t=>t.deferred===true));assert.equal(plan.missionComplete,false);
+});
+
+test('explicit Git calls are reused only with complete immutable repository objectives',async()=>{
+ const {runJarvisSemanticPlanner}=require('../functions/jarvis-semantic-planner.js');
+ const input='Usa repo.gitHistory y repo.gitStatus para resumir los últimos 8 commits y el estado actual del repositorio sin modificar archivos.';
+ const calls=[{name:'repo.gitHistory',args:{limit:8}},{name:'repo.gitStatus',args:{}}];
+ const tools=calls.map(call=>({name:call.name,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{limit:{type:'integer'}},additionalProperties:false}}));
+ tools.push({name:'platform.query',mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{}}});
+ for(const variant of ['valid','mixed','truncated']){
+  const stages=[];
+  const task=runJarvisSemanticPlanner({input,catalog:tools,
+   missionState:{phase:'MISSION_CONTRACT',modelContextTokens:8192,existingInitialToolCalls:calls},
+   retrieveToolCandidates:async()=>{throw Error('UNEXPECTED_RETRIEVAL');},
+   ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async req=>{
+    stages.push(req.config.semanticStage);
+    if(!req.config.semanticStage)return {text:'{"coversAll":true}',providerResponse:{finishReason:variant==='truncated'?'length':'stop'}};
+    if(req.config.semanticStage==='REPOSITORY_OBJECTIVE_CONTRACT'){
+     assert.ok(JSON.stringify(req.config.responseJsonSchema).includes('platform_records'));
+     return scopedResponse(req,{scope_0:variant==='mixed'?'platform_records':'repository_search'});
+    }
+    throw Error('FULL_CONTRACT_REQUIRED');
+   }}}
+  });
+  if(variant==='valid'){
+   const result=await task;
+   assert.equal(result.planKind,'MISSION_CONTRACT_EXISTING_TOOLS_VERIFIED');
+   assert.equal(result.missionComplete,false);
+   assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+   assert.equal(result.completionAssessment.objectives[0].requestQuote,input);
+   assert.deepEqual(result.toolCalls.map(({name,args})=>({name,args})),calls);
+   assert.deepEqual(stages,[undefined,'REPOSITORY_OBJECTIVE_CONTRACT']);
+  }else await assert.rejects(task,/FULL_CONTRACT_REQUIRED/);
+ }
 });

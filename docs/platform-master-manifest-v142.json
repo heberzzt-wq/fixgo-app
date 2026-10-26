@@ -9,12 +9,12 @@
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
-        "passed": 1904,
+        "passed": 1905,
         "failed": 0,
         "skipped": 2,
         "exitCode": 0,
         "scope": "Pruebas locales automatizadas; no certifican produccion.",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/composition-ci.txt"
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/contract-reuse-ci.txt"
       },
       "pending": [
         "Completar el informe Git/contexto/lecturas/pruebas/pendientes en Terminal autenticada; el ultimo intento complejo quedo PARTIAL.",
@@ -45,9 +45,9 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "f95a9d60e87d9bdfc9634599fe8e79a4abbe1d31",
+      "testedCodeBaseCommit": "54c9c6137a0c8eb2b0d6bd02282e13d705f74e63",
       "testedCodeFileSha256": {
-        "functions/jarvis-semantic-planner.js": "636b3751f8e49cd9578005caaef353ce847383b8f313985c96d355577ae39121",
+        "functions/jarvis-semantic-planner.js": "71b6e4d5d6ace579967804be837bee9bad8b119239c2d1c631444f757bfd16c8",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
         "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764",
         "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100"
@@ -64,12 +64,13 @@
         }
       ],
       "latestGitSummaryWeb": {
-        "missionId": "MISSION-60c3e8f8-1073-4ce6-8414-377dc388beaa",
-        "commit": "f95a9d60e87d9bdfc9634599fe8e79a4abbe1d31",
-        "executionStatus": "COMPLETED",
+        "missionId": "MISSION-b7ced91b-7f24-4acf-be48-5ae1b23fbaad",
+        "commit": "54c9c6137a0c8eb2b0d6bd02282e13d705f74e63",
+        "executionStatus": "PARTIAL",
         "responseComposed": false,
-        "error": "SEMANTIC_RESPONSE_INCOMPLETE",
-        "userVisibleStatus": "PARTIAL"
+        "error": "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION",
+        "userVisibleStatus": "PARTIAL",
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-composition-web-retest-trace.json"
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -77,9 +78,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Manifiesto acotado COMPLETED con respuesta visible en f95a9d60, MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a,32430ms:1902/0/2 y pendientesdocumentados; lectura real1-86 parcial declarada. Consulta Git siguiente MISSION-60c3e8f8-1073-4ce6-8414-377dc388beaa completó adquisición42586ms, pero redacción final falló SEMANTIC_RESPONSE_INCOMPLETE y UI correctamentePARTIAL. Causa verificada: cap256tokens y briefing descartabaSHA/asuntosGit. Corrección: hechosGitobservados pasan alcompositorfinal, estadoGitdesde recibo, presupuesto porhechos reales máx1200; fallos/duplicados no inflan. ReplayQwen con mismosrecibos devuelve8commits y árbollimpio; no sustituye retestweb.35tests compositor PASS, CIcompleta1904PASS/0FAIL/2SKIP exit0. Bridge20488 detenidoidle0; commit y retestGit pendiente. Laptopvieja29/29 snapshot7archivos a62e5455. Misióncompuesta original siguePARTIAL, no certificación general ni producción. Sinpush/deploy.",
+    "lastSessionSummary": "2026-10-26: Consulta del manifiesto real ya COMPLETED con respuesta visible; consulta Git en 54c9c613 quedo PARTIAL al fallar MISSION_CONTRACT y reclasificar Git como platform_records. Reparacion: reutilizar llamadas repo de lectura ya validadas solo cuando Qwen confirma cobertura y objetivos literales completos, clasificados contra catalogo completo, nombran explicitamente operaciones presentes. Objetivos implicitos o mixtos conservan contrato completo; respuesta truncada no autoriza reutilizacion. Regresion conserva cuatro operaciones ante falsa cobertura. CI 1905 PASS, 0 FAIL, 2 SKIP. Retest web pendiente. Laptop vieja 29/29 en snapshot a62e5455. Mision compuesta original pendiente; sin certificacion general o productiva, sin push/deploy.",
     "infrastructure": {
-      "bridge": "Bridge20488 detenido inactivo para corregir composición; nuevo arranque de mantenimiento pendiente. Supervisor3345 pausado.",
+      "bridge": "Bridge de mantenimiento detenido inactivo para corregir contrato; reinicio tras commit limpio. Supervisor3345 pausado.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",

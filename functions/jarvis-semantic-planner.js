@@ -3367,13 +3367,15 @@ async function runModelSemanticPlanner({
                     call.deferred !== true && hasRequiredToolArguments(tool, call.args || {});
             });
         // A coverage boolean is not an immutable repository objective contract.
-        // Provisional repository calls must pass through the complete contract
-        // and later grounded arguments, even when the model says coversAll.
+        // Repository calls also need literal objectives classified against the
+        // full catalog; coverage alone cannot skip a missing source or operation.
         const repositoryContractRequired = [4096,8192].includes(Number(missionState?.modelContextTokens)) &&
             String(ai.lastProvider || "").includes("ollama-openai-compatible-local") &&
             existingCalls.some(call => normalizedCatalog.some(tool =>
                 tool.name === call?.name && tool.name.startsWith("repo.") && tool.mutates === false));
-        if (reusableCalls && !repositoryContractRequired) {
+        const reusableRepositoryCalls=repositoryContractRequired && existingCalls.every(call=>
+            ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search','repo.grep','repo.read','repo.context'].includes(call.name));
+        if (reusableCalls && (!repositoryContractRequired || reusableRepositoryCalls)) {
             // The same Qwen assesses the whole instruction, not just the first
             // action. Reuse arguments only when it confirms complete coverage.
             const coverage = await ai.models.generateContent({
@@ -3398,12 +3400,21 @@ async function runModelSemanticPlanner({
             console.info("[JARVIS_MISSION_COVERAGE]", JSON.stringify({ checkedAt: new Date().toISOString(), valid: typeof coverageDecision === "boolean", coversAll: coverageDecision === true, finishReason: coverage?.providerResponse?.finishReason || "", inputChars: instruction.length }));
             if (coverageDecision === true &&
                 coverage?.providerResponse?.finishReason !== "length") {
-                return requireExecutablePlan({
-                    ...validatePlan({ toolCalls: existingCalls, missionComplete: false }, normalizedCatalog, instruction),
-                    provider: String(ai.lastProvider || "jarvis-local"), model,
-                    catalogSize: normalizedCatalog.length,
-                    planKind: "MISSION_CONTRACT_EXISTING_TOOLS_VERIFIED"
-                });
+                const repositoryObjectives=reusableRepositoryCalls
+                    ? await require('./jarvis-repository-objectives.cjs').extractRepositoryObjectives({ai,model,instruction,catalog:normalizedCatalog}) : null;
+                const repositoryKinds=new Set(['repository_source','repository_search','repository_inventory']);
+                const allExplicitRepositoryOperationsCovered = repositoryObjectives?.length &&
+                    repositoryObjectives.every(goal => repositoryKinds.has(goal.requiredEvidenceKind) &&
+                        goal.explicitTools?.length && goal.explicitTools.every(name => existingCalls.some(call => call.name === name)));
+                if (!reusableRepositoryCalls || allExplicitRepositoryOperationsCovered) {
+                    return requireExecutablePlan({
+                        ...validatePlan({ toolCalls: existingCalls, missionComplete: false }, normalizedCatalog, instruction),
+                        ...(repositoryObjectives ? {completionAssessment:{objectives:repositoryObjectives}} : {}),
+                        provider: String(ai.lastProvider || "jarvis-local"), model,
+                        catalogSize: normalizedCatalog.length,
+                        planKind: "MISSION_CONTRACT_EXISTING_TOOLS_VERIFIED"
+                    });
+                }
             }
         }
         const initialToolNames =
