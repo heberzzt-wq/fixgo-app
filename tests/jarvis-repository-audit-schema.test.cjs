@@ -211,3 +211,37 @@ test('source objective retains shared defaults even when their owner is metadata
   return {text:'{"toolCalls":[],"explanation":"Still incomplete."}'};
  }}}});assert.equal(JSON.stringify(req),before);
 });
+
+test('overlapping Git histories share exact commit bytes and decode without changing receipt coverage',()=>{
+ const {packGitCommitEvidence,unpackGitCommitEvidence}=require('../functions/jarvis-repository-audit-codec.cjs');
+ const commits=Array.from({length:8},(_,i)=>({sha:String(i).repeat(40),subject:'change '+i,files:Array.from({length:20},(_,j)=>'source/path/file'+j+'.js')}));
+ const tasks=[8,5,1].map(limit=>({name:'repo.gitHistory',args:{limit},observation:{ok:true,executionOk:true,
+  gitEvidence:{commits:commits.slice(0,limit),reportedCommits:limit,limit,detailsBounded:true}}}));
+ tasks.push({name:'repo.gitHistory',args:{limit:1},observation:{ok:true,executionOk:true,gitEvidence:{commits:[{...commits[0],subject:'different evidence'}],limit:1}}});
+ const before=JSON.stringify(tasks),packed=packGitCommitEvidence(tasks);
+ assert.ok(JSON.stringify(packed).length<before.length-1000);
+ assert.deepEqual(unpackGitCommitEvidence(packed),tasks);
+ assert.equal(JSON.stringify(tasks),before);
+ const corrupt=structuredClone(packed);corrupt[1].observation.gitEvidence.sharedCommitIndexes=[999];
+ assert.throws(()=>unpackGitCommitEvidence(corrupt),/GIT_COMMIT_TRANSPORT_INVALID/);
+});
+
+test('semantic selection cannot hide receipts of tools explicitly required by the objective',async()=>{
+ const req=request();req.config.repositoryObjectiveScopes=[{objective:'Revisar commits reales',resolvedScope:'Revisar commits reales',explicitTools:['repo.gitHistory','repo.gitStatus']}];
+ req.config.chatMessages.unshift(...[
+  {index:0,name:'repo.gitHistory',observation:{ok:true,gitEvidence:{commits:[{sha:'a'.repeat(40)}]}}},
+  {index:1,name:'repo.gitStatus',observation:{ok:false,status:'DENIED',gitEvidence:null}}
+ ].map(t=>({role:'system',content:'OBSERVACION_EJECUTADA='+JSON.stringify(t)})));
+ let audited=false;
+ const result=await generateRepositoryAudit({enabled:true,request:req,ai:{models:{generateContent:async r=>{
+  if(r.config.semanticStage==='REPOSITORY_EVIDENCE_SELECTION')return {text:'{"objective_0":[0]}'};
+  if(r.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT'){
+   const input=JSON.parse(r.config.chatMessages.find(m=>m.role==='user').content);
+   assert.deepEqual(input.evidence.map(t=>t.name),['repo.gitHistory','repo.gitStatus']);
+   assert.equal(input.evidence[1].observation.ok,false);audited=true;
+   return {text:'{"e":"Status denied","s":false,"r":[0],"l":"Missing verified status"}'};
+  }
+  return {text:'{"toolCalls":[],"explanation":"Still blocked"}'};
+ }}}});
+ assert.equal(audited,true);assert.equal(JSON.parse(result.text).completionAssessment.objectives.objective_0.satisfied,false);
+});

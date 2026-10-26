@@ -2289,7 +2289,14 @@ function planningAuditTasks(tasks, missionState, {repositoryOnly = false} = {}) 
             sourceStructure:{...structure,sourceSchemaOmitted:true,
                 omissionScope:"Repository-only planning view; full AST schema retained in original receipt. This view grants no operational data authority."}}}};
     }) : tasks;
-    return boundedAuditTasks(views,lowMemory ? Math.floor(tokens*1.5) : 28000,lowMemory ? 1800 : 4000);
+    const budget=lowMemory ? Math.floor(tokens*1.5) : 28000, bodyLimit=lowMemory ? 1800 : 4000;
+    try { return boundedAuditTasks(views,budget,bodyLimit); }
+    catch(error) {
+        if(error.message!=='SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED')throw error;
+        const packed=require('./jarvis-repository-audit-codec.cjs').packGitCommitEvidence(views);
+        if(packed===views)throw error;
+        return boundedAuditTasks(packed,budget,bodyLimit);
+    }
 }
 
 function boundedAuditTasks(tasks, maximumCharacters = 28000, latestSourceBodyLimit = 4000) {

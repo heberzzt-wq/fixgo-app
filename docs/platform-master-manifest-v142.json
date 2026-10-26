@@ -497,7 +497,7 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: mision web autentica MISSION-bfa295ad-42df-46f1-9d2f-a759abd5779f, preview d3e4a2a1 + Bridge mantenimiento2da7b97c, termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en159.328s.8 operaciones exitosas, contexto recuperado,53 inferencias locales,0 externas. Causa nueva comprobada en trazas: contrato devuelve scopeContext/resolvedScope/explicitTools y orquestador los elimina antes de la siguiente peticion; auditor por objetivo no se activa. Regresiones RED2/2->GREEN;52 orquestador PASS. Fix conserva exclusivamente campos del contrato y excluye satisfecho/indices como prueba inicial; conserva follow-up y storage. CI completa exit0 {'pass': 1823, 'fail': 0, 'skipped': 2}. Bridge8776 detenido sin inferencias activas antes de edicion. Pendiente commit local/arranque y mision autentica LOCAL puerto5000, que ya sirve el cambio. No push/deploy. Vieja HEBERTO-MENDOZA12GB/7.46GB libres, i3-5005U,IntelHD5500,45.1GB disco libre; snapshot aislado jarvis-aux-20261026 ejecuto4/4 pruebas proof con hashes iguales. No automatizacion distribuida ni descarga importante de carga certificada.",
+    "lastSessionSummary": "2026-10-26: scope transport certificado en mision local autentica MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c sobre16ee3ba3, pero PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED (12751>12288 caracteres). Reparacion local comparte SOLO commits identicos y decodifica recibos antes de auditoria, sin elevar8192 tokens ni eliminar evidencia. Seleccion conserva recibos de herramientas exigidas, incluidos fallidos; no cambia veredictos. Replay exacto supera presupuesto y alcanza Qwen; ultimo replay limitado a12 llamadas termina DIAGNOSTIC_TWELVE_CALL_LIMIT: sigue pendiente cierre semantico por veredictos incompletos/repeticion. Laptop vieja ejecuto12/12 pruebas aisladas, hashes verificados, concurrencia1; sin segundo cerebro ni reparto automatico. Existe falla preexistente fuera de ci:test: recorded search and rehydrated read reach argument completion inside the mission loop (budget-baseline.txt). No push/deploy; no mision completa certificada. CI oficial final exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}.",
     "infrastructure": {
       "bridge": "Ultima consulta: 3344/3345 apagados; mantenimiento temporal autorizado/probado pendiente commit local y arranque. SHA remoto d3e4a2a1; no mision certificada. No iniciar publicador.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
@@ -549,7 +549,9 @@
       "2026-10-26T04:21:58.195Z Autorizacion especifica del propietario recibida para identidad SOLO mantenimiento: SHA local limpio fijado y descendiente del remoto real, marcado NO publicado; autenticacion/permisos intactos. Reintento unico aprobado y aplicado. RED->GREEN demostrado en identidad y bloqueo de publicador normal ante HEAD divergente. Integracion valida token requerido401 y cambio de HEAD/archivos503; negativos rama/repositorio/ascendencia/remoto redirigido. Arranque mantenimiento no importa/ejecuta worker, normal comprueba igualdad antes de importarlo. Autoarranques diarios conservados. CI completa {\"pass\":1821,\"fail\":0,\"skipped\":2} exit0; primer intento fallo por prueba de orden que buscaba llamada antigua, corregida con existencia+orden explicitos. Sin commit/push/deploy aun; siguiente commit SOLO local y preflight fisico, luego recuperar Bridge y mision preview. No certificacion semantica ni produccion.",
       "2026-10-26T04:23:17.213Z Commit SOLO LOCAL d32636f84a2941ed596bfcfe844584f74fa86d99 creado con cambios conservados; remoto sigue d3e4a2a10dbf49024497c74a225c509fde6a1997. Preflight fisico exit0: Git limpio, SHA fijado descendiente, localPublished=false, sin worker/sync. CI del codigo1821pass0fail2skip exit0. Siguiente commit documental registra este hito; su SHA runtime se conservara fuera de Git para no ensuciar el arbol durante la mision. Bridge/supervisor aun apagados antes de recuperacion. No push/deploy/mision certificada.",
       "2026-10-26: revision fresca HEAD87cd24a1 limpio al inicio, remoto d3e4a2a1; commits locales preservados. Diario reprodujo 2 fallos localhost (503 identidad antes del 409 esperado): tests dependian del checkout no publicado. Fixture Git temporal real, sin tocar guards ni assertions, RED4/6->GREEN6/6. CI completa exit0, totales por grupos {'pass': 1821, 'fail': 0, 'skipped': 2} (pueden solaparse). Supervisor19592 identificado por puerto3345/comando y pausado;3344/3345 cerrados comprobados. Terminal preview presenta input deshabilitado esperando sesion Firebase. Siguiente: commit local del test+relevo, preflight y arranque mantenimiento ya autorizado, comprobar autenticacion y mision. Sin push/deploy; no certificacion semantica.",
-      "2026-10-26: mision web autentica MISSION-bfa295ad-42df-46f1-9d2f-a759abd5779f, preview d3e4a2a1 + Bridge mantenimiento2da7b97c, termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en159.328s.8 operaciones exitosas, contexto recuperado,53 inferencias locales,0 externas. Causa nueva comprobada en trazas: contrato devuelve scopeContext/resolvedScope/explicitTools y orquestador los elimina antes de la siguiente peticion; auditor por objetivo no se activa. Regresiones RED2/2->GREEN;52 orquestador PASS. Fix conserva exclusivamente campos del contrato y excluye satisfecho/indices como prueba inicial; conserva follow-up y storage. CI completa exit0 {'pass': 1823, 'fail': 0, 'skipped': 2}. Bridge8776 detenido sin inferencias activas antes de edicion. Pendiente commit local/arranque y mision autentica LOCAL puerto5000, que ya sirve el cambio. No push/deploy. Vieja HEBERTO-MENDOZA12GB/7.46GB libres, i3-5005U,IntelHD5500,45.1GB disco libre; snapshot aislado jarvis-aux-20261026 ejecuto4/4 pruebas proof con hashes iguales. No automatizacion distribuida ni descarga importante de carga certificada."
+      "2026-10-26: mision web autentica MISSION-bfa295ad-42df-46f1-9d2f-a759abd5779f, preview d3e4a2a1 + Bridge mantenimiento2da7b97c, termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en159.328s.8 operaciones exitosas, contexto recuperado,53 inferencias locales,0 externas. Causa nueva comprobada en trazas: contrato devuelve scopeContext/resolvedScope/explicitTools y orquestador los elimina antes de la siguiente peticion; auditor por objetivo no se activa. Regresiones RED2/2->GREEN;52 orquestador PASS. Fix conserva exclusivamente campos del contrato y excluye satisfecho/indices como prueba inicial; conserva follow-up y storage. CI completa exit0 {'pass': 1823, 'fail': 0, 'skipped': 2}. Bridge8776 detenido sin inferencias activas antes de edicion. Pendiente commit local/arranque y mision autentica LOCAL puerto5000, que ya sirve el cambio. No push/deploy. Vieja HEBERTO-MENDOZA12GB/7.46GB libres, i3-5005U,IntelHD5500,45.1GB disco libre; snapshot aislado jarvis-aux-20261026 ejecuto4/4 pruebas proof con hashes iguales. No automatizacion distribuida ni descarga importante de carga certificada.",
+      "2026-10-26: scope transport certificado en mision local autentica MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c sobre16ee3ba3, pero PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED (12751>12288 caracteres). Reparacion local comparte SOLO commits identicos y decodifica recibos antes de auditoria, sin elevar8192 tokens ni eliminar evidencia. Seleccion conserva recibos de herramientas exigidas, incluidos fallidos; no cambia veredictos. Replay exacto supera presupuesto y alcanza Qwen; ultimo replay limitado a12 llamadas termina DIAGNOSTIC_TWELVE_CALL_LIMIT: sigue pendiente cierre semantico por veredictos incompletos/repeticion. Laptop vieja ejecuto12/12 pruebas aisladas, hashes verificados, concurrencia1; sin segundo cerebro ni reparto automatico. Existe falla preexistente fuera de ci:test: recorded search and rehydrated read reach argument completion inside the mission loop (budget-baseline.txt). No push/deploy; no mision completa certificada.",
+      "CI oficial final 2026-10-26 exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}, dirigida18/18; auxiliar vieja12/12. Regresion fuera de CI documentada por separado."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -662,7 +664,14 @@
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/ci-20261026.txt",
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/supervisor-pause.json",
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/scope-ci-exit.json",
-      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/orchestrator-green.txt"
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/orchestrator-green.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/local-scope-trace.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/replay-budget-fixed.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/replay-selection-fixed.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/budget-baseline.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/selection-green.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/closure-ci.txt",
+      "HEBERTO-MENDOZA:C:/Users/heber/Documents/Codex/jarvis-aux-20261026/audit-final-receipt.json"
     ],
     "deployment": {
       "status": "BLOCKED_NOT_DEPLOYED",
@@ -672,8 +681,8 @@
       "governance": "No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion."
     },
     "nextSteps": [
-      "VIGENTE: commit SOLO local del contrato conservado, preflight y recuperacion autorizada del Bridge en mantenimiento sin publicador; probar el mismo prompt en Terminal local autenticada puerto5000. Preview remota permanece d3e4a2a1 y no contiene el cambio frontend. Sin push/deploy.",
-      "Cerrar con evidencia la explicacion de cambios/pruebas y la mision completa; no convertir pruebas de componentes en COMPLETED.",
+      "VIGENTE: concluir verificacion y commit local de transporte de commits/seleccion, recuperacion autorizada del Bridge mantenimiento y retest local autentico. No push/deploy; preview remota d3e4a2a1 conserva frontend previo.",
+      "Cerrar auditoria semantica (salidas incompletas/repeticion y explicacion de cambios/pruebas); reparar regresion preexistente de argument completion sin debilitar asercion. No convertir replay/pruebas de componentes en COMPLETED.",
       "Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.",
       "Tras una mision completa, retestar negativos y las12 NS1; conservar pendientes OAuth, autorrecuperacion, aislamiento y pruebas sostenidas.",
       "Actualizar manifiesto y diario tras cada hito. Produccion, dinero, secretos y acceso conservan sus controles."
@@ -686,11 +695,11 @@
       "previewShaVerified": true,
       "bridgeShaVerified": false,
       "webMissionCompleted": false,
-      "webMissionId": "MISSION-bfa295ad-42df-46f1-9d2f-a759abd5779f",
+      "webMissionId": "MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c",
       "webMissionStatus": "PARTIAL",
-      "webMissionReason": "PLANNER_NO_EXECUTABLE_PLAN_SCOPE_METADATA_LOST",
-      "repairRevision": "SCOPE_TRANSPORT_LOCAL_TESTED_WEB_RETEST_PENDING",
-      "localMaintenanceCodeSha": "d32636f84a2941ed596bfcfe844584f74fa86d99",
+      "webMissionReason": "SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED",
+      "repairRevision": "LOSSLESS_GIT_TRANSPORT_AND_EXPLICIT_RECEIPTS_LOCAL_TESTED_WEB_RETEST_PENDING",
+      "localMaintenanceCodeSha": "16ee3ba3079301a41e0fbb9747350443265c5c74",
       "localPublished": false
     }
   },

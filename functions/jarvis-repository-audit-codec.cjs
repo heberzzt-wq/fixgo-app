@@ -1,6 +1,39 @@
 'use strict';
 // Repository closure is reviewed in bounded objective windows. Original receipts
 // and the independent proof validation remain owned by the caller.
+// Share only byte-identical commit objects; every receipt retains its own
+// arguments, order, count, scope and completeness. Raw receipts are untouched.
+function packGitCommitEvidence(tasks) {
+ if(!tasks.length || tasks.some(t=>Object.hasOwn(t,'sharedGitCommits') ||
+  Object.hasOwn(t,'sharedGitCommitEncoding') || Object.hasOwn(t.observation?.gitEvidence||{},'sharedCommitIndexes')))return tasks;
+ const dictionary=[],ids=new Map();
+ const packed=tasks.map(task=>{
+  const o=task.observation,g=o?.gitEvidence;
+  if(task.name!=='repo.gitHistory'||o.ok!==true||o.executionOk===false||o.blocked===true||!Array.isArray(g?.commits))return task;
+  const indexes=g.commits.map(commit=>{const key=JSON.stringify(commit);
+   if(!ids.has(key)){ids.set(key,dictionary.length);dictionary.push(commit);}return ids.get(key);});
+  const {commits,...rest}=g;
+  return {...task,observation:{...o,gitEvidence:{...rest,sharedCommitIndexes:indexes}}};
+ });
+ if(!dictionary.length)return tasks;
+ packed[0]={...packed[0],sharedGitCommits:dictionary,sharedGitCommitEncoding:
+  'gitEvidence.sharedCommitIndexes indexes sharedGitCommits in original order. Expand to commits before auditing; each call keeps its own limits, scope and completeness. No new evidence.'};
+ return JSON.stringify(packed).length<JSON.stringify(tasks).length?packed:tasks;
+}
+function unpackGitCommitEvidence(tasks) {
+ const dictionary=tasks[0]?.sharedGitCommits;
+ if(dictionary===undefined)return tasks;
+ if(!Array.isArray(dictionary))throw Error('GIT_COMMIT_TRANSPORT_INVALID');
+ return tasks.map((task,index)=>{
+  const {sharedGitCommits,sharedGitCommitEncoding,...rest}=task;
+  if(index>0&&(sharedGitCommits!==undefined||sharedGitCommitEncoding!==undefined))throw Error('GIT_COMMIT_TRANSPORT_INVALID');
+  const g=task.observation?.gitEvidence,ids=g?.sharedCommitIndexes;
+  if(ids===undefined)return rest;
+  if(task.name!=='repo.gitHistory'||Object.hasOwn(g,'commits')||!Array.isArray(ids)||ids.some(i=>!Number.isInteger(i)||i<0||i>=dictionary.length))throw Error('GIT_COMMIT_TRANSPORT_INVALID');
+  const {sharedCommitIndexes,...fields}=g;
+  return {...rest,observation:{...task.observation,gitEvidence:{...fields,commits:ids.map(i=>dictionary[i])}}};
+ });
+}
 function parse(response) {
  if(response?.providerResponse?.finishReason==='length')throw Error('SEMANTIC_COMPLETION_AUDIT_INCOMPLETE');
  try{return JSON.parse(response.text);}catch{throw Error('SEMANTIC_COMPLETION_AUDIT_INVALID_JSON');}
@@ -24,7 +57,7 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
  const messages=request.config.chatMessages,observationPrefix='OBSERVACION_EJECUTADA=';
  // The bounded transport omits indexes equal to their position. Decode before
  // selecting objective evidence; otherwise every receipt becomes metadata-only.
- const encoded=messages.filter(m=>m.content.startsWith(observationPrefix)).map(m=>JSON.parse(m.content.slice(observationPrefix.length)));
+ const encoded=unpackGitCommitEvidence(messages.filter(m=>m.content.startsWith(observationPrefix)).map(m=>JSON.parse(m.content.slice(observationPrefix.length))));
  const defaults=encoded[0]?.sourceReadDefaults,kinds=encoded[0]?.toolEvidenceKinds;
  const tasks=encoded.map((task,index)=>{
   const read=task.observation?.verifiedRead;
@@ -62,6 +95,12 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   if(!selection || Array.isArray(selection) || Object.keys(selection).length!==keys.length || keys.some(key=>
    !Array.isArray(selection[key]) || selection[key].some(index=>!Number.isInteger(index)||!indexes.includes(index))))
    throw Error('REPOSITORY_EVIDENCE_SELECTION_INVALID');
+  // Selection is context routing, not authority to hide a named tool's
+  // receipt. Include failed receipts too; audit/proof still decide validity.
+  keys.forEach((key,i)=>{
+   const explicit=contracts[i].explicitTools||[];
+   selection[key]=[...new Set([...selection[key],...tasks.filter(t=>explicit.includes(t.name)).map(t=>t.index)])];
+  });
  }
  for(const [key,entry] of entries){
   const template=entry.anyOf[0].properties;
@@ -143,4 +182,4 @@ function compactRepositoryContinuation(request) {
   return {...message,content:prefix+JSON.stringify(metadata(task))};
  })}};
 }
-module.exports={generateRepositoryAudit,compactRepositoryContinuation};
+module.exports={generateRepositoryAudit,compactRepositoryContinuation,packGitCommitEvidence,unpackGitCommitEvidence};
