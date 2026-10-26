@@ -497,9 +497,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: scope transport certificado en mision local autentica MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c sobre16ee3ba3, pero PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED (12751>12288 caracteres). Reparacion local comparte SOLO commits identicos y decodifica recibos antes de auditoria, sin elevar8192 tokens ni eliminar evidencia. Seleccion conserva recibos de herramientas exigidas, incluidos fallidos; no cambia veredictos. Replay exacto supera presupuesto y alcanza Qwen; ultimo replay limitado a12 llamadas termina DIAGNOSTIC_TWELVE_CALL_LIMIT: sigue pendiente cierre semantico por veredictos incompletos/repeticion. Laptop vieja ejecuto12/12 pruebas aisladas, hashes verificados, concurrencia1; sin segundo cerebro ni reparto automatico. Existe falla preexistente fuera de ci:test: recorded search and rehydrated read reach argument completion inside the mission loop (budget-baseline.txt). No push/deploy; no mision completa certificada. CI oficial final exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}.",
+    "lastSessionSummary": "2026-10-26 cierre: codigo local b81ebe2d, CI1825 PASS/0 FAIL/2 SKIP. Mision web autentica local MISSION-5b5549b2-eb43-4325-84f6-a97c3278dc9e termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en140073ms; NO hubo presupuesto excedido en ese cierre. Git obtuvo proof intermedia, luego el auditor revirtio el veredicto; no hay certificacion estable. Contexto obtuvo proof final; lecturas/explicacion pendientes por seleccion vacia, confusion de alcance y repeticion. UI conserva error recuperado repo.context REPO_CONTEXT_SOURCE_TOO_LARGE, distinto al motivo final; pendiente corregir presentacion con recibo vigente. Top-level accounting declara0 llamadas aunque hay inferencia real en planner.response: no usar ese contador como prueba. Correcciones conservadas y no publicadas. Bridge11668 detenido inactivo para commit documental; siguiente arranque mantenimiento limpio. Vieja auxiliar12/12 con SHA256 y run-audit.ps1 reproducible probado; no reparto automatico ni alivio de RAM cuantificado. Regresion preexistente fuera de CI queda abierta en budget-baseline.txt.",
     "infrastructure": {
-      "bridge": "Ultima consulta: 3344/3345 apagados; mantenimiento temporal autorizado/probado pendiente commit local y arranque. SHA remoto d3e4a2a1; no mision certificada. No iniciar publicador.",
+      "bridge": "Mantenimiento local validado sobre b81ebe2d; detenido inactivo para relevo documental y recuperacion autorizada con SHA limpio. Supervisor/publicador3345 pausado, sin sync ni worker. Ver recibo runtime cierre fuera de Git.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",
@@ -551,7 +551,8 @@
       "2026-10-26: revision fresca HEAD87cd24a1 limpio al inicio, remoto d3e4a2a1; commits locales preservados. Diario reprodujo 2 fallos localhost (503 identidad antes del 409 esperado): tests dependian del checkout no publicado. Fixture Git temporal real, sin tocar guards ni assertions, RED4/6->GREEN6/6. CI completa exit0, totales por grupos {'pass': 1821, 'fail': 0, 'skipped': 2} (pueden solaparse). Supervisor19592 identificado por puerto3345/comando y pausado;3344/3345 cerrados comprobados. Terminal preview presenta input deshabilitado esperando sesion Firebase. Siguiente: commit local del test+relevo, preflight y arranque mantenimiento ya autorizado, comprobar autenticacion y mision. Sin push/deploy; no certificacion semantica.",
       "2026-10-26: mision web autentica MISSION-bfa295ad-42df-46f1-9d2f-a759abd5779f, preview d3e4a2a1 + Bridge mantenimiento2da7b97c, termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en159.328s.8 operaciones exitosas, contexto recuperado,53 inferencias locales,0 externas. Causa nueva comprobada en trazas: contrato devuelve scopeContext/resolvedScope/explicitTools y orquestador los elimina antes de la siguiente peticion; auditor por objetivo no se activa. Regresiones RED2/2->GREEN;52 orquestador PASS. Fix conserva exclusivamente campos del contrato y excluye satisfecho/indices como prueba inicial; conserva follow-up y storage. CI completa exit0 {'pass': 1823, 'fail': 0, 'skipped': 2}. Bridge8776 detenido sin inferencias activas antes de edicion. Pendiente commit local/arranque y mision autentica LOCAL puerto5000, que ya sirve el cambio. No push/deploy. Vieja HEBERTO-MENDOZA12GB/7.46GB libres, i3-5005U,IntelHD5500,45.1GB disco libre; snapshot aislado jarvis-aux-20261026 ejecuto4/4 pruebas proof con hashes iguales. No automatizacion distribuida ni descarga importante de carga certificada.",
       "2026-10-26: scope transport certificado en mision local autentica MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c sobre16ee3ba3, pero PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED (12751>12288 caracteres). Reparacion local comparte SOLO commits identicos y decodifica recibos antes de auditoria, sin elevar8192 tokens ni eliminar evidencia. Seleccion conserva recibos de herramientas exigidas, incluidos fallidos; no cambia veredictos. Replay exacto supera presupuesto y alcanza Qwen; ultimo replay limitado a12 llamadas termina DIAGNOSTIC_TWELVE_CALL_LIMIT: sigue pendiente cierre semantico por veredictos incompletos/repeticion. Laptop vieja ejecuto12/12 pruebas aisladas, hashes verificados, concurrencia1; sin segundo cerebro ni reparto automatico. Existe falla preexistente fuera de ci:test: recorded search and rehydrated read reach argument completion inside the mission loop (budget-baseline.txt). No push/deploy; no mision completa certificada.",
-      "CI oficial final 2026-10-26 exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}, dirigida18/18; auxiliar vieja12/12. Regresion fuera de CI documentada por separado."
+      "CI oficial final 2026-10-26 exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}, dirigida18/18; auxiliar vieja12/12. Regresion fuera de CI documentada por separado.",
+      "2026-10-26 cierre: codigo local b81ebe2d, CI1825 PASS/0 FAIL/2 SKIP. Mision web autentica local MISSION-5b5549b2-eb43-4325-84f6-a97c3278dc9e termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en140073ms; NO hubo presupuesto excedido en ese cierre. Git obtuvo proof intermedia, luego el auditor revirtio el veredicto; no hay certificacion estable. Contexto obtuvo proof final; lecturas/explicacion pendientes por seleccion vacia, confusion de alcance y repeticion. UI conserva error recuperado repo.context REPO_CONTEXT_SOURCE_TOO_LARGE, distinto al motivo final; pendiente corregir presentacion con recibo vigente. Top-level accounting declara0 llamadas aunque hay inferencia real en planner.response: no usar ese contador como prueba. Correcciones conservadas y no publicadas. Bridge11668 detenido inactivo para commit documental; siguiente arranque mantenimiento limpio. Vieja auxiliar12/12 con SHA256 y run-audit.ps1 reproducible probado; no reparto automatico ni alivio de RAM cuantificado. Regresion preexistente fuera de CI queda abierta en budget-baseline.txt."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -671,7 +672,10 @@
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/budget-baseline.txt",
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/selection-green.txt",
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/closure-ci.txt",
-      "HEBERTO-MENDOZA:C:/Users/heber/Documents/Codex/jarvis-aux-20261026/audit-final-receipt.json"
+      "HEBERTO-MENDOZA:C:/Users/heber/Documents/Codex/jarvis-aux-20261026/audit-final-receipt.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/final-web-trace.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/closure-ci-exit.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-retest-local.png"
     ],
     "deployment": {
       "status": "BLOCKED_NOT_DEPLOYED",
@@ -681,8 +685,8 @@
       "governance": "No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion."
     },
     "nextSteps": [
-      "VIGENTE: concluir verificacion y commit local de transporte de commits/seleccion, recuperacion autorizada del Bridge mantenimiento y retest local autentico. No push/deploy; preview remota d3e4a2a1 conserva frontend previo.",
-      "Cerrar auditoria semantica (salidas incompletas/repeticion y explicacion de cambios/pruebas); reparar regresion preexistente de argument completion sin debilitar asercion. No convertir replay/pruebas de componentes en COMPLETED.",
+      "VIGENTE: continuar desde b81ebe2d y recibo de cierre: corregir inestabilidad del auditor (Git true con proof luego false, seleccion vacia para explicacion, contexto versus lectura); no repetir diagnostico de transporte ya probado. Recuperacion autorizada de mantenimiento permanece sin publicador.",
+      "Corregir UI para reportar motivo final vigente y accounting de inferencias; reparar regresion preexistente recorded search/argument completion sin debilitar aserciones. Repetir mismo prompt autenticado hasta cierre verificable; no llamar COMPLETED a pruebas/replay.",
       "Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.",
       "Tras una mision completa, retestar negativos y las12 NS1; conservar pendientes OAuth, autorrecuperacion, aislamiento y pruebas sostenidas.",
       "Actualizar manifiesto y diario tras cada hito. Produccion, dinero, secretos y acceso conservan sus controles."
@@ -695,11 +699,11 @@
       "previewShaVerified": true,
       "bridgeShaVerified": false,
       "webMissionCompleted": false,
-      "webMissionId": "MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c",
+      "webMissionId": "MISSION-5b5549b2-eb43-4325-84f6-a97c3278dc9e",
       "webMissionStatus": "PARTIAL",
-      "webMissionReason": "SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED",
-      "repairRevision": "LOSSLESS_GIT_TRANSPORT_AND_EXPLICIT_RECEIPTS_LOCAL_TESTED_WEB_RETEST_PENDING",
-      "localMaintenanceCodeSha": "16ee3ba3079301a41e0fbb9747350443265c5c74",
+      "webMissionReason": "PLANNER_NO_EXECUTABLE_PLAN",
+      "repairRevision": "WEB_PARTIAL_SEMANTIC_VERDICTS_UNSTABLE",
+      "localMaintenanceCodeSha": "b81ebe2d1dfe6e0d207709aebfcd849c474cfff9",
       "localPublished": false
     }
   },

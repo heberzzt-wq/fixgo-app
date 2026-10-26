@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: scope transport certificado en mision local autentica MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c sobre16ee3ba3, pero PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED (12751>12288 caracteres). Reparacion local comparte SOLO commits identicos y decodifica recibos antes de auditoria, sin elevar8192 tokens ni eliminar evidencia. Seleccion conserva recibos de herramientas exigidas, incluidos fallidos; no cambia veredictos. Replay exacto supera presupuesto y alcanza Qwen; ultimo replay limitado a12 llamadas termina DIAGNOSTIC_TWELVE_CALL_LIMIT: sigue pendiente cierre semantico por veredictos incompletos/repeticion. Laptop vieja ejecuto12/12 pruebas aisladas, hashes verificados, concurrencia1; sin segundo cerebro ni reparto automatico. Existe falla preexistente fuera de ci:test: recorded search and rehydrated read reach argument completion inside the mission loop (budget-baseline.txt). No push/deploy; no mision completa certificada. CI oficial final exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}.
+**Resumen:** 2026-10-26 cierre: codigo local b81ebe2d, CI1825 PASS/0 FAIL/2 SKIP. Mision web autentica local MISSION-5b5549b2-eb43-4325-84f6-a97c3278dc9e termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en140073ms; NO hubo presupuesto excedido en ese cierre. Git obtuvo proof intermedia, luego el auditor revirtio el veredicto; no hay certificacion estable. Contexto obtuvo proof final; lecturas/explicacion pendientes por seleccion vacia, confusion de alcance y repeticion. UI conserva error recuperado repo.context REPO_CONTEXT_SOURCE_TOO_LARGE, distinto al motivo final; pendiente corregir presentacion con recibo vigente. Top-level accounting declara0 llamadas aunque hay inferencia real en planner.response: no usar ese contador como prueba. Correcciones conservadas y no publicadas. Bridge11668 detenido inactivo para commit documental; siguiente arranque mantenimiento limpio. Vieja auxiliar12/12 con SHA256 y run-audit.ps1 reproducible probado; no reparto automatico ni alivio de RAM cuantificado. Regresion preexistente fuera de CI queda abierta en budget-baseline.txt.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Ultima consulta: 3344/3345 apagados; mantenimiento temporal autorizado/probado pendiente commit local y arranque. SHA remoto d3e4a2a1; no mision certificada. No iniciar publicador.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Mantenimiento local validado sobre b81ebe2d; detenido inactivo para relevo documental y recuperacion autorizada con SHA limpio. Supervisor/publicador3345 pausado, sin sync ni worker. Ver recibo runtime cierre fuera de Git.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -75,6 +75,7 @@
 - 2026-10-26: mision web autentica MISSION-bfa295ad-42df-46f1-9d2f-a759abd5779f, preview d3e4a2a1 + Bridge mantenimiento2da7b97c, termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en159.328s.8 operaciones exitosas, contexto recuperado,53 inferencias locales,0 externas. Causa nueva comprobada en trazas: contrato devuelve scopeContext/resolvedScope/explicitTools y orquestador los elimina antes de la siguiente peticion; auditor por objetivo no se activa. Regresiones RED2/2->GREEN;52 orquestador PASS. Fix conserva exclusivamente campos del contrato y excluye satisfecho/indices como prueba inicial; conserva follow-up y storage. CI completa exit0 {'pass': 1823, 'fail': 0, 'skipped': 2}. Bridge8776 detenido sin inferencias activas antes de edicion. Pendiente commit local/arranque y mision autentica LOCAL puerto5000, que ya sirve el cambio. No push/deploy. Vieja HEBERTO-MENDOZA12GB/7.46GB libres, i3-5005U,IntelHD5500,45.1GB disco libre; snapshot aislado jarvis-aux-20261026 ejecuto4/4 pruebas proof con hashes iguales. No automatizacion distribuida ni descarga importante de carga certificada.
 - 2026-10-26: scope transport certificado en mision local autentica MISSION-36775813-a7b7-4a88-9c5e-d6d03920728c sobre16ee3ba3, pero PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED (12751>12288 caracteres). Reparacion local comparte SOLO commits identicos y decodifica recibos antes de auditoria, sin elevar8192 tokens ni eliminar evidencia. Seleccion conserva recibos de herramientas exigidas, incluidos fallidos; no cambia veredictos. Replay exacto supera presupuesto y alcanza Qwen; ultimo replay limitado a12 llamadas termina DIAGNOSTIC_TWELVE_CALL_LIMIT: sigue pendiente cierre semantico por veredictos incompletos/repeticion. Laptop vieja ejecuto12/12 pruebas aisladas, hashes verificados, concurrencia1; sin segundo cerebro ni reparto automatico. Existe falla preexistente fuera de ci:test: recorded search and rehydrated read reach argument completion inside the mission loop (budget-baseline.txt). No push/deploy; no mision completa certificada.
 - CI oficial final 2026-10-26 exit0 {'pass': 1825, 'fail': 0, 'skipped': 2}, dirigida18/18; auxiliar vieja12/12. Regresion fuera de CI documentada por separado.
+- 2026-10-26 cierre: codigo local b81ebe2d, CI1825 PASS/0 FAIL/2 SKIP. Mision web autentica local MISSION-5b5549b2-eb43-4325-84f6-a97c3278dc9e termino PARTIAL/PLANNER_NO_EXECUTABLE_PLAN en140073ms; NO hubo presupuesto excedido en ese cierre. Git obtuvo proof intermedia, luego el auditor revirtio el veredicto; no hay certificacion estable. Contexto obtuvo proof final; lecturas/explicacion pendientes por seleccion vacia, confusion de alcance y repeticion. UI conserva error recuperado repo.context REPO_CONTEXT_SOURCE_TOO_LARGE, distinto al motivo final; pendiente corregir presentacion con recibo vigente. Top-level accounting declara0 llamadas aunque hay inferencia real en planner.response: no usar ese contador como prueba. Correcciones conservadas y no publicadas. Bridge11668 detenido inactivo para commit documental; siguiente arranque mantenimiento limpio. Vieja auxiliar12/12 con SHA256 y run-audit.ps1 reproducible probado; no reparto automatico ni alivio de RAM cuantificado. Regresion preexistente fuera de CI queda abierta en budget-baseline.txt.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -90,8 +91,8 @@
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. VIGENTE: concluir verificacion y commit local de transporte de commits/seleccion, recuperacion autorizada del Bridge mantenimiento y retest local autentico. No push/deploy; preview remota d3e4a2a1 conserva frontend previo.
-1. Cerrar auditoria semantica (salidas incompletas/repeticion y explicacion de cambios/pruebas); reparar regresion preexistente de argument completion sin debilitar asercion. No convertir replay/pruebas de componentes en COMPLETED.
+1. VIGENTE: continuar desde b81ebe2d y recibo de cierre: corregir inestabilidad del auditor (Git true con proof luego false, seleccion vacia para explicacion, contexto versus lectura); no repetir diagnostico de transporte ya probado. Recuperacion autorizada de mantenimiento permanece sin publicador.
+1. Corregir UI para reportar motivo final vigente y accounting de inferencias; reparar regresion preexistente recorded search/argument completion sin debilitar aserciones. Repetir mismo prompt autenticado hasta cierre verificable; no llamar COMPLETED a pruebas/replay.
 1. Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.
 1. Tras una mision completa, retestar negativos y las12 NS1; conservar pendientes OAuth, autorrecuperacion, aislamiento y pruebas sostenidas.
 1. Actualizar manifiesto y diario tras cada hito. Produccion, dinero, secretos y acceso conservan sus controles.
@@ -216,6 +217,9 @@
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/selection-green.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/closure-ci.txt`
 - `HEBERTO-MENDOZA:C:/Users/heber/Documents/Codex/jarvis-aux-20261026/audit-final-receipt.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/final-web-trace.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/closure-ci-exit.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-retest-local.png`
 
 ### Reporte diario automatico
 
