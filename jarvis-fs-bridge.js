@@ -8673,7 +8673,7 @@ export function createJarvisFsBridgeApp({
             let inspectionError = null;
             // An exit code of zero with empty --dump-dom is not verified research.
             // HTTPS-only source recovery is non-rendered, DNS-pinned and never used for local hosts.
-            if (action === "inspect" && result.ok && !/<html(?:\\s|>)/iu.test(inspectedDom)) {
+            if (action === "inspect" && result.ok && !/<html(?:\s|>)/iu.test(inspectedDom)) {
                 try {
                     recoveredHtml = await inspectPublicHtmlSource(url, {timeoutMs: Math.min(Number(timeoutMs) || 15000, 15000)});
                     inspectedDom = recoveredHtml.dom;
@@ -8682,14 +8682,14 @@ export function createJarvisFsBridgeApp({
                 }
             }
             const verifiedResult = action === "inspect"
-                ? result.ok && /<html(?:\\s|>)/iu.test(inspectedDom || "") &&
-                    /<title(?:\\s|>)/iu.test(inspectedDom || "")
+                ? result.ok && /<html(?:\s|>)/iu.test(inspectedDom || "") &&
+                    /<title(?:\s|>)/iu.test(inspectedDom || "")
                 : result.ok;
             return res.status(verifiedResult ? 200 : 502).json({
                 ...result,
                 ok: verifiedResult,
                 status: verifiedResult ? (recoveredHtml?.status || `BROWSER_${action.toUpperCase()}_OK`)
-                    : (inspectionError ? "BROWSER_INSPECT_DOM_UNAVAILABLE" : result.status),
+                    : (action === "inspect" ? "BROWSER_INSPECT_DOM_UNAVAILABLE" : result.status),
                 ...(inspectionError ? {error: inspectionError} : {}),
                 action,
                 url,

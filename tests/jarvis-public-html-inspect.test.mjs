@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
+import {readFileSync} from 'node:fs';
 import {PassThrough} from 'node:stream';
 import {publicHtmlSourceUrl,isPublicHtmlAddress,inspectPublicHtmlSource} from '../jarvis-public-html-inspect.js';
 import {generalObjectives} from '../modules/terminal/qwen-general-evidence.js';
@@ -16,6 +17,13 @@ test('HTTPS source fallback never targets localhost, intranet, credentials, cust
   assert.equal(isPublicHtmlAddress(ip),false,ip);
  for(const ip of ['1.1.1.1','8.8.8.8','2001:4860:4860::8888'])
   assert.equal(isPublicHtmlAddress(ip),true,ip);
+});
+test('Bridge requires actual HTML tags: no double-escaped regex and no false PROCESS_OK',()=>{
+ const bridge=readFileSync(new URL('../jarvis-fs-bridge.js',import.meta.url),'utf8');
+ assert.equal(bridge.includes(String.raw`/<html(?:\\s|>)/iu`),false);
+ assert.equal(bridge.includes(String.raw`/<html(?:\s|>)/iu`),true);
+ assert.equal(bridge.includes(String.raw`/<title(?:\s|>)/iu`),true);
+ assert.match(bridge,/BROWSER_INSPECT_DOM_UNAVAILABLE/);
 });
 test('a negative instruction not to modify code never redirects HVAC research into engineering',()=>{
  const prompt='Investiga mantenimiento preventivo de aire acondicionado residencial con tres fuentes independientes; incluye citas literales; no crees archivos ni modifiques codigo.';
