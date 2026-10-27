@@ -234,7 +234,8 @@
       "CI final retencion exit0 {\"pass\":1887,\"fail\":0,\"skipped\":2}. Regresion formato legacy detectada y corregida: compartir anticipadamente solo en auditoria por objetivo con scope resuelto; recibos legacy mantienen contrato previo. Prueba fuente positiva/negativa fisica y replay11calls preservados. Pendiente commit/arranque limpio/retest web.",
       "2026-10-26 WEB bec1af4d MISSION-fd282c54-f976-4ddc-9a25-cc65cf8fa21f termino PARTIAL/PLANNER_UNAVAILABLE por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION tras110inferencias. Git/contexto/lecturas tuvieron proof independiente intermedio; luego numerosas lecturas parciales del manifiesto expulsaron cuerpos fuente pequeños y auditor exigio documento completo para reportar hechos. Bridge7428 detenidoidle0. Correccion en curso: rehidratar recibos originales por objetivo y acotar tambien verificador independiente, con identidades/rangos/flags preservados; no certificacion general. Se adelanta latestHandoff en JSON para coincidir con LEE ESTO PRIMERO del Markdown; historial íntegro.",
       "Hito local siguiente: auditoria rehidrata originales SOLO de cada objetivo antes de acotarlos; verificador independiente usa misma proyeccion por alcance con guardas de identidad/hash/rangos/prefijo/flags y falla cerrado si desaparece fuente citada. Pruebas dirigidas nuevas+existentes54/54 y codec/proof29/29. Desbordamiento restante localizado en recuperacion: messages17345+schema7636 duplicado >24576. Sharing reversible de schemas args ($defs/$ref), expansión exacta al original, mensajes intactos:22530chars; Ollama fisico HTTP200 prompt4046tokens devuelve JSONvalido. No contexto/modelo/permisos ampliados. Navegacion alternativa preparada en scratch no aplicada porque web ya encontro manifiesto. CI completa en curso; nueva prueba WEB pendiente.",
-      "CI oficial final por objetivo exit0 {\"pass\":1894,\"fail\":0,\"skipped\":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy."
+      "CI oficial final por objetivo exit0 {\"pass\":1894,\"fail\":0,\"skipped\":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.",
+      "2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -405,6 +406,7 @@
       "governance": "No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion."
     },
     "nextSteps": [
+      "VIGENTE: aplicar generalPurposeAssistant.nextMissions desde UI y actualizar únicamente la capacidad y recibos demostrados; conservar negativos del Excel, límites de contexto y distribución auxiliar pendiente. Al1% restante de cuota, detener antes de agotarse dejando checkpoint concreto.",
       "VIGENTE: recuperacion autorizada de Bridge tras commit local, retest web exacto de consulta policy.js y pedido completo Git/contexto/lecturas/pruebas. Contrato fuente no se reemplaza por operativo; no depender solo del replay.",
       "Cerrar explicacion de cambios/pruebas con fuente pertinente y comprobar continuacion con rangos explicitos. Contador superior de inferencias sigue pendiente; no inferir0 llamadas de ese agregado.",
       "Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.",
@@ -1860,5 +1862,1047 @@
     "launchReadyB2C": false,
     "launchReadyB2B": false,
     "fullProfessionalJarvisCertified": false
+  },
+  "generalPurposeAssistant": {
+    "schemaVersion": "jarvis-general-purpose-capabilities-1",
+    "decisionDate": "2026-10-26",
+    "evidenceAsOf": "2026-10-27T00:57:18.449Z",
+    "generalUseCertified": false,
+    "ownerWords": "El objetivo es desarrollar e integrar Jarvis Adjunto como un asistente de propósito general, con cerebro local, capaz de comprender solicitudes en lenguaje natural, mantener el contexto y resolver tareas mediante razonamiento y herramientas reales. Debe distinguir cuándo responder, investigar en internet, recuperar contenido existente, generar contenido original, calcular, programar o actuar en aplicaciones autorizadas. Debe combinar estas capacidades para resolver solicitudes de investigación, estudio, ingeniería, matemáticas, documentos, multimedia y operaciones de la plataforma. Revisa sistema completo: comprensión, planificación, selección de herramientas, ejecución, recuperación ante fallos, verificación y entrega. Conserva cerebro local, autorizaciones y seguridad. Recursos inexistentes identificar concretamente; nunca inventar resultados/fuentes/archivos/acciones. Resultado: aplicar capacidades a situaciones nuevas y completar trabajo real; informar demostrado, limitado y desarrollo adicional. Estados planeadas/implementadas/demostradasUI separados. Pruebas internas y registros no bastan.",
+    "authority": "Amplía el objetivo funcional; conserva productStrategy.northStar, governance, Qwen3.5:9b local como cerebro único y los 57 frentes. No autoriza modelos alternos, pagos, publicación ni efectos ajenos a los acuerdos vigentes.",
+    "evidenceRule": "Planeado expresa intención; implementado describe código y pruebas; demostradoUI exige misión nueva desde interfaz, respuesta visible y resultado comprobado. Un registro, esquema, prueba interna, replay o salud de servicio no equivale a demostración UI. PARCIAL no certifica el alcance general.",
+    "lifecycle": [
+      "comprender",
+      "mantener contexto",
+      "planificar",
+      "seleccionar herramientas",
+      "ejecutar",
+      "recuperar ante fallo",
+      "verificar independientemente",
+      "entregar"
+    ],
+    "applicationDomains": [
+      "investigación",
+      "estudio",
+      "ingeniería",
+      "matemáticas",
+      "documentos",
+      "multimedia",
+      "operaciones de plataforma"
+    ],
+    "checkpointPolicy": {
+      "remainingPercentThreshold": 1,
+      "creditsAreNotQuota": true,
+      "automaticTaskCreated": false,
+      "action": "Detener el trabajo antes de agotar la cuota al llegar al 1% restante y dejar un punto concreto de continuación.",
+      "requiredFields": [
+        "archivos y cambios",
+        "pruebas y misiones realizadas",
+        "resultados demostrados y limitados",
+        "bloqueos",
+        "procesos activos o detenidos",
+        "siguiente paso concreto",
+        "commit pendiente o realizado",
+        "push pendiente o realizado",
+        "deploy pendiente o realizado"
+      ],
+      "quotaObservation": {
+        "usedPercent": 86,
+        "remainingPercent": 14,
+        "additionalCredits": 0,
+        "source": "Observación comunicada por coordinación al recibir la instrucción; no lectura viva ni garantía de saldo actual."
+      }
+    },
+    "receipts": [
+      {
+        "kind": "SOURCE_AUDIT",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+        "outcome": "NO_LISTO_PARA_USO_GENERAL",
+        "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+      },
+      {
+        "kind": "UI_MISSION",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json",
+        "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
+        "outcome": "PARTIAL",
+        "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+      },
+      {
+        "kind": "AUTOMATED_TEST",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+        "outcome": "1926_PASS_0_FAIL_2_SKIP",
+        "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+      },
+      {
+        "kind": "AUXILIARY_EXECUTION",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/old-laptop-objective-current-receipt.json",
+        "outcome": "29_PASS_0_FAIL",
+        "scope": "Snapshot aislado con hashes en HEBERTO-MENDOZA; concurrencia1. Sin distribución automática."
+      },
+      {
+        "kind": "UI_MISSION",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+        "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+        "outcome": "COMPLETED",
+        "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+      },
+      {
+        "kind": "UI_MISSION",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+        "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+        "outcome": "COMPLETED",
+        "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+      },
+      {
+        "kind": "UI_MISSION",
+        "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+        "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+        "outcome": "COMPLETED",
+        "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+      }
+    ],
+    "capabilities": [
+      {
+        "id": "comprension",
+        "name": "Comprensión de solicitudes",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Distinguir intención, restricciones y datos proporcionados en lenguaje natural."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Puerta semántica y contrato por objetivo; Excel ya selecciona spreadsheet.compose.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Consultas acotadas comprendidas; fidelidad de datos y pedidos nuevos no demostradas.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+              "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+              "outcome": "COMPLETED",
+              "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            }
+          ]
+        },
+        "pending": [
+          "Probar paráfrasis, tareas mixtas y restricciones sin pérdidas."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "El pedido natural nuevo produce objetivos fieles, sin inventar datos ni cambiar el alcance."
+        ],
+        "workstreamRefs": [
+          "JARVIS-01",
+          "JARVIS-02"
+        ]
+      },
+      {
+        "id": "contexto",
+        "name": "Contexto y memoria",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Conservar contexto pertinente, identidad de fuentes y continuidad sin confundir historia con evidencia."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Recibos, vistas por objetivo y compresión reversible presentes; persisten desbordamientos.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Consultas consecutivas verificadas; misión larga y cierre Excel siguen fallando.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json",
+              "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
+              "outcome": "PARTIAL",
+              "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+            }
+          ]
+        },
+        "pending": [
+          "Cerrar presupuestos y retención de datos en misiones compuestas."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Reanudar un pedido nuevo conservando restricciones y fuentes; sin relecturas cíclicas ni éxito ficticio."
+        ],
+        "workstreamRefs": [
+          "JARVIS-02",
+          "JARVIS-13"
+        ]
+      },
+      {
+        "id": "planificacion",
+        "name": "Planificación y selección de herramientas",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Elegir y combinar herramientas por significado y evidencia, con Qwen local como autoridad."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Catálogo completo, dependencias y contratos presentes; selección y cierre compuestos limitados.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Git/manifiesto completan alcance acotado; Excel queda en composición.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+              "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+              "outcome": "COMPLETED",
+              "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json",
+              "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
+              "outcome": "PARTIAL",
+              "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+            }
+          ]
+        },
+        "pending": [
+          "Probar combinación investigar, calcular, crear y entregar con alcance verificable."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Plan ejecutable cubre todos los objetivos; ninguna obligación queda oculta ni se declara cumplida sin recibo."
+        ],
+        "workstreamRefs": [
+          "JARVIS-01",
+          "JARVIS-02",
+          "JARVIS-03"
+        ]
+      },
+      {
+        "id": "responder",
+        "name": "Responder y explicar",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Responder directamente cuando basta conocimiento o evidencia disponible, citando fuentes cuando corresponde."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Compositor y rechazo de descargas locales sin evidencia implementados.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Respuestas visibles de consultas Git/manifiesto; no certifican respuesta general.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+              "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+              "outcome": "COMPLETED",
+              "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            }
+          ]
+        },
+        "pending": [
+          "Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Respuesta visible contesta cada punto y distingue hechos, supuestos e incertidumbre."
+        ],
+        "workstreamRefs": [
+          "JARVIS-02",
+          "JARVIS-10"
+        ]
+      },
+      {
+        "id": "investigar",
+        "name": "Investigar en internet",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Buscar, contrastar y sintetizar fuentes pertinentes para investigación y estudio."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Herramientas de búsqueda e investigación presentes; cobertura semántica no certificada.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "Auditoría encontró COMPLETED histórico sin enumerar las ingenierías solicitadas; falta una misión nueva aceptada.",
+          "receipts": []
+        },
+        "pending": [
+          "Verificar cobertura, fuentes primarias y citas desde petición natural nueva."
+        ],
+        "missingResources": [
+          "Disponibilidad y acceso a las fuentes concretas de cada misión por comprobar."
+        ],
+        "acceptance": [
+          "Cada afirmación verificable tiene fuente accesible; la entrega cubre todos los elementos solicitados."
+        ],
+        "workstreamRefs": [
+          "JARVIS-04"
+        ]
+      },
+      {
+        "id": "recuperar",
+        "name": "Recuperar contenido existente",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Localizar y leer archivos, fuentes y originales autorizados sin reconstruirlos ni inventarlos."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "repo.read/context, extracción digital y biblioteca disponibles; visión general de adjuntos limitada.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Consulta de manifiesto con respuesta visible; no prueba recuperación de cualquier formato.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+              "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+              "outcome": "COMPLETED",
+              "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            }
+          ]
+        },
+        "pending": [
+          "Probar PDF, biblioteca y contenido de varios archivos con identidad y cobertura completas."
+        ],
+        "missingResources": [
+          "OCR/visión de imágenes adjuntas no integrada en la ruta general."
+        ],
+        "acceptance": [
+          "Recupera el original correcto con ruta/hash o fuente y declara cobertura parcial si existe."
+        ],
+        "workstreamRefs": [
+          "JARVIS-03",
+          "JARVIS-13"
+        ]
+      },
+      {
+        "id": "generar",
+        "name": "Generar contenido original",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Producir texto y contenido original ajustado al pedido, conservando los datos de entrada."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Compositores de texto/documentos y páginas presentes; generación de imagen bloqueada.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "No se certificó una nueva misión completa de generación y entrega en este corte.",
+          "receipts": []
+        },
+        "pending": [
+          "Validar fidelidad, originalidad y utilidad de entregas nuevas."
+        ],
+        "missingResources": [
+          "Backend permitido de generación de imágenes no conectado; ruta actual EXTERNAL_INFERENCE_DISABLED."
+        ],
+        "acceptance": [
+          "Contenido original satisface el pedido y conserva literalmente los datos que no deben transformarse."
+        ],
+        "workstreamRefs": [
+          "JARVIS-05",
+          "JARVIS-07"
+        ]
+      },
+      {
+        "id": "calcular",
+        "name": "Cálculo, matemáticas e ingeniería",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Resolver cálculos con unidades, supuestos y comprobación independiente."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Recalculador XLSX acotado a SUM local y operaciones entre celdas; gramática de salida y validación presentes.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "Excel sigue sin archivo final y con etiquetas corruptas aunque SUM(C2:C4) sea válida.",
+          "receipts": []
+        },
+        "pending": [
+          "Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas."
+        ],
+        "missingResources": [
+          "Evaluador verificado para fórmulas avanzadas no implementado."
+        ],
+        "acceptance": [
+          "Resultado numérico contrastado independientemente; unidades, entradas y límites correctos; archivo descargado recalculado cuando se solicita."
+        ],
+        "workstreamRefs": [
+          "JARVIS-05"
+        ]
+      },
+      {
+        "id": "programar",
+        "name": "Programar y mantener código",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Leer código, diagnosticar, preparar cambios, probar y entregar resultados bajo autorización."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Git/lectura/contexto/parches/pruebas/rollback presentes; dedupe y aprobaciones ajustadas.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Historial Git y resumen visibles; esto no demuestra una reparación completa.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            }
+          ]
+        },
+        "pending": [
+          "Completar misión compuesta y una corrección nueva con pruebas y comprobación del resultado."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Cambio mínimo vinculado a fuente real, autorización, pruebas y rollback; informe distingue escrito, probado y publicado."
+        ],
+        "workstreamRefs": [
+          "JARVIS-08",
+          "JARVIS-09",
+          "JARVIS-17"
+        ]
+      },
+      {
+        "id": "apps",
+        "name": "Aplicaciones autorizadas",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Actuar en aplicaciones conectadas solo dentro de permisos y alcance explícitos."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Inventario de conectores y rutas gobernadas presentes; listar conexión no ejecuta una acción.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "No se probó una acción nueva completa en aplicación autorizada.",
+          "receipts": []
+        },
+        "pending": [
+          "Implementar y probar por conector la operación concreta y su recibo."
+        ],
+        "missingResources": [
+          "OAuth, permisos y operación soportada de Gmail/Outlook/Zoho/Drive/Calendar/redes deben comprobarse individualmente."
+        ],
+        "acceptance": [
+          "La acción autorizada aparece en la aplicación correcta y el recibo confirma su efecto; no hay efectos ajenos."
+        ],
+        "workstreamRefs": [
+          "JARVIS-14",
+          "JARVIS-15",
+          "JARVIS-16"
+        ]
+      },
+      {
+        "id": "documentos",
+        "name": "Documentos y entregables",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Crear, editar y entregar documentos, PDF y hojas separados y utilizables."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Composición, vínculo por identidad, creación y validación presentes; dedupe exacto preserva archivos distintos.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "Retest Excel PARTIAL: no escribió archivo; dos PDF distintos aún requieren prueba UI.",
+          "receipts": []
+        },
+        "pending": [
+          "Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física."
+        ],
+        "missingResources": [
+          "XML no está integrado en esquema/UI de entrega; fórmulas avanzadas limitadas."
+        ],
+        "acceptance": [
+          "Cada archivo corresponde a su contenido y destino; descarga abre y coincide con datos solicitados."
+        ],
+        "workstreamRefs": [
+          "JARVIS-05",
+          "JARVIS-06"
+        ]
+      },
+      {
+        "id": "multimedia",
+        "name": "Imagen, audio y video",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Analizar y producir multimedia con originales, licencia/procedencia y verificación del contenido."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Adaptación local y rutas de montaje, voz, ASR y revisión presentes; generación/visión general limitadas.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "Ninguna certificación física nueva de multimedia en este corte.",
+          "receipts": []
+        },
+        "pending": [
+          "Probar adaptación local y reel con audio, sincronización y archivo revisados."
+        ],
+        "missingResources": [
+          "Generación/edición de imagen bloqueadas; integración de visión de adjuntos pendiente; video generativo requiere motor e infraestructura autorizados."
+        ],
+        "acceptance": [
+          "Archivo real inspeccionado visual y auditivamente; verificación temporal/ASR ligada a su SHA cuando hay narración."
+        ],
+        "workstreamRefs": [
+          "JARVIS-07"
+        ]
+      },
+      {
+        "id": "plataforma",
+        "name": "Operaciones de la plataforma",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Consultar y operar la plataforma con identidad, tenant, permisos y evidencia actuales."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Consulta autenticada y herramientas de plataforma presentes; enrutamiento de pedidos reales aún limitado.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "Historial de consulta de vehículo desviado a web/código y PARTIAL; no certificación nueva.",
+          "receipts": []
+        },
+        "pending": [
+          "Ejecutar consulta natural de vehículo/asignaciones y demostrar aislamiento; mutaciones solo bajo sus controles."
+        ],
+        "missingResources": [
+          "Datos y permisos específicos de la misión deben comprobarse; no se presume acceso por registro de herramienta."
+        ],
+        "acceptance": [
+          "Respuesta proviene de registros actuales del tenant correcto; cobertura y autorización demostradas."
+        ],
+        "workstreamRefs": [
+          "JARVIS-03"
+        ]
+      },
+      {
+        "id": "recuperacion",
+        "name": "Recuperación ante fallos",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Detectar fallo real, conservar trabajo válido y continuar con recuperación acotada."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Reparación acotada, cancelación y rutas de recuperación presentes; no transversalidad demostrada.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "Excel y misión compuesta terminan PARTIAL; rechazar fallo evita falso éxito, pero no completa recuperación.",
+          "receipts": []
+        },
+        "pending": [
+          "Probar fallo inducido, reanudación y entrega sin repetir efectos ni perder contexto."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Fallo diagnosticado con causa vigente; recuperación conserva identidad y no fabrica resultados."
+        ],
+        "workstreamRefs": [
+          "JARVIS-11",
+          "JARVIS-12",
+          "JARVIS-18"
+        ]
+      },
+      {
+        "id": "verificacion",
+        "name": "Verificación independiente",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Comprobar objetivos y efectos con evidencia independiente antes de declarar éxito."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Validadores, lectura física, fórmulas y auditoría por objetivo presentes; auditoría larga rebasa contexto.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Consultas acotadas verificadas; Excel mantiene limitación y no obtiene cierre válido.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+              "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+              "outcome": "COMPLETED",
+              "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json",
+              "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
+              "outcome": "PARTIAL",
+              "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+            }
+          ]
+        },
+        "pending": [
+          "Verificar fidelidad semántica de datos y mantener auditoría dentro del contexto sin perder evidencia."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Negativos se rechazan; verificador comprueba objetivo y artefacto, no solo éxito de herramienta o forma del JSON."
+        ],
+        "workstreamRefs": [
+          "JARVIS-03",
+          "JARVIS-10"
+        ]
+      },
+      {
+        "id": "entrega",
+        "name": "Entrega y comunicación del resultado",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Entregar respuesta y archivos realmente disponibles, con estado y límites visibles."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Presentación, exportación y rechazo de sandbox ficticio implementados; descarga Excel aún no demostrada.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
+              "outcome": "1926_PASS_0_FAIL_2_SKIP",
+              "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "PARCIAL",
+          "scope": "Respuestas Git/manifiesto visibles; no se entregó Excel.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json",
+              "missionId": "MISSION-a01aa53a-446c-4e85-8f5d-959c25090e2a",
+              "outcome": "COMPLETED",
+              "scope": "Consulta acotada del manifiesto: pruebas locales y pendientes documentados."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
+              "missionId": "MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416",
+              "outcome": "COMPLETED",
+              "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json",
+              "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
+              "outcome": "COMPLETED",
+              "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json",
+              "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
+              "outcome": "PARTIAL",
+              "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+            }
+          ]
+        },
+        "pending": [
+          "Cerrar descarga desde UI y confirmar archivo abierto; mostrar motivo final sin confundir fallos recuperados."
+        ],
+        "missingResources": [],
+        "acceptance": [
+          "Usuario puede usar respuesta/archivo final; links respaldados por bytes y recibos; pendientes explícitos."
+        ],
+        "workstreamRefs": [
+          "JARVIS-05",
+          "JARVIS-10"
+        ]
+      },
+      {
+        "id": "auxiliar",
+        "name": "Laptop auxiliar y reparto de carga",
+        "planned": {
+          "status": "PLANEADO",
+          "scope": "Trasladar trabajo compatible a la laptop vieja para aliviar la nueva manteniendo un solo cerebro local."
+        },
+        "implemented": {
+          "status": "PARCIAL",
+          "scope": "Snapshots aislados con hashes y pruebas reproducibles en HEBERTO-MENDOZA; concurrencia1.",
+          "receipts": [
+            {
+              "kind": "SOURCE_AUDIT",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json",
+              "outcome": "NO_LISTO_PARA_USO_GENERAL",
+              "scope": "71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución."
+            },
+            {
+              "kind": "AUXILIARY_EXECUTION",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/old-laptop-objective-current-receipt.json",
+              "outcome": "29_PASS_0_FAIL",
+              "scope": "Snapshot aislado con hashes en HEBERTO-MENDOZA; concurrencia1. Sin distribución automática."
+            }
+          ]
+        },
+        "demonstratedUI": {
+          "status": "NO_DEMOSTRADO",
+          "scope": "29/29 pruebas auxiliares no demuestran delegación desde UI ni ahorro de RAM medido.",
+          "receipts": []
+        },
+        "pending": [
+          "Integrar selección/envío/resultado de trabajo auxiliar, medir carga y probar reintento sin duplicar efectos."
+        ],
+        "missingResources": [
+          "Distribución automática y medición comparativa de RAM/tiempo no implementadas."
+        ],
+        "acceptance": [
+          "Una misión UI delega trabajo compatible, verifica hashes/resultado y registra alivio medido; Qwen permanece en equipo principal."
+        ],
+        "workstreamRefs": [
+          "JARVIS-18",
+          "OPS-03"
+        ]
+      }
+    ],
+    "nextMissions": [
+      {
+        "capability": "documentos",
+        "request": "Crea un Excel descargable con cable120, tornillos80 y transporte50, categoría y total250, sin modificar plataforma.",
+        "criterion": "Preserva conceptos y números, verifica total, crea bytes y demuestra descarga/lectura desde UI.",
+        "status": "PENDIENTE"
+      },
+      {
+        "capability": "documentos",
+        "request": "Crea dos PDF separados: una lista de materiales y una guía de uso con los datos que te doy.",
+        "criterion": "Dos destinos y contenidos correctos, sin mezcla ni dedupe por formato; apertura de ambos.",
+        "status": "PENDIENTE"
+      },
+      {
+        "capability": "investigar",
+        "request": "Investiga una institución y enumera todos los programas del alcance solicitado con fuentes.",
+        "criterion": "Cobertura explícita y citas consultables; no COMPLETED por búsqueda aislada.",
+        "status": "PENDIENTE"
+      },
+      {
+        "capability": "plataforma",
+        "request": "Busca un vehículo registrado y sus asignaciones actuales en mi plataforma.",
+        "criterion": "Consulta autenticada, tenant correcto, registros reales y cobertura explicada.",
+        "status": "PENDIENTE"
+      }
+    ]
   }
 }

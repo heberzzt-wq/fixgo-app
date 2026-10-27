@@ -12,10 +12,36 @@ const tick=String.fromCharCode(96);
 const code=v=>tick+String(v)+tick;
 const esc=v=>String(v||'').replaceAll('|','/').replace(/\r?\n/g,' ').trim();
 export const groups=['B2C','B2B','JARVIS','SEGURIDAD','OPERACIONES'];
+export const generalCapabilityIds=['comprension','contexto','planificacion','responder','investigar','recuperar','generar','calcular','programar','apps','documentos','multimedia','plataforma','recuperacion','verificacion','entrega','auxiliar'];
 
 export function validateManifest(m,{rootDir=root}={}){
  const errors=[],ids=new Set();
  if(m.schemaVersion!=='platform-master-v142-1'||m.branch!=='v142-official')errors.push('SCHEMA_OR_BRANCH_INVALID');
+ const general=m.generalPurposeAssistant;
+ if(!general||general.schemaVersion!=='jarvis-general-purpose-capabilities-1'||
+    !general.ownerWords||!general.authority||!general.evidenceRule||general.generalUseCertified!==false||
+    general.checkpointPolicy?.remainingPercentThreshold!==1||general.checkpointPolicy?.creditsAreNotQuota!==true||
+    !Array.isArray(general.checkpointPolicy?.requiredFields)||general.checkpointPolicy.requiredFields.length<9||
+    !Array.isArray(general.capabilities)||general.capabilities.length!==generalCapabilityIds.length)
+  errors.push('GENERAL_PURPOSE_OBJECTIVE_INVALID');
+ const capabilityIds=new Set();
+ for(const c of general?.capabilities||[]){
+  const receiptValid=r=>r&&['SOURCE_AUDIT','AUTOMATED_TEST','UI_MISSION','AUXILIARY_EXECUTION'].includes(r.kind)&&r.path&&r.outcome&&r.scope;
+  if(!generalCapabilityIds.includes(c.id)||capabilityIds.has(c.id)||!c.name||
+    c.planned?.status!=='PLANEADO'||!c.planned?.scope||
+    !['NO_IMPLEMENTADO','PARCIAL','IMPLEMENTADO'].includes(c.implemented?.status)||!c.implemented?.scope||
+    !Array.isArray(c.implemented?.receipts)||c.implemented.receipts.some(r=>!receiptValid(r))||
+    !['NO_DEMOSTRADO','PARCIAL','DEMOSTRADO'].includes(c.demonstratedUI?.status)||!c.demonstratedUI?.scope||
+    !Array.isArray(c.demonstratedUI?.receipts)||c.demonstratedUI.receipts.some(r=>!receiptValid(r)||r.kind!=='UI_MISSION'||!r.missionId)||
+    (c.demonstratedUI?.status!=='NO_DEMOSTRADO'&&!c.demonstratedUI?.receipts?.some(r=>r.kind==='UI_MISSION'&&r.outcome==='COMPLETED'))||
+    (c.demonstratedUI?.status==='DEMOSTRADO'&&c.demonstratedUI?.receipts?.some(r=>r.outcome!=='COMPLETED'))||
+    !Array.isArray(c.pending)||!Array.isArray(c.missingResources)||
+    !Array.isArray(c.acceptance)||!c.acceptance.length||
+    !Array.isArray(c.workstreamRefs)||!c.workstreamRefs.length||c.workstreamRefs.some(id=>!m.workstreams?.some(w=>w.id===id)))
+   errors.push('GENERAL_CAPABILITY_INVALID:'+c.id);
+  capabilityIds.add(c.id);
+ }
+ if(generalCapabilityIds.some(id=>!capabilityIds.has(id)))errors.push('GENERAL_CAPABILITY_MISSING');
  if(!Array.isArray(m.ownerExecutionOrder)||m.ownerExecutionOrder.length!==5||
   m.ownerExecutionOrder.some((x,i)=>x.rank!==i+1||!x.track||!x.name||!x.goal)||
   new Set(m.ownerExecutionOrder.map(x=>x.track)).size!==5)
@@ -143,6 +169,37 @@ function renderOwnerNorthStar(m){
  ];
  for(const result of n.measurableOutcomes)lines.push("- "+esc(result));
  lines.push("","> **Sin triunfalismos:** "+esc(n.realityCheck),"");
+ return lines;
+}
+
+function renderGeneralPurposeAssistant(m){
+ const g=m.generalPurposeAssistant;
+ const receipt=r=>code(r.kind)+' '+esc(r.outcome)+' — '+esc(r.scope)+' — '+code(r.path);
+ const lines=['## Objetivo general y capacidades de Jarvis Adjunto','',
+  '**Instrucción del propietario ('+esc(g.decisionDate)+'):** '+esc(g.ownerWords),'',
+  '**Autoridad y continuidad:** '+esc(g.authority),'',
+  '**Regla de evidencia:** '+esc(g.evidenceRule),'',
+  '**Corte de esta matriz:** '+esc(g.evidenceAsOf)+' · **Uso general certificado:** NO.','',
+  '**Flujo completo:** '+g.lifecycle.map(esc).join(' → '),
+  '**Ámbitos:** '+g.applicationDomains.map(esc).join(', '),'',
+  '| Capacidad | Planeado | Implementado | Demostrado en UI |',
+  '|---|---|---|---|'];
+ for(const c of g.capabilities)lines.push('| '+esc(c.name)+' | '+esc(c.planned.status)+': '+esc(c.planned.scope)+' | '+esc(c.implemented.status)+': '+esc(c.implemented.scope)+' | '+esc(c.demonstratedUI.status)+': '+esc(c.demonstratedUI.scope)+' |');
+ for(const c of g.capabilities){
+  lines.push('','### '+esc(c.name)+' — criterio y pendientes','',
+   '- **Frentes existentes:** '+c.workstreamRefs.map(code).join(', '),
+   '- **Pendiente:** '+c.pending.map(esc).join(' '),
+   '- **Recursos faltantes o por comprobar:** '+(c.missingResources.length?c.missingResources.map(esc).join(' '):'No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.'),
+   '- **Aceptación:** '+c.acceptance.map(esc).join(' '),
+   '- **Recibos de implementación (no UI):** '+c.implemented.receipts.map(receipt).join('; '),
+   '- **Recibos UI:** '+(c.demonstratedUI.receipts.length?c.demonstratedUI.receipts.map(receipt).join('; '):'Sin demostración UI aceptada para el alcance general de esta capacidad.'));
+ }
+ lines.push('','### Misiones nuevas pendientes de demostrar en UI','');
+ for(const mission of g.nextMissions)lines.push('- **'+esc(mission.status)+' / '+esc(mission.capability)+':** '+esc(mission.request)+' Aceptación: '+esc(mission.criterion));
+ lines.push('','### Checkpoint antes de agotar cuota','',
+  esc(g.checkpointPolicy.action)+' Los créditos adicionales no son el porcentaje de cuota restante. No se crea una automatización.',
+  'Registrar: '+g.checkpointPolicy.requiredFields.map(esc).join('; ')+'.','',
+  '**Observación histórica de cuota:** '+g.checkpointPolicy.quotaObservation.usedPercent+'% usado / '+g.checkpointPolicy.quotaObservation.remainingPercent+'% restante; '+g.checkpointPolicy.quotaObservation.additionalCredits+' créditos adicionales. '+esc(g.checkpointPolicy.quotaObservation.source),'');
  return lines;
 }
 
@@ -348,6 +405,7 @@ export function renderManifest(m){
  ...renderLatestHandoff(m),
  ...renderPrivateProductStrategy(m),
  ...renderOwnerNorthStar(m),
+ ...renderGeneralPurposeAssistant(m),
  ...renderSecurityAutonomousGuardians(m),
  ...renderValueReadiness(m),
  ...renderProjectHistory(m),

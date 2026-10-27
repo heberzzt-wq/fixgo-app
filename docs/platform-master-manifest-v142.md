@@ -86,6 +86,7 @@
 - 2026-10-26 WEB bec1af4d MISSION-fd282c54-f976-4ddc-9a25-cc65cf8fa21f termino PARTIAL/PLANNER_UNAVAILABLE por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION tras110inferencias. Git/contexto/lecturas tuvieron proof independiente intermedio; luego numerosas lecturas parciales del manifiesto expulsaron cuerpos fuente pequeños y auditor exigio documento completo para reportar hechos. Bridge7428 detenidoidle0. Correccion en curso: rehidratar recibos originales por objetivo y acotar tambien verificador independiente, con identidades/rangos/flags preservados; no certificacion general. Se adelanta latestHandoff en JSON para coincidir con LEE ESTO PRIMERO del Markdown; historial íntegro.
 - Hito local siguiente: auditoria rehidrata originales SOLO de cada objetivo antes de acotarlos; verificador independiente usa misma proyeccion por alcance con guardas de identidad/hash/rangos/prefijo/flags y falla cerrado si desaparece fuente citada. Pruebas dirigidas nuevas+existentes54/54 y codec/proof29/29. Desbordamiento restante localizado en recuperacion: messages17345+schema7636 duplicado >24576. Sharing reversible de schemas args ($defs/$ref), expansión exacta al original, mensajes intactos:22530chars; Ollama fisico HTTP200 prompt4046tokens devuelve JSONvalido. No contexto/modelo/permisos ampliados. Navegacion alternativa preparada en scratch no aplicada porque web ya encontro manifiesto. CI completa en curso; nueva prueba WEB pendiente.
 - CI oficial final por objetivo exit0 {"pass":1894,"fail":0,"skipped":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.
+- 2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -101,6 +102,7 @@
 
 ### Ruta de recuperacion para el siguiente chat
 
+1. VIGENTE: aplicar generalPurposeAssistant.nextMissions desde UI y actualizar únicamente la capacidad y recibos demostrados; conservar negativos del Excel, límites de contexto y distribución auxiliar pendiente. Al1% restante de cuota, detener antes de agotarse dejando checkpoint concreto.
 1. VIGENTE: recuperacion autorizada de Bridge tras commit local, retest web exacto de consulta policy.js y pedido completo Git/contexto/lecturas/pruebas. Contrato fuente no se reemplaza por operativo; no depender solo del replay.
 1. Cerrar explicacion de cambios/pruebas con fuente pertinente y comprobar continuacion con rangos explicitos. Contador superior de inferencias sigue pendiente; no inferir0 llamadas de ese agregado.
 1. Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.
@@ -313,6 +315,206 @@
 - Mejora del propio ecosistema por ciclos disenar-ejecutar-probar-corregir-verificar, cambios sensibles autorizados.
 
 > **Sin triunfalismos:** Es una META del propietario y no prueba de ser el mejor del mercado, de autonomia general ilimitada ni de un 99.9% certificado. Comparaciones se permiten solo para aprender criterios generales sin copiar.
+
+## Objetivo general y capacidades de Jarvis Adjunto
+
+**Instrucción del propietario (2026-10-26):** El objetivo es desarrollar e integrar Jarvis Adjunto como un asistente de propósito general, con cerebro local, capaz de comprender solicitudes en lenguaje natural, mantener el contexto y resolver tareas mediante razonamiento y herramientas reales. Debe distinguir cuándo responder, investigar en internet, recuperar contenido existente, generar contenido original, calcular, programar o actuar en aplicaciones autorizadas. Debe combinar estas capacidades para resolver solicitudes de investigación, estudio, ingeniería, matemáticas, documentos, multimedia y operaciones de la plataforma. Revisa sistema completo: comprensión, planificación, selección de herramientas, ejecución, recuperación ante fallos, verificación y entrega. Conserva cerebro local, autorizaciones y seguridad. Recursos inexistentes identificar concretamente; nunca inventar resultados/fuentes/archivos/acciones. Resultado: aplicar capacidades a situaciones nuevas y completar trabajo real; informar demostrado, limitado y desarrollo adicional. Estados planeadas/implementadas/demostradasUI separados. Pruebas internas y registros no bastan.
+
+**Autoridad y continuidad:** Amplía el objetivo funcional; conserva productStrategy.northStar, governance, Qwen3.5:9b local como cerebro único y los 57 frentes. No autoriza modelos alternos, pagos, publicación ni efectos ajenos a los acuerdos vigentes.
+
+**Regla de evidencia:** Planeado expresa intención; implementado describe código y pruebas; demostradoUI exige misión nueva desde interfaz, respuesta visible y resultado comprobado. Un registro, esquema, prueba interna, replay o salud de servicio no equivale a demostración UI. PARCIAL no certifica el alcance general.
+
+**Corte de esta matriz:** 2026-10-27T00:57:18.449Z · **Uso general certificado:** NO.
+
+**Flujo completo:** comprender → mantener contexto → planificar → seleccionar herramientas → ejecutar → recuperar ante fallo → verificar independientemente → entregar
+**Ámbitos:** investigación, estudio, ingeniería, matemáticas, documentos, multimedia, operaciones de plataforma
+
+| Capacidad | Planeado | Implementado | Demostrado en UI |
+|---|---|---|---|
+| Comprensión de solicitudes | PLANEADO: Distinguir intención, restricciones y datos proporcionados en lenguaje natural. | PARCIAL: Puerta semántica y contrato por objetivo; Excel ya selecciona spreadsheet.compose. | PARCIAL: Consultas acotadas comprendidas; fidelidad de datos y pedidos nuevos no demostradas. |
+| Contexto y memoria | PLANEADO: Conservar contexto pertinente, identidad de fuentes y continuidad sin confundir historia con evidencia. | PARCIAL: Recibos, vistas por objetivo y compresión reversible presentes; persisten desbordamientos. | PARCIAL: Consultas consecutivas verificadas; misión larga y cierre Excel siguen fallando. |
+| Planificación y selección de herramientas | PLANEADO: Elegir y combinar herramientas por significado y evidencia, con Qwen local como autoridad. | PARCIAL: Catálogo completo, dependencias y contratos presentes; selección y cierre compuestos limitados. | PARCIAL: Git/manifiesto completan alcance acotado; Excel queda en composición. |
+| Responder y explicar | PLANEADO: Responder directamente cuando basta conocimiento o evidencia disponible, citando fuentes cuando corresponde. | PARCIAL: Compositor y rechazo de descargas locales sin evidencia implementados. | PARCIAL: Respuestas visibles de consultas Git/manifiesto; no certifican respuesta general. |
+| Investigar en internet | PLANEADO: Buscar, contrastar y sintetizar fuentes pertinentes para investigación y estudio. | PARCIAL: Herramientas de búsqueda e investigación presentes; cobertura semántica no certificada. | NO_DEMOSTRADO: Auditoría encontró COMPLETED histórico sin enumerar las ingenierías solicitadas; falta una misión nueva aceptada. |
+| Recuperar contenido existente | PLANEADO: Localizar y leer archivos, fuentes y originales autorizados sin reconstruirlos ni inventarlos. | PARCIAL: repo.read/context, extracción digital y biblioteca disponibles; visión general de adjuntos limitada. | PARCIAL: Consulta de manifiesto con respuesta visible; no prueba recuperación de cualquier formato. |
+| Generar contenido original | PLANEADO: Producir texto y contenido original ajustado al pedido, conservando los datos de entrada. | PARCIAL: Compositores de texto/documentos y páginas presentes; generación de imagen bloqueada. | NO_DEMOSTRADO: No se certificó una nueva misión completa de generación y entrega en este corte. |
+| Cálculo, matemáticas e ingeniería | PLANEADO: Resolver cálculos con unidades, supuestos y comprobación independiente. | PARCIAL: Recalculador XLSX acotado a SUM local y operaciones entre celdas; gramática de salida y validación presentes. | NO_DEMOSTRADO: Excel sigue sin archivo final y con etiquetas corruptas aunque SUM(C2:C4) sea válida. |
+| Programar y mantener código | PLANEADO: Leer código, diagnosticar, preparar cambios, probar y entregar resultados bajo autorización. | PARCIAL: Git/lectura/contexto/parches/pruebas/rollback presentes; dedupe y aprobaciones ajustadas. | PARCIAL: Historial Git y resumen visibles; esto no demuestra una reparación completa. |
+| Aplicaciones autorizadas | PLANEADO: Actuar en aplicaciones conectadas solo dentro de permisos y alcance explícitos. | PARCIAL: Inventario de conectores y rutas gobernadas presentes; listar conexión no ejecuta una acción. | NO_DEMOSTRADO: No se probó una acción nueva completa en aplicación autorizada. |
+| Documentos y entregables | PLANEADO: Crear, editar y entregar documentos, PDF y hojas separados y utilizables. | PARCIAL: Composición, vínculo por identidad, creación y validación presentes; dedupe exacto preserva archivos distintos. | NO_DEMOSTRADO: Retest Excel PARTIAL: no escribió archivo; dos PDF distintos aún requieren prueba UI. |
+| Imagen, audio y video | PLANEADO: Analizar y producir multimedia con originales, licencia/procedencia y verificación del contenido. | PARCIAL: Adaptación local y rutas de montaje, voz, ASR y revisión presentes; generación/visión general limitadas. | NO_DEMOSTRADO: Ninguna certificación física nueva de multimedia en este corte. |
+| Operaciones de la plataforma | PLANEADO: Consultar y operar la plataforma con identidad, tenant, permisos y evidencia actuales. | PARCIAL: Consulta autenticada y herramientas de plataforma presentes; enrutamiento de pedidos reales aún limitado. | NO_DEMOSTRADO: Historial de consulta de vehículo desviado a web/código y PARTIAL; no certificación nueva. |
+| Recuperación ante fallos | PLANEADO: Detectar fallo real, conservar trabajo válido y continuar con recuperación acotada. | PARCIAL: Reparación acotada, cancelación y rutas de recuperación presentes; no transversalidad demostrada. | NO_DEMOSTRADO: Excel y misión compuesta terminan PARTIAL; rechazar fallo evita falso éxito, pero no completa recuperación. |
+| Verificación independiente | PLANEADO: Comprobar objetivos y efectos con evidencia independiente antes de declarar éxito. | PARCIAL: Validadores, lectura física, fórmulas y auditoría por objetivo presentes; auditoría larga rebasa contexto. | PARCIAL: Consultas acotadas verificadas; Excel mantiene limitación y no obtiene cierre válido. |
+| Entrega y comunicación del resultado | PLANEADO: Entregar respuesta y archivos realmente disponibles, con estado y límites visibles. | PARCIAL: Presentación, exportación y rechazo de sandbox ficticio implementados; descarga Excel aún no demostrada. | PARCIAL: Respuestas Git/manifiesto visibles; no se entregó Excel. |
+| Laptop auxiliar y reparto de carga | PLANEADO: Trasladar trabajo compatible a la laptop vieja para aliviar la nueva manteniendo un solo cerebro local. | PARCIAL: Snapshots aislados con hashes y pruebas reproducibles en HEBERTO-MENDOZA; concurrencia1. | NO_DEMOSTRADO: 29/29 pruebas auxiliares no demuestran delegación desde UI ni ahorro de RAM medido. |
+
+### Comprensión de solicitudes — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-01`, `JARVIS-02`
+- **Pendiente:** Probar paráfrasis, tareas mixtas y restricciones sin pérdidas.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** El pedido natural nuevo produce objetivos fieles, sin inventar datos ni cambiar el alcance.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Consulta acotada del manifiesto: pruebas locales y pendientes documentados. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json`; `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`
+
+### Contexto y memoria — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-02`, `JARVIS-13`
+- **Pendiente:** Cerrar presupuestos y retención de datos en misiones compuestas.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Reanudar un pedido nuevo conservando restricciones y fuentes; sin relecturas cíclicas ni éxito ficticio.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`; `UI_MISSION` PARTIAL — Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json`
+
+### Planificación y selección de herramientas — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-01`, `JARVIS-02`, `JARVIS-03`
+- **Pendiente:** Probar combinación investigar, calcular, crear y entregar con alcance verificable.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Plan ejecutable cubre todos los objetivos; ninguna obligación queda oculta ni se declara cumplida sin recibo.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Consulta acotada del manifiesto: pruebas locales y pendientes documentados. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json`; `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`; `UI_MISSION` PARTIAL — Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json`
+
+### Responder y explicar — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-02`, `JARVIS-10`
+- **Pendiente:** Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Respuesta visible contesta cada punto y distingue hechos, supuestos e incertidumbre.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Consulta acotada del manifiesto: pruebas locales y pendientes documentados. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json`; `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`
+
+### Investigar en internet — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-04`
+- **Pendiente:** Verificar cobertura, fuentes primarias y citas desde petición natural nueva.
+- **Recursos faltantes o por comprobar:** Disponibilidad y acceso a las fuentes concretas de cada misión por comprobar.
+- **Aceptación:** Cada afirmación verificable tiene fuente accesible; la entrega cubre todos los elementos solicitados.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Recuperar contenido existente — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-03`, `JARVIS-13`
+- **Pendiente:** Probar PDF, biblioteca y contenido de varios archivos con identidad y cobertura completas.
+- **Recursos faltantes o por comprobar:** OCR/visión de imágenes adjuntas no integrada en la ruta general.
+- **Aceptación:** Recupera el original correcto con ruta/hash o fuente y declara cobertura parcial si existe.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Consulta acotada del manifiesto: pruebas locales y pendientes documentados. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json`; `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`
+
+### Generar contenido original — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-05`, `JARVIS-07`
+- **Pendiente:** Validar fidelidad, originalidad y utilidad de entregas nuevas.
+- **Recursos faltantes o por comprobar:** Backend permitido de generación de imágenes no conectado; ruta actual EXTERNAL_INFERENCE_DISABLED.
+- **Aceptación:** Contenido original satisface el pedido y conserva literalmente los datos que no deben transformarse.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Cálculo, matemáticas e ingeniería — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-05`
+- **Pendiente:** Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas.
+- **Recursos faltantes o por comprobar:** Evaluador verificado para fórmulas avanzadas no implementado.
+- **Aceptación:** Resultado numérico contrastado independientemente; unidades, entradas y límites correctos; archivo descargado recalculado cuando se solicita.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Programar y mantener código — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-08`, `JARVIS-09`, `JARVIS-17`
+- **Pendiente:** Completar misión compuesta y una corrección nueva con pruebas y comprobación del resultado.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Cambio mínimo vinculado a fuente real, autorización, pruebas y rollback; informe distingue escrito, probado y publicado.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`
+
+### Aplicaciones autorizadas — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-14`, `JARVIS-15`, `JARVIS-16`
+- **Pendiente:** Implementar y probar por conector la operación concreta y su recibo.
+- **Recursos faltantes o por comprobar:** OAuth, permisos y operación soportada de Gmail/Outlook/Zoho/Drive/Calendar/redes deben comprobarse individualmente.
+- **Aceptación:** La acción autorizada aparece en la aplicación correcta y el recibo confirma su efecto; no hay efectos ajenos.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Documentos y entregables — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-05`, `JARVIS-06`
+- **Pendiente:** Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física.
+- **Recursos faltantes o por comprobar:** XML no está integrado en esquema/UI de entrega; fórmulas avanzadas limitadas.
+- **Aceptación:** Cada archivo corresponde a su contenido y destino; descarga abre y coincide con datos solicitados.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Imagen, audio y video — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-07`
+- **Pendiente:** Probar adaptación local y reel con audio, sincronización y archivo revisados.
+- **Recursos faltantes o por comprobar:** Generación/edición de imagen bloqueadas; integración de visión de adjuntos pendiente; video generativo requiere motor e infraestructura autorizados.
+- **Aceptación:** Archivo real inspeccionado visual y auditivamente; verificación temporal/ASR ligada a su SHA cuando hay narración.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Operaciones de la plataforma — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-03`
+- **Pendiente:** Ejecutar consulta natural de vehículo/asignaciones y demostrar aislamiento; mutaciones solo bajo sus controles.
+- **Recursos faltantes o por comprobar:** Datos y permisos específicos de la misión deben comprobarse; no se presume acceso por registro de herramienta.
+- **Aceptación:** Respuesta proviene de registros actuales del tenant correcto; cobertura y autorización demostradas.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Recuperación ante fallos — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-11`, `JARVIS-12`, `JARVIS-18`
+- **Pendiente:** Probar fallo inducido, reanudación y entrega sin repetir efectos ni perder contexto.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Fallo diagnosticado con causa vigente; recuperación conserva identidad y no fabrica resultados.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Verificación independiente — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-03`, `JARVIS-10`
+- **Pendiente:** Verificar fidelidad semántica de datos y mantener auditoría dentro del contexto sin perder evidencia.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Negativos se rechazan; verificador comprueba objetivo y artefacto, no solo éxito de herramienta o forma del JSON.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Consulta acotada del manifiesto: pruebas locales y pendientes documentados. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json`; `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`; `UI_MISSION` PARTIAL — Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json`
+
+### Entrega y comunicación del resultado — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-05`, `JARVIS-10`
+- **Pendiente:** Cerrar descarga desde UI y confirmar archivo abierto; mostrar motivo final sin confundir fallos recuperados.
+- **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
+- **Aceptación:** Usuario puede usar respuesta/archivo final; links respaldados por bytes y recibos; pendientes explícitos.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
+- **Recibos UI:** `UI_MISSION` COMPLETED — Consulta acotada del manifiesto: pruebas locales y pendientes documentados. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-bounded-web-success-trace.json`; `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`; `UI_MISSION` PARTIAL — Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json`
+
+### Laptop auxiliar y reparto de carga — criterio y pendientes
+
+- **Frentes existentes:** `JARVIS-18`, `OPS-03`
+- **Pendiente:** Integrar selección/envío/resultado de trabajo auxiliar, medir carga y probar reintento sin duplicar efectos.
+- **Recursos faltantes o por comprobar:** Distribución automática y medición comparativa de RAM/tiempo no implementadas.
+- **Aceptación:** Una misión UI delega trabajo compatible, verifica hashes/resultado y registra alivio medido; Qwen permanece en equipo principal.
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUXILIARY_EXECUTION` 29_PASS_0_FAIL — Snapshot aislado con hashes en HEBERTO-MENDOZA; concurrencia1. Sin distribución automática. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/old-laptop-objective-current-receipt.json`
+- **Recibos UI:** Sin demostración UI aceptada para el alcance general de esta capacidad.
+
+### Misiones nuevas pendientes de demostrar en UI
+
+- **PENDIENTE / documentos:** Crea un Excel descargable con cable120, tornillos80 y transporte50, categoría y total250, sin modificar plataforma. Aceptación: Preserva conceptos y números, verifica total, crea bytes y demuestra descarga/lectura desde UI.
+- **PENDIENTE / documentos:** Crea dos PDF separados: una lista de materiales y una guía de uso con los datos que te doy. Aceptación: Dos destinos y contenidos correctos, sin mezcla ni dedupe por formato; apertura de ambos.
+- **PENDIENTE / investigar:** Investiga una institución y enumera todos los programas del alcance solicitado con fuentes. Aceptación: Cobertura explícita y citas consultables; no COMPLETED por búsqueda aislada.
+- **PENDIENTE / plataforma:** Busca un vehículo registrado y sus asignaciones actuales en mi plataforma. Aceptación: Consulta autenticada, tenant correcto, registros reales y cobertura explicada.
+
+### Checkpoint antes de agotar cuota
+
+Detener el trabajo antes de agotar la cuota al llegar al 1% restante y dejar un punto concreto de continuación. Los créditos adicionales no son el porcentaje de cuota restante. No se crea una automatización.
+Registrar: archivos y cambios; pruebas y misiones realizadas; resultados demostrados y limitados; bloqueos; procesos activos o detenidos; siguiente paso concreto; commit pendiente o realizado; push pendiente o realizado; deploy pendiente o realizado.
+
+**Observación histórica de cuota:** 86% usado / 14% restante; 0 créditos adicionales. Observación comunicada por coordinación al recibir la instrucción; no lectura viva ni garantía de saldo actual.
 
 ## Escuadra de robots guardianes — ADJUNTO CYBER GUARDIANS
 

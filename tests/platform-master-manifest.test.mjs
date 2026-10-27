@@ -4,6 +4,35 @@ import {readFileSync} from 'node:fs';
 import {validateManifest,renderManifest} from '../scripts/platform-master-manifest-v142.mjs';
 const data=JSON.parse(readFileSync(new URL('../docs/platform-master-manifest-v142.json',import.meta.url),'utf8'));
 
+test('general-purpose objective separates planned, implemented and UI-demonstrated capabilities',()=>{
+ const objective=data.generalPurposeAssistant;
+ assert.ok(objective, 'owner general-purpose objective must be recorded');
+ assert.equal(objective.capabilities.length,17);
+ assert.match(objective.ownerWords,/asistente de propósito general/);
+ assert.equal(objective.generalUseCertified,false);
+ assert.equal(objective.checkpointPolicy.remainingPercentThreshold,1);
+ assert.equal(objective.checkpointPolicy.creditsAreNotQuota,true);
+ for(const capability of objective.capabilities){
+  assert.ok(capability.planned.scope);
+  assert.ok(capability.implemented.scope);
+  assert.ok(capability.demonstratedUI.scope);
+  assert.ok(capability.pending.length);
+  assert.ok(Array.isArray(capability.missingResources));
+  assert.ok(capability.acceptance.length);
+ }
+ const text=renderManifest(data);
+ assert.match(text,/Objetivo general y capacidades de Jarvis Adjunto/);
+ assert.match(text,/Demostrado en UI/);
+ const forged=structuredClone(data);
+ forged.generalPurposeAssistant.capabilities[0].demonstratedUI={status:'DEMOSTRADO',scope:'Solo pruebas internas',receipts:[]};
+ assert.equal(validateManifest(forged).ok,false);
+ const testOnly=structuredClone(data);
+ testOnly.generalPurposeAssistant.capabilities[0].demonstratedUI={status:'DEMOSTRADO',scope:'Solo pruebas internas',receipts:[{kind:'AUTOMATED_TEST',path:'tests/platform-master-manifest.test.mjs',outcome:'PASS',scope:'Prueba interna'}]};
+ assert.equal(validateManifest(testOnly).ok,false);
+ const missing=structuredClone(data);missing.generalPurposeAssistant.capabilities.pop();
+ assert.equal(validateManifest(missing).ok,false);
+});
+
 test('all B2C/B2B/Jarvis/security/operations rows have real source paths and criteria',()=>{
  const proof=validateManifest(data);
  assert.equal(proof.ok,true,JSON.stringify(proof.errors));
