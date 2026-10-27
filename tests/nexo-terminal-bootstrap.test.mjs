@@ -649,6 +649,13 @@ test('private relay cannot inherit the historical master wildcard bypass', () =>
 });
 
 
+test('stale mobile workstation preference never bypasses the private relay', () => {
+    for (const status of ['NOT_CHECKED','READY','RECONNECTING','STOPPED']) {
+        assert.equal(shouldUseJarvisPrivateRelay({publicOrigin:true,privateRelayEnabled:true,
+            workstationEnabled:true,brokerActive:false,relayState:{status}}),true);
+    }
+});
+
 test('standby workstation tabs use the private relay instead of loopback while the lease peer is active', () => {
     assert.equal(shouldUseJarvisPrivateRelay({
         publicOrigin: true,

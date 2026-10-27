@@ -107,9 +107,10 @@ export function shouldUseJarvisPrivateRelay({
     brokerActive = false
 } = {}) {
     if (!publicOrigin || privateRelayEnabled !== true) return false;
-    if (!workstationEnabled) return true;
-    if (brokerActive) return false;
-    return relayState?.status === "STANDBY";
+    // A public HTTPS tab without the ACTIVE workstation broker is always a
+    // remote client. A stale owner key in mobile localStorage is not proof
+    // that this device can reach its own loopback bridge.
+    return brokerActive !== true;
 }
 
 export function createJarvisTransportSilenceWatchdog(
@@ -542,6 +543,8 @@ function configureJarvisPrivateRelay(bridge) {
             brokerActive: Boolean(broker)
         });
         if (!useRelay) {
+            if (publicOrigin && !broker)
+                throw new Error('JARVIS_RELAY_WORKSTATION_UNAVAILABLE');
             return direct(route, payload, options);
         }
         // Only the owner-authenticated READ-ONLY Qwen pilot may cross the relay.
