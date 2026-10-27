@@ -421,7 +421,7 @@ export function advertisingReviewInput(receipts,instruction,creative){
     const entries=(research?.entries||[]).filter(e=>e.photoRegion||e.role==='official_logo_source').map(e=>({ref:e.ref,role:e.role,description:e.description,verifiedContacts:e.verifiedContacts,sha256:e.sha256}));
     return {instruction,query:research?.query||'',sources,entries,openedSources,...(creative?{creative}:{})};
 }
-export function compactGeneralObservation(o,includeEngineeringSource=false){
+export function compactGeneralObservation(o,includeEngineeringSource=false,includeResearch=false){
     const compactReview=r=>({hostClaimConstraint:r.hostClaimConstraint,hostCopyConstraint:r.hostCopyConstraint,verified:r.verified,status:r.status,reason:r.reason?.slice(0,220),inputSha256:r.inputSha256,acceptedSourceURLs:r.acceptedSourceURLs,issues:r.review?.issues?.slice(0,4).map(s=>s.slice(0,220)),unsupportedClaims:r.review?.creative?.unsupportedClaims,sources:r.review?.sources?.map(s=>({url:s.url,relevant:s.topicRelevant&&s.sectorRelevant&&s.identityCompatible&&s.objectiveRelevant,reason:s.reason.slice(0,180)}))});
     const base={ok:o?.ok===true,status:o?.status,error:o?.error,output:o?.output,url:o?.url,bytes:o?.bytes,sha256:o?.sha256,mimeType:o?.mimeType,...(o?.advertisingSemanticReview?{advertisingSemanticReview:compactReview(o.advertisingSemanticReview)}:{})};
     if(o?.status==='LOCAL_VIDEO_REVIEW_FAILED')return {...base,sourceSha256:o.sourceSha256,frames:o.frames?.map(f=>({timestampSeconds:f.timestampSeconds,review:f.review,visualPassed:f.visualPassed})),audioEvidence:o.audioEvidence,repairLimit:1};
@@ -442,8 +442,10 @@ export function compactGeneralObservation(o,includeEngineeringSource=false){
     if(o?.entries)return {...base,reviewPending:o.advertisingSemanticReview?.verified!==true,sources:o.sources?.slice(0,8),entries:o.entries.map(e=>({ref:e.ref,relativePath:e.relativePath,role:e.role,mimeType:e.mimeType,sha256:e.sha256,width:e.width,height:e.height,description:e.description,photoRegion:e.photoRegion,verifiedContacts:e.verifiedContacts})),usedSourceAndLayouts:(o.deliveredCombinations||o.advertisingHistory)?.filter(h=>h.visual).map(h=>({...h.visual,format:h.format})),historicalCopyOmitted:true,historyCount:o.advertisingHistory?.length,answer:String(o.answer||'').slice(0,800)};
     if(o?.outputs)return {...base,outputs:o.outputs.map(p=>({output:p.output,mimeType:p.mimeType,sha256:p.sha256,bytes:p.bytes,width:p.width,height:p.height}))};
     if(o?.status==='LOCAL_VIDEO_REVIEW_VERIFIED'||o?.status==='LOCAL_VIDEO_REVIEW_FAILED')return {...base,sourceSha256:o.sourceSha256,video:o.video,audio:o.audio,durationSeconds:o.durationSeconds,frames:o.frames.map(f=>({timestampSeconds:f.timestampSeconds,sha256:f.sha256,review:f.review,visualPassed:f.visualPassed})),audioEvidence:o.audioEvidence};
-    if(o?.sources)return {...base,sources:o.sources.slice(0,8),answer:String(o.answer||'').slice(0,1800)};
-    if(o?.dom)return {...base,sourceDates:[...new Set(String(o.dom).match(/\b20\d{2}[-/]\d{2}[-/]\d{2}\b/g)||[])].slice(0,12),domText:advertisingSourceText(o.stdout||o.dom).slice(0,2800)};
+    if(o?.sources)return {...base,sources:o.sources.slice(0,includeResearch?4:8),answer:String(o.answer||'').slice(0,includeResearch?350:1800)};
+    if(o?.dom)return {...base,sourceKind:o.sourceKind,sourceBytes:o.sourceBytes,
+        sourceDates:[...new Set(String(o.dom).match(/\b20\d{2}[-/]\d{2}[-/]\d{2}\b/g)||[])].slice(0,includeResearch?2:12),
+        domText:advertisingSourceText(o.stdout||o.dom).slice(0,includeResearch?650:2800)};
     if(o?.dataBase64)return {...base,readBack:true,warning:'File bytes retained for independent verification; not repeated in model context.'};
     return base;
 }
@@ -595,7 +597,7 @@ export async function runQwenGeneralPilot(options){
         signal:options.signal,onProgress:options.onProgress,
         executePhase:(carried,phase,stepsPerPhase)=>runQwenTerminalReadPilot({...options,pilotVersion,initialReceipts:carried,sessionContext,instruction,toolRuntime,hostToolPolicy:policy,
             maximumSteps:stepsPerPhase,repairIncomplete:!objectives.unsupported||objectives.advertising,requireFinalReport:objectives.code===true,
-            compactObservation:o=>compactGeneralObservation(o,objectives.code===true),catalogForEvidence:(catalog,receipts)=>prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives,options.instruction),
+            compactObservation:o=>compactGeneralObservation(o,objectives.code===true,objectives.research===true&&!objectives.advertising),catalogForEvidence:(catalog,receipts)=>prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives,options.instruction),
             summarizeEvidence:receipts=>{const preflight=generalMissionPreflight(toolRuntime.list(),receipts,objectives,audioReadiness);return {...summarizeGeneralEvidence(receipts,objectives,options.instruction),preflight,...(!preflight.ok&&!preflight.pending?{blockedReason:preflight.reason}:{})};},
             verifyObjectives:args=>verifyGeneralMission({...args,instruction:options.instruction,objectives})})
     });

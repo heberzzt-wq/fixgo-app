@@ -285,7 +285,10 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
 
         pendingVisualReviews:objectives.page?rows.filter(r=>r.name==='browser.screenshot'&&!rows.some(v=>v.name==='media.analyze'&&v.observation.output===r.observation.output)).map(r=>({requiredTool:'media.analyze',output:r.observation.output,reason:'Screenshot alone is not visual review. Execute media.analyze on these pixels before FINISH.'})):[],
         openedSources:rows.filter(r=>r.name==='browser.inspect').map(r=>({url:r.observation.url,title:String(r.observation.dom||'').match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim(),hasDom:!!r.observation.dom})),
-        ...(objectives.research&&!objectives.advertising&&proofs.length?{reportSchema:{type:'object',properties:{sources:{type:'array',minItems:3,maxItems:4,items:{anyOf:proofs.map(p=>({type:'object',properties:{url:{const:p.url},title:{const:p.title},date:{enum:[...p.dates,null]},quote:{enum:p.quotes}},required:['url','title','date','quote'],additionalProperties:false}))}}},required:['sources'],additionalProperties:false}}:{}),
+        // Qwen needs a bounded choice among physically evidenced quotes, not
+        // every excerpt of a 300 KB HTML page repeated in the Ollama schema.
+        // Full sources and all quotes remain in receipts for independent audit.
+        ...(objectives.research&&!objectives.advertising&&proofs.length?{reportSchema:{type:'object',properties:{sources:{type:'array',minItems:3,maxItems:3,items:{anyOf:independentResearchProofs(receipts,instruction).slice(0,3).map(p=>({type:'object',properties:{url:{const:p.url},title:{const:p.title},date:{enum:[...p.dates.slice(0,2),null]},quote:{enum:p.quotes.slice(0,2)}},required:['url','title','date','quote'],additionalProperties:false}))}}},required:['sources'],additionalProperties:false}}:{}),
         sources:sources.map(s=>({url:s.url,title:s.title})).slice(0,12),
         artifacts:rows.filter(r=>['page.create','document.create'].includes(r.name)).map(r=>({output:r.observation.output,sha256:r.observation.sha256,url:r.observation.url})),
         rule:'FINISH requires independent verification. Search snippets alone do not establish current facts. Read sources with browser.inspect. Read produced files with artifact.read. A screenshot is a capture, not semantic visual inspection.'};
