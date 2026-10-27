@@ -3,9 +3,9 @@
   "snapshotDate": "2026-10-22",
   "repository": "heberzzt-wq/fixgo-app",
   "latestHandoff": {
-    "asOf": "2026-10-26",
+    "asOf": "2026-10-27",
     "currentLocalEvidence": {
-      "asOf": "2026-10-26",
+      "asOf": "2026-10-27",
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
@@ -17,9 +17,9 @@
         "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-followup-ci.txt"
       },
       "pending": [
-        "Completar la mision compuesta Git/contexto/lecturas/pruebas/pendientes; las consultas acotadas Git y manifiesto ya completaron consecutivamente.",
-        "Ampliar repetibilidad y cobertura a pedidos libres; dos consultas verificadas no certifican autonomia general.",
-        "Laptop auxiliar verificada para pruebas aisladas; transferencia y reparto automatico de cargas siguen pendientes."
+        "Siguiente JARVIS-04: investigar con tres fuentes independientes en una mision UI y conservar citas exactas en recibos.",
+        "Continuar cobertura de solicitudes abiertas y compuestas: dos descargas concretas no equivalen a autonomia general.",
+        "Laptop auxiliar: delegacion automatica efectiva sigue pendiente; snapshots aislados no miden ahorro de RAM."
       ],
       "auxiliaryLaptop": {
         "passed": 29,
@@ -164,7 +164,7 @@
         }
       },
       "generalPurposeIteration": {
-        "status": "PARTIAL_UI_VERIFIED_WITH_BLOCKERS",
+        "status": "GP01_GP02_GP03_SCOPED_UI_VERIFIED_GENERAL_AUTONOMY_PENDING",
         "contextFix": "Three stages: objective audit, full catalog tool choice, grounded arguments; same Qwen8192; no lost conversation or evidence",
         "fidelityFix": "Same Qwen compares spreadsheet against original request and evidence; max2 repairs, invalid/missing review fails closed",
         "tests": {
@@ -233,6 +233,59 @@
             "missionId": "MISSION-27f51176-f549-4585-8d13-a3aa097acf92",
             "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-retest-live.json",
             "result": "Invalid JSON in mission contract recovered only partially; spreadsheet formulas failed; COMPLETION_AUDIT still exceeds context; no artifact"
+          },
+          {
+            "id": "GP02",
+            "status": "VERIFIED_COMPLETE",
+            "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+            "receipt": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+            "sourceCommit": "2bfc50e44889543d04c4d01c0f32dd30a55ef712",
+            "result": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada.",
+            "originalSha256": "6645009e9ca37cebfdb736e570fb00ba2bd7dc814f01d9477d244b5ca18a66f8",
+            "evidenceSha256": "986a363da72dcecb352b00ddf5c88cd72cd845b9a8cf3a6377b7cecfdc65cf48"
+          },
+          {
+            "id": "GP03",
+            "status": "VERIFIED_COMPLETE",
+            "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+            "receipt": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+            "sourceCommit": "558cd5d2daa8e192b411a72756ebfa0682a37a99",
+            "result": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada.",
+            "originalSha256": "e208ebd726d38566dd10a7e06116d81f9681b8773b97db8a5ac382c3ed353fec",
+            "evidenceSha256": "15a377a0e5a41f5c210e45f655806711d1d2750d8617c53b95af430a0360a991"
+          }
+        ],
+        "latestVerifiedAsOf": "2026-10-27",
+        "uiClosures20261027": [
+          {
+            "id": "GP02",
+            "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+            "format": "xlsx",
+            "file": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+            "evidenceSha256": "986a363da72dcecb352b00ddf5c88cd72cd845b9a8cf3a6377b7cecfdc65cf48",
+            "inferences": 1,
+            "toolsSuccessful": 3,
+            "scope": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada.",
+            "sha256": "6645009e9ca37cebfdb736e570fb00ba2bd7dc814f01d9477d244b5ca18a66f8",
+            "bytes": 6775,
+            "status": "VERIFIED_COMPLETE",
+            "physicallyDownloadedByOwner": true,
+            "productionCertified": false
+          },
+          {
+            "id": "GP03",
+            "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+            "format": "pdf",
+            "file": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+            "evidenceSha256": "15a377a0e5a41f5c210e45f655806711d1d2750d8617c53b95af430a0360a991",
+            "inferences": 2,
+            "toolsSuccessful": 4,
+            "scope": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada.",
+            "sha256": "e208ebd726d38566dd10a7e06116d81f9681b8773b97db8a5ac382c3ed353fec",
+            "bytes": 2368,
+            "status": "VERIFIED_COMPLETE",
+            "physicallyDownloadedByOwner": true,
+            "productionCertified": false
           }
         ]
       },
@@ -296,9 +349,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes.",
+    "lastSessionSummary": "2026-10-27: GP02 y GP03 completadas por Qwen local desde Terminal Heberto autenticada, con archivos descargados y compartidos por el propietario. GP02 XLSX SUM(C2:C4)=81 y GP03 PDF una pagina qwen3.5:9b/F=8N. Ambos VERIFIED_COMPLETE por certificador y recibos fisicos. Historicos GP01/02/03 fallidos conservados como fallos de intentos ANTERIORES. Solo alcance especifico, no autonomia general ni produccion certificadas. Branch v142-official y Bridge mantenimiento limpios, sin push/deploy; supervisor pausado.",
     "infrastructure": {
-      "bridge": "Mantenimiento PID12532 iniciado limpio sobre14b371dc; saludverificada idle0. Supervisor3345 pausado;Hosting5000 yOllama11434. SoloQwen3.5:9b8192/45s/prewarm0/150000ms.",
+      "bridge": "2026-10-27: Bridge 3344 en modo mantenimiento verificado sobre HEAD local limpio 558cd5d2 antes de esta actualizacion documental; trabajador de sincronizacion/publicacion no iniciado; supervisor 3345 pausado. Hosting 5000 y Ollama 11434 activos.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",
@@ -306,7 +359,7 @@
         "3345",
         "11434"
       ],
-      "browser": "Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados."
+      "browser": "2026-10-27: Terminal local autenticada observada por lectura en el navegador; GP02 y GP03 finalizaron VERIFIED_COMPLETE con enlaces de descarga. Control del navegador en Chat es solo lectura."
     },
     "completedActions": [
       "12 NS1 originales se intentaron por web, todas fallaron por SEMANTIC_AUTHENTICATED_PROVIDER null collections; sin IDs de recibos. No repetir como exitos.",
@@ -365,7 +418,9 @@
       "2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales.",
       "GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.",
       "Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes.",
-      "Guardado local5fb153de; corregido tipo documental del recibo Qwen a AUTOMATED_TEST (script offline, no UI) para cumplir contrato del manifiesto. Sin cambios adicionales de runtime."
+      "Guardado local5fb153de; corregido tipo documental del recibo Qwen a AUTOMATED_TEST (script offline, no UI) para cumplir contrato del manifiesto. Sin cambios adicionales de runtime.",
+      "2026-10-27 GP02 Terminal: general-0611cbda-b2bb-4870-b813-7c39fe41fab3 VERIFIED_COMPLETE; document.create/artifact.read/media.library 3/3; XLSX 6775 bytes SHA256 6645009e..., cuadernos36/lapices18/carpetas27, SUM(C2:C4)=81; Excel adjuntado por propietario. Source branch v142-official; no push/deploy.",
+      "2026-10-27 GP03 Terminal: general-8510613f-c296-424e-9030-82f9f7bba1fd VERIFIED_COMPLETE; repo.read/document.create/artifact.read/media.library 4/4; PDF 2368 bytes SHA256 e208ebd7..., una pagina, modelo qwen3.5:9b, ejemplo fuerza 8N; PDF adjuntado y verificado. No push/deploy."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -543,12 +598,12 @@
       "governance": "No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion."
     },
     "nextSteps": [
-      "VIGENTE: aplicar generalPurposeAssistant.nextMissions desde UI y actualizar únicamente la capacidad y recibos demostrados; conservar negativos del Excel, límites de contexto y distribución auxiliar pendiente. Al1% restante de cuota, detener antes de agotarse dejando checkpoint concreto.",
-      "VIGENTE: recuperacion autorizada de Bridge tras commit local, retest web exacto de consulta policy.js y pedido completo Git/contexto/lecturas/pruebas. Contrato fuente no se reemplaza por operativo; no depender solo del replay.",
-      "Cerrar explicacion de cambios/pruebas con fuente pertinente y comprobar continuacion con rangos explicitos. Contador superior de inferencias sigue pendiente; no inferir0 llamadas de ese agregado.",
-      "Ampliar ejecucion auxiliar en laptop vieja a snapshots reproducibles con hashes y concurrencia acotada; conservar Qwen en RTX5060 y no duplicar cerebro/supervisor.",
-      "Tras una mision completa, retestar negativos y las12 NS1; conservar pendientes OAuth, autorrecuperacion, aislamiento y pruebas sostenidas.",
-      "Actualizar manifiesto y diario tras cada hito. Produccion, dinero, secretos y acceso conservan sus controles."
+      "Siguiente cierre individual: JARVIS-04 investigacion de tres fuentes independientes con fragmentos literales verificados y limites explicitos. Probar desde Terminal y conservar recibos; no fingir fuentes ni fechas.",
+      "GP02 y GP03 YA CERRADAS en 2026-10-27 en su alcance; NO repetir bugs resueltos por leer reportes historicos. uiAttempts viejas representan intentos anteriores.",
+      "Mantener pendiente la mision compuesta Git/contexto/lecturas/pruebas; NO extrapolar la entrega GP02/GP03 a autonomia general de 17 capacidades.",
+      "Conservar Qwen3.5:9b como unico cerebro, supervisor mantenimiento y autoarranque intencional. Verificar SHA local limpio antes de recargar Bridge.",
+      "Laptop vieja: delegacion automatica y medicion real de ahorro de RAM siguen pendientes; no promover snapshots auxiliares a pruebas UI.",
+      "No publicar ni escribir fondos, reglas, credenciales o Functions; antes de cualquier push/deploy exigir revision autorizada del propietario y puertas de seguridad."
     ],
     "currentRuntimeBaseline": {
       "sha": "d3e4a2a10dbf49024497c74a225c509fde6a1997",
@@ -566,12 +621,12 @@
       "localPublished": false
     },
     "nextSessionActions": [
-      "PRIMERO leer generalPurposeAssistant y este latestHandoff; verificar Git y health antes de actuar.",
-      "GP02 contexto: particion comprobada con Qwen real (gp02-budget-physical.json), sin desbordamiento. Pendiente corregir seleccion document.compose HTML y contrato contaminado con fisica/platform_records; preservar instruccion actual y datos de compra. No usar recibo como XLSX entregado.",
-      "Antes de UI/CI fisico: recuperar Bridge con identidad valida de forma controlada. CI actual fallo en repo.search por503 BRIDGE_IDENTITY_INVALID; runtime reporto COMPLETED sin candidatos. Conservar negativos; no relajar prueba ni guardas.",
-      "Corregir generación/reparación de fórmulas y ejecutar GP02 exacto desdeUI hasta descargar, abrir y comprobar etiquetas36/18/27 y total81. No fabricar archivo porfuera deJarvis.",
-      "Diagnosticar CURRENT_TURN de work/gp03-live.json; preservarlecturarepopolicy+PDF, probar mezcla nueva y salida física.",
-      "Mantener limitados los estados; próximos pendientes: investigaciones, adjuntosvisuales y repartoauxiliar. Sinpublicación implícita."
+      "Siguiente cierre individual: JARVIS-04 investigacion de tres fuentes independientes con fragmentos literales verificados y limites explicitos. Probar desde Terminal y conservar recibos; no fingir fuentes ni fechas.",
+      "GP02 y GP03 YA CERRADAS en 2026-10-27 en su alcance; NO repetir bugs resueltos por leer reportes historicos. uiAttempts viejas representan intentos anteriores.",
+      "Mantener pendiente la mision compuesta Git/contexto/lecturas/pruebas; NO extrapolar la entrega GP02/GP03 a autonomia general de 17 capacidades.",
+      "Conservar Qwen3.5:9b como unico cerebro, supervisor mantenimiento y autoarranque intencional. Verificar SHA local limpio antes de recargar Bridge.",
+      "Laptop vieja: delegacion automatica y medicion real de ahorro de RAM siguen pendientes; no promover snapshots auxiliares a pruebas UI.",
+      "No publicar ni escribir fondos, reglas, credenciales o Functions; antes de cualquier push/deploy exigir revision autorizada del propietario y puertas de seguridad."
     ]
   },
   "projectHistory": {
@@ -2011,7 +2066,7 @@
   "generalPurposeAssistant": {
     "schemaVersion": "jarvis-general-purpose-capabilities-1",
     "decisionDate": "2026-10-26",
-    "evidenceAsOf": "2026-10-27T00:57:18.449Z",
+    "evidenceAsOf": "2026-10-27",
     "generalUseCertified": false,
     "ownerWords": "El objetivo es desarrollar e integrar Jarvis Adjunto como un asistente de propósito general, con cerebro local, capaz de comprender solicitudes en lenguaje natural, mantener el contexto y resolver tareas mediante razonamiento y herramientas reales. Debe distinguir cuándo responder, investigar en internet, recuperar contenido existente, generar contenido original, calcular, programar o actuar en aplicaciones autorizadas. Debe combinar estas capacidades para resolver solicitudes de investigación, estudio, ingeniería, matemáticas, documentos, multimedia y operaciones de la plataforma. Revisa sistema completo: comprensión, planificación, selección de herramientas, ejecución, recuperación ante fallos, verificación y entrega. Conserva cerebro local, autorizaciones y seguridad. Recursos inexistentes identificar concretamente; nunca inventar resultados/fuentes/archivos/acciones. Resultado: aplicar capacidades a situaciones nuevas y completar trabajo real; informar demostrado, limitado y desarrollo adicional. Estados planeadas/implementadas/demostradasUI separados. Pruebas internas y registros no bastan.",
     "authority": "Amplía el objetivo funcional; conserva productStrategy.northStar, governance, Qwen3.5:9b local como cerebro único y los 57 frentes. No autoriza modelos alternos, pagos, publicación ni efectos ajenos a los acuerdos vigentes.",
@@ -2545,9 +2600,24 @@
           ]
         },
         "demonstratedUI": {
-          "status": "NO_DEMOSTRADO",
-          "scope": "No se certificó una nueva misión completa de generación y entrega en este corte.",
-          "receipts": []
+          "status": "PARCIAL",
+          "scope": "GP02 XLSX y GP03 PDF originales entregados desde Terminal; capacidad acotada a dos pedidos especificos, no generacion universal.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+              "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+              "outcome": "COMPLETED",
+              "scope": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+              "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+              "outcome": "COMPLETED",
+              "scope": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada."
+            }
+          ]
         },
         "pending": [
           "Validar fidelidad, originalidad y utilidad de entregas nuevas."
@@ -2590,7 +2660,7 @@
         },
         "demonstratedUI": {
           "status": "PARCIAL",
-          "scope": "Excel sigue sin archivo final y con etiquetas corruptas aunque SUM(C2:C4) sea válida. GP01 nuevo demostrado: explicación física21N y ejercicio4m/s2 completos enUI; no prueba cálculo general ni archivos.",
+          "scope": "GP01 texto de fisica; GP02 SUM(C2:C4)=81 en XLSX y GP03 fuerza F=4x2=8N en PDF. Aun faltan operaciones mas complejas.",
           "receipts": [
             {
               "kind": "UI_TURN",
@@ -2598,11 +2668,25 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
               "outcome": "RESPONSE_COMPLETE_VERIFIED",
               "scope": "GP01 exacto:21N, unidades correctas y ejercicio48N/12kg=4m/s2 visibles; respuesta completa sin archivo. Código14b371dc."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+              "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+              "outcome": "COMPLETED",
+              "scope": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+              "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+              "outcome": "COMPLETED",
+              "scope": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada."
             }
           ]
         },
         "pending": [
-          "Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas."
+          "Extender calculos fuera de SUM/fuerza lineal con pruebas independientes, sin prometer formulas no soportadas."
         ],
         "missingResources": [
           "Evaluador verificado para fórmulas avanzadas no implementado."
@@ -2742,13 +2826,28 @@
           ]
         },
         "demonstratedUI": {
-          "status": "NO_DEMOSTRADO",
-          "scope": "Retest Excel PARTIAL: no escribió archivo; dos PDF distintos aún requieren prueba UI.",
-          "receipts": []
+          "status": "PARCIAL",
+          "scope": "GP02 XLSX y GP03 PDF de una pagina entregados, descargados y abiertos. Segundo PDF distinto aun no demostrado; formato general pendiente.",
+          "receipts": [
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+              "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+              "outcome": "COMPLETED",
+              "scope": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+              "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+              "outcome": "COMPLETED",
+              "scope": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada."
+            }
+          ]
         },
         "pending": [
-          "Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física.",
-          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
+          "Verificar un segundo PDF diferente desde UI hasta lectura fisica y descarga.",
+          "Ampliar variedad de documentos sin inferir datos ni etiquetas."
         ],
         "missingResources": [
           "XML no está integrado en esquema/UI de entrega; fórmulas avanzadas limitadas."
@@ -2929,7 +3028,7 @@
         },
         "demonstratedUI": {
           "status": "PARCIAL",
-          "scope": "Consultas acotadas verificadas; Excel mantiene limitación y no obtiene cierre válido.",
+          "scope": "GP02/GP03 recibos de creacion, lectura y exportacion, certificador VERIFIED_COMPLETE, archivos reales y comprobacion de contenido; no seguridad ni produccion generales.",
           "receipts": [
             {
               "kind": "UI_MISSION",
@@ -2958,6 +3057,20 @@
               "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
               "outcome": "PARTIAL",
               "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+              "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+              "outcome": "COMPLETED",
+              "scope": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+              "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+              "outcome": "COMPLETED",
+              "scope": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada."
             }
           ]
         },
@@ -3000,7 +3113,7 @@
         },
         "demonstratedUI": {
           "status": "PARCIAL",
-          "scope": "Respuestas Git/manifiesto visibles; no se entregó Excel. GP01 nuevo demostrado: explicación física21N y ejercicio4m/s2 completos enUI; no prueba cálculo general ni archivos.",
+          "scope": "GP02 boton XLSX y GP03 boton PDF aparecen en Terminal; propietario descargo y adjunto los archivos validos. Alcance dos misiones, no todas las salidas.",
           "receipts": [
             {
               "kind": "UI_MISSION",
@@ -3036,11 +3149,25 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
               "outcome": "RESPONSE_COMPLETE_VERIFIED",
               "scope": "GP01 exacto:21N, unidades correctas y ejercicio48N/12kg=4m/s2 visibles; respuesta completa sin archivo. Código14b371dc."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-0611cbda-b2bb-4870-b813-7c39fe41fab3/compra_prueba_cuadernos_lapices_carpetas.xlsx",
+              "missionId": "general-0611cbda-b2bb-4870-b813-7c39fe41fab3",
+              "outcome": "COMPLETED",
+              "scope": "Excel GP02 con cuadernos36, lapices18, carpetas27, total81 por SUM(C2:C4); Terminal VERIFIED_COMPLETE, descarga del usuario recibida y comprobada."
+            },
+            {
+              "kind": "UI_MISSION",
+              "path": ".jarvis-artifacts/qwen-general/general-8510613f-c296-424e-9030-82f9f7bba1fd/estudiante_fuerza_neta.pdf",
+              "missionId": "general-8510613f-c296-424e-9030-82f9f7bba1fd",
+              "outcome": "COMPLETED",
+              "scope": "PDF GP03 de una pagina: repo.read policy qwen3.5:9b, F=4kg x 2m/s2=8N; Terminal VERIFIED_COMPLETE, descarga del usuario recibida y pagina verificada."
             }
           ]
         },
         "pending": [
-          "Cerrar descarga desde UI y confirmar archivo abierto; mostrar motivo final sin confundir fallos recuperados."
+          "Probar otras clases de archivo y restauracion de descargas sin degradar validacion SHA."
         ],
         "missingResources": [],
         "acceptance": [
