@@ -26,15 +26,15 @@ export function validateManifest(m,{rootDir=root}={}){
   errors.push('GENERAL_PURPOSE_OBJECTIVE_INVALID');
  const capabilityIds=new Set();
  for(const c of general?.capabilities||[]){
-  const receiptValid=r=>r&&['SOURCE_AUDIT','AUTOMATED_TEST','UI_MISSION','AUXILIARY_EXECUTION'].includes(r.kind)&&r.path&&r.outcome&&r.scope;
+  const receiptValid=r=>r&&['SOURCE_AUDIT','AUTOMATED_TEST','UI_MISSION','UI_TURN','AUXILIARY_EXECUTION'].includes(r.kind)&&r.path&&r.outcome&&r.scope;
   if(!generalCapabilityIds.includes(c.id)||capabilityIds.has(c.id)||!c.name||
     c.planned?.status!=='PLANEADO'||!c.planned?.scope||
     !['NO_IMPLEMENTADO','PARCIAL','IMPLEMENTADO'].includes(c.implemented?.status)||!c.implemented?.scope||
     !Array.isArray(c.implemented?.receipts)||c.implemented.receipts.some(r=>!receiptValid(r))||
     !['NO_DEMOSTRADO','PARCIAL','DEMOSTRADO'].includes(c.demonstratedUI?.status)||!c.demonstratedUI?.scope||
-    !Array.isArray(c.demonstratedUI?.receipts)||c.demonstratedUI.receipts.some(r=>!receiptValid(r)||r.kind!=='UI_MISSION'||!r.missionId)||
-    (c.demonstratedUI?.status!=='NO_DEMOSTRADO'&&!c.demonstratedUI?.receipts?.some(r=>r.kind==='UI_MISSION'&&r.outcome==='COMPLETED'))||
-    (c.demonstratedUI?.status==='DEMOSTRADO'&&c.demonstratedUI?.receipts?.some(r=>r.outcome!=='COMPLETED'))||
+    !Array.isArray(c.demonstratedUI?.receipts)||c.demonstratedUI.receipts.some(r=>!receiptValid(r)||!(r.kind==='UI_MISSION'&&r.missionId||r.kind==='UI_TURN'&&r.analysisId))||
+    (c.demonstratedUI?.status!=='NO_DEMOSTRADO'&&!c.demonstratedUI?.receipts?.some(r=>r.kind==='UI_MISSION'&&r.outcome==='COMPLETED'||r.kind==='UI_TURN'&&r.outcome==='RESPONSE_COMPLETE_VERIFIED'))||
+    (c.demonstratedUI?.status==='DEMOSTRADO'&&c.demonstratedUI?.receipts?.some(r=>r.kind==='UI_MISSION'?r.outcome!=='COMPLETED':r.outcome!=='RESPONSE_COMPLETE_VERIFIED'))||
     !Array.isArray(c.pending)||!Array.isArray(c.missingResources)||
     !Array.isArray(c.acceptance)||!c.acceptance.length||
     !Array.isArray(c.workstreamRefs)||!c.workstreamRefs.length||c.workstreamRefs.some(id=>!m.workstreams?.some(w=>w.id===id)))

@@ -164,7 +164,7 @@
         }
       },
       "generalPurposeIteration": {
-        "status": "IMPLEMENTED_UI_PENDING",
+        "status": "PARTIAL_UI_VERIFIED_WITH_BLOCKERS",
         "contextFix": "Three stages: objective audit, full catalog tool choice, grounded arguments; same Qwen8192; no lost conversation or evidence",
         "fidelityFix": "Same Qwen compares spreadsheet against original request and evidence; max2 repairs, invalid/missing review fails closed",
         "tests": {
@@ -203,7 +203,7 @@
           }
         ],
         "followup": {
-          "status": "IMPLEMENTED_RETEST_PENDING",
+          "status": "UI_GP01_VERIFIED_GP02_FAILED",
           "changes": [
             "direct chat output1024; truncation remains rejected; context8192 unchanged",
             "metadataColumns reversible; selection23383 chars for failedExcel packet"
@@ -218,7 +218,23 @@
             "scope": "Pruebas locales automatizadas; no certifican produccion.",
             "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-followup-ci.txt"
           }
-        }
+        },
+        "uiRetests": [
+          {
+            "id": "GP01",
+            "status": "RESPONSE_COMPLETE_VERIFIED",
+            "analysisId": "beb8566c-7414-4289-bd8c-86bc20497497",
+            "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
+            "sourceCommit": "14b371dcc84c256ec8e9e46d777ae42a2440517e"
+          },
+          {
+            "id": "GP02",
+            "status": "PARTIAL",
+            "missionId": "MISSION-27f51176-f549-4585-8d13-a3aa097acf92",
+            "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-retest-live.json",
+            "result": "Invalid JSON in mission contract recovered only partially; spreadsheet formulas failed; COMPLETION_AUDIT still exceeds context; no artifact"
+          }
+        ]
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -226,9 +242,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Objetivo rector y matriz17capacidades integrados. Tres pedidos nuevos UI sobre80dfd4b2: GP01fisica fallo respuesta512truncada; GP02Excel PARTIAL formulasinvalidas yseleccioncontexto25221>24576; GP03repo+PDF fallo CURRENT_TURNcontexto. Ninguna entrega nueva certificada. Seguimiento corrige salida directa1024 sinaceptartruncacion ymetadataColumns reversible23383chars. CI 1940PASS/0FAIL/2SKIP; dirigidas7/7. RetestGP01pendiente; GP02formula yGP03contexto siguenabiertos. Sinpush/deploy, supervisorpausado, Bridge27968 detenidoidle0 para integrar.",
+    "lastSessionSummary": "2026-10-26: Objetivo rector y17capacidades integrados preservandoacuerdos. Código14b371dc CI1940PASS/0FAIL/2SKIP. DemostradoUI GP01fisica exacto:21N, unidades y ejercicio48/12=4; analysisId beb8566c-7414-4289-bd8c-86bc20497497. GP02retestMISSION-27f51176 PARTIAL:JSONcontratoinvalido, formulasfallidas ycontextocierre aúnexcedido; noExcel. GP03repo+PDF fallóCURRENT_TURNcontexto; noPDF. Implementado revisiónfidelidad mismaQwen, auditoríapor etapas, metadata reversible ysalidadirecta1024; no generalUseCertified. Checkpoint conarchivos,recibos,procesosypendientes en outputs/jarvis-punto-continuacion.md. Sinpush/deploy.",
     "infrastructure": {
-      "bridge": "Detenido verificado idle0 PID19484 para integración; reiniciar mantenimiento tras commit limpio, supervisor pausado.",
+      "bridge": "Mantenimiento PID12532 iniciado limpio sobre14b371dc; saludverificada idle0. Supervisor3345 pausado;Hosting5000 yOllama11434. SoloQwen3.5:9b8192/45s/prewarm0/150000ms.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",
@@ -484,7 +500,14 @@
       "repairRevision": "WEB_PARTIAL_SEMANTIC_VERDICTS_UNSTABLE",
       "localMaintenanceCodeSha": "b81ebe2d1dfe6e0d207709aebfcd849c474cfff9",
       "localPublished": false
-    }
+    },
+    "nextSessionActions": [
+      "PRIMERO leer generalPurposeAssistant y este latestHandoff; verificar Git y health antes de actuar.",
+      "Reproducir OFFLINE último COMPLETION_AUDIT de work/gp02-retest-live.json (MISSION-27f51176), medir cada etapa completa incluyendo conversación y esquema; corregir partición reversible sin aumentar8192 ni perder evidencia.",
+      "Corregir generación/reparación de fórmulas y ejecutar GP02 exacto desdeUI hasta descargar, abrir y comprobar etiquetas36/18/27 y total81. No fabricar archivo porfuera deJarvis.",
+      "Diagnosticar CURRENT_TURN de work/gp03-live.json; preservarlecturarepopolicy+PDF, probar mezcla nueva y salida física.",
+      "Mantener limitados los estados; próximos pendientes: investigaciones, adjuntosvisuales y repartoauxiliar. Sinpublicación implícita."
+    ]
   },
   "projectHistory": {
     "timelineBasis": "Declaracion del propietario el 2026-10-23; fechas aproximadas, no facturas auditadas",
@@ -2046,7 +2069,7 @@
         },
         "demonstratedUI": {
           "status": "PARCIAL",
-          "scope": "Consultas acotadas comprendidas; fidelidad de datos y pedidos nuevos no demostradas.",
+          "scope": "Consultas acotadas comprendidas; fidelidad de datos y pedidos nuevos no demostradas. GP01 nuevo demostrado: explicación física21N y ejercicio4m/s2 completos enUI; no prueba cálculo general ni archivos.",
           "receipts": [
             {
               "kind": "UI_MISSION",
@@ -2068,6 +2091,13 @@
               "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
               "outcome": "COMPLETED",
               "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            },
+            {
+              "kind": "UI_TURN",
+              "analysisId": "beb8566c-7414-4289-bd8c-86bc20497497",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
+              "outcome": "RESPONSE_COMPLETE_VERIFIED",
+              "scope": "GP01 exacto:21N, unidades correctas y ejercicio48N/12kg=4m/s2 visibles; respuesta completa sin archivo. Código14b371dc."
             }
           ]
         },
@@ -2259,7 +2289,7 @@
         },
         "demonstratedUI": {
           "status": "PARCIAL",
-          "scope": "Respuestas visibles de consultas Git/manifiesto; no certifican respuesta general.",
+          "scope": "Respuestas visibles de consultas Git/manifiesto; no certifican respuesta general. GP01 nuevo demostrado: explicación física21N y ejercicio4m/s2 completos enUI; no prueba cálculo general ni archivos.",
           "receipts": [
             {
               "kind": "UI_MISSION",
@@ -2281,12 +2311,18 @@
               "missionId": "MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98",
               "outcome": "COMPLETED",
               "scope": "Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible."
+            },
+            {
+              "kind": "UI_TURN",
+              "analysisId": "beb8566c-7414-4289-bd8c-86bc20497497",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
+              "outcome": "RESPONSE_COMPLETE_VERIFIED",
+              "scope": "GP01 exacto:21N, unidades correctas y ejercicio48N/12kg=4m/s2 visibles; respuesta completa sin archivo. Código14b371dc."
             }
           ]
         },
         "pending": [
-          "Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente.",
-          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
+          "Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente."
         ],
         "missingResources": [],
         "acceptance": [
@@ -2476,13 +2512,20 @@
           ]
         },
         "demonstratedUI": {
-          "status": "NO_DEMOSTRADO",
-          "scope": "Excel sigue sin archivo final y con etiquetas corruptas aunque SUM(C2:C4) sea válida.",
-          "receipts": []
+          "status": "PARCIAL",
+          "scope": "Excel sigue sin archivo final y con etiquetas corruptas aunque SUM(C2:C4) sea válida. GP01 nuevo demostrado: explicación física21N y ejercicio4m/s2 completos enUI; no prueba cálculo general ni archivos.",
+          "receipts": [
+            {
+              "kind": "UI_TURN",
+              "analysisId": "beb8566c-7414-4289-bd8c-86bc20497497",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
+              "outcome": "RESPONSE_COMPLETE_VERIFIED",
+              "scope": "GP01 exacto:21N, unidades correctas y ejercicio48N/12kg=4m/s2 visibles; respuesta completa sin archivo. Código14b371dc."
+            }
+          ]
         },
         "pending": [
-          "Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas.",
-          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
+          "Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas."
         ],
         "missingResources": [
           "Evaluador verificado para fórmulas avanzadas no implementado."
@@ -2880,7 +2923,7 @@
         },
         "demonstratedUI": {
           "status": "PARCIAL",
-          "scope": "Respuestas Git/manifiesto visibles; no se entregó Excel.",
+          "scope": "Respuestas Git/manifiesto visibles; no se entregó Excel. GP01 nuevo demostrado: explicación física21N y ejercicio4m/s2 completos enUI; no prueba cálculo general ni archivos.",
           "receipts": [
             {
               "kind": "UI_MISSION",
@@ -2909,6 +2952,13 @@
               "missionId": "MISSION-1992e7f7-a2ca-45a8-8712-4063002db10c",
               "outcome": "PARTIAL",
               "scope": "Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito."
+            },
+            {
+              "kind": "UI_TURN",
+              "analysisId": "beb8566c-7414-4289-bd8c-86bc20497497",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-retest-live.json",
+              "outcome": "RESPONSE_COMPLETE_VERIFIED",
+              "scope": "GP01 exacto:21N, unidades correctas y ejercicio48N/12kg=4m/s2 visibles; respuesta completa sin archivo. Código14b371dc."
             }
           ]
         },

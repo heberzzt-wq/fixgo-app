@@ -213,3 +213,11 @@ test('root agent entrypoint locates the canonical manifest without granting impl
  assert.match(text,/no ejecutar cobros, retiros/i);
  assert.match(text,/node scripts\/platform-master-manifest-v142\.mjs --check/);
 });
+
+test('direct UI responses require their real analysis identity and verified completion',()=>{
+ const m=structuredClone(data),c=m.generalPurposeAssistant.capabilities.find(c=>c.id==='responder');
+ c.demonstratedUI={status:'PARCIAL',scope:'Respuesta directa comprobada',receipts:[{kind:'UI_TURN',analysisId:'observed-analysis-id',path:'observed-ui-trace.json',outcome:'RESPONSE_COMPLETE_VERIFIED',scope:'Texto completo comprobado en UI'}]};
+ assert.equal(validateManifest(m).ok,true);
+ delete c.demonstratedUI.receipts[0].analysisId;assert.equal(validateManifest(m).ok,false);
+ c.demonstratedUI.receipts[0].analysisId='observed-analysis-id';c.demonstratedUI.receipts[0].outcome='TRUNCATED';assert.equal(validateManifest(m).ok,false);
+});
