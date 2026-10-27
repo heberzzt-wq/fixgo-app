@@ -18,6 +18,7 @@ import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticRespons
 import { createQwenDecisionHandler } from "./jarvis-qwen-decision-http.js";
 import {localAsrHealth} from "./jarvis-qwen-local-asr.js";
 import {createLocalCandidateRanker} from './gestia-core/jarvis/jarvis.local.retrieval.js';
+import {inspectPublicHtmlSource} from './jarvis-public-html-inspect.js';
 import { JARVIS_LOCAL_MODEL } from './gestia-core/jarvis/jarvis.local.policy.js';
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "./gestia-core/jarvis/jarvis.autopatch.engine.js";
@@ -8667,13 +8668,35 @@ export function createJarvisFsBridgeApp({
                 } })
                 : null;
 
-            return res.status(result.ok ? 200 : 502).json({
+            let recoveredHtml = null;
+            let inspectedDom = action === "inspect" ? String(result.stdout || "").slice(0, 250000) : undefined;
+            let inspectionError = null;
+            // An exit code of zero with empty --dump-dom is not verified research.
+            // HTTPS-only source recovery is non-rendered, DNS-pinned and never used for local hosts.
+            if (action === "inspect" && result.ok && !/<html(?:\\s|>)/iu.test(inspectedDom)) {
+                try {
+                    recoveredHtml = await inspectPublicHtmlSource(url, {timeoutMs: Math.min(Number(timeoutMs) || 15000, 15000)});
+                    inspectedDom = recoveredHtml.dom;
+                } catch (error) {
+                    inspectionError = error?.message || "BROWSER_INSPECT_DOM_UNAVAILABLE";
+                }
+            }
+            const verifiedResult = action === "inspect"
+                ? result.ok && /<html(?:\\s|>)/iu.test(inspectedDom || "") &&
+                    /<title(?:\\s|>)/iu.test(inspectedDom || "")
+                : result.ok;
+            return res.status(verifiedResult ? 200 : 502).json({
                 ...result,
-                status: result.ok ? `BROWSER_${action.toUpperCase()}_OK` : result.status,
+                ok: verifiedResult,
+                status: verifiedResult ? (recoveredHtml?.status || `BROWSER_${action.toUpperCase()}_OK`)
+                    : (inspectionError ? "BROWSER_INSPECT_DOM_UNAVAILABLE" : result.status),
+                ...(inspectionError ? {error: inspectionError} : {}),
                 action,
                 url,
-                engine: path.basename(chrome),
-                dom: action === "inspect" ? result.stdout.slice(0, 250000) : undefined,
+                engine: recoveredHtml?.engine || path.basename(chrome),
+                ...(recoveredHtml ? {sourceKind: recoveredHtml.sourceKind,
+                    renderedDom: false, sourceBytes: recoveredHtml.sourceBytes} : {}),
+                dom: inspectedDom,
                 output: relativeOutput,
                 outputExists: outputFile ? fs.existsSync(outputFile) : null,
                 artifact,
