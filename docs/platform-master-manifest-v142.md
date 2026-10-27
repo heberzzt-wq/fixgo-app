@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: Auditoria integral de71herramientas activas/12familias,14registros desactivados excluidos. Prueba real Excel produjo enlace sandbox inventado sin archivo. Se corrigen seis mecanismos compartidos: gateartefactos, catalogocompleto, dedupe por identidad, vinculoblueprint, tests.run=ci:test y aprobacion GitPush conramaexplicita+recibo. Reproducciones RED/GREEN; replayQwen de misma peticion ahora selecciona spreadsheet.compose, no prueba archivo. CI 1918PASS/0FAIL/2SKIP. Retestwebpendiente trascommit. Persisten generacionimagen bloqueada, adjuntosvisuales nointegrados, formulasXLSX limitadas, screenshot sesionnueva y misionescompuestas/plataforma sincertificar. Sinpush/deploy/costeexterno.
+**Resumen:** 2026-10-26: Auditoria 71 herramientas/12 familias. Excel real tras primer lote selecciona herramienta y reporta PARTIAL, ya no inventa descarga. Bloqueo persiste: formulas incorrectas incluso tras 2 reparaciones; no hay Excel certificado. Segundo lote corrige evidencia generica vacia, identidad documental, esquema JSON nativo y celdas no escalares. Replay Qwen clasifica correctamente objetivo tool_result. CI 1926 PASS/0 FAIL/2 SKIP. Retest web del segundo lote pendiente. NO listo para uso general. Sin push/deploy/coste externo.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Mantenimiento detenido idle0 para integrar lote de auditoria. Reinicio tras commit limpio; supervisor pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Detenido para integrar segundo lote; reinicio controlado tras commit limpio.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 

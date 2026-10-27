@@ -50,3 +50,13 @@ test('one compatible unnamed destination preserves existing composition behavior
  const direct=create('Presentacion','pptx');direct.args.slides=[{title:'Inicio'}];
  assert.deepEqual(execute([prose('Informe')],direct),direct);
 });
+
+test('composer plan identity remains authoritative when generated content chooses a display title',()=>{
+ const planned=prose('Gastos de Prueba');
+ planned.observation.preparedArtifact.title='Control de gastos';
+ const result=execute([prose('Otro'),planned],create('Gastos de Prueba'));
+ assert.notEqual(result.ok,false,'Generated headings must not break the explicit plan identity');
+ assert.equal(result.args.output,'Gastos de Prueba.pdf');
+ assert.equal(result.args.content,'EXCLUSIVE Gastos de Prueba');
+ assert.equal(result.args.format,'pdf');
+});

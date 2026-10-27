@@ -153,7 +153,9 @@ test('a deferred first operation reaches argument completion through the real or
 test('spreadsheet bridge uses bounded native JSON and preserves a truncated draft', async()=>{
     const engine=createSelfHostedSemanticEngine({fetchImpl:async(_url,options)=>{
         const body=JSON.parse(options.body);
-        assert.equal(body.format,'json');
+        assert.equal(body.format.type,'object');
+        assert.deepEqual(body.format.required,['title','sheets']);
+        assert.equal(body.format.properties.sheets.items.properties.rows.items.items.anyOf.length,4);
         assert.equal(body.stream,true);
         assert.equal(body.options.num_predict,1200);
         return {ok:true,text:async()=>JSON.stringify({message:{content:'{"sheets":['},done_reason:'length'})};

@@ -3,6 +3,12 @@
 const {gunzipSync}=require('node:zlib');
 const {createHash}=require('node:crypto');
 
+// Live registry entries use [] for tools without specialized evidence kinds.
+// Their real results remain usable, but never become records or visual proof.
+function executionEvidenceKinds(kinds) {
+    return Array.isArray(kinds) && kinds.length ? kinds : ["tool_result"];
+}
+
 // Navigation belongs to the same Qwen tool decision, not another planner.
 // These exact checkout associations locate code; they never grant query fields,
 // resolve an organization template, establish permissions or prove live records.
@@ -1321,7 +1327,7 @@ function validateCompletionEvidence(plan, catalog, missionState) {
                     !(observation.interfaceEvidence?.elements?.length || (observation.interfaceEvidence?.viewports?.length && observation.interfaceEvidence.viewports.every(page => page.elements?.length))))) {
                 throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
             }
-            const kinds = tool.evidenceKinds || ["tool_result"];
+            const kinds = executionEvidenceKinds(tool.evidenceKinds);
             if (!kinds.includes(objective.requiredEvidenceKind)) {
                 throw Object.assign(new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH"), { evidence: {
                     objective: objective.objective, requestedKind: objective.requiredEvidenceKind,
@@ -2297,7 +2303,7 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
         }
         return property.enum || (Object.prototype.hasOwnProperty.call(property,'const')?[property.const]:itemBinding(property));
     };
-    const action={ name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
+    const action={ name, description: description.slice(0, 60), evidenceKinds: executionEvidenceKinds(evidenceKinds),
         // Tool selection needs the callable arguments; the complete schema
         // is supplied separately as responseJsonSchema and validated again.
         requiredArguments: (branches[0]?.required||[]).filter(key=>branches.every(branch=>(branch.required||[]).includes(key))),
@@ -3115,7 +3121,7 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog, cont
             const eligible = indices.filter(index => {
                 const task=tasks[index], observation=task.observation;
                 return observation?.ok===true && observation.executionOk!==false && observation.blocked!==true && observation.requiresInput!==true &&
-                    (catalog.find(tool=>tool.name===task.name)?.evidenceKinds || ["tool_result"]).includes(kind);
+                    executionEvidenceKinds(catalog.find(tool=>tool.name===task.name)?.evidenceKinds).includes(kind);
             });
             return (eligible.length ? [false,true] : [false]).map(satisfied => {
                 const branch=objective(satisfied);
@@ -3269,7 +3275,9 @@ async function runModelSemanticPlanner({
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
     if (missionState?.phase === "OBJECTIVE_CONTRACT") {
-        const kinds = [...new Set(normalizedCatalog.flatMap(tool => tool.evidenceKinds || ["tool_result"]))];
+        // Normalization represents absent kinds as [], which is truthy. Keep
+        // ordinary execution/artifact evidence available beside record readers.
+        const kinds = [...new Set(normalizedCatalog.flatMap(tool => executionEvidenceKinds(tool.evidenceKinds)))];
         const words=[...instruction.matchAll(/[^\s,.;:!?]+/gu)];
         const groupQuotes=[...new Set(words.flatMap((word,i)=>Array.from({length:Math.min(4,words.length-i)},(_,n)=>instruction.slice(word.index,words[i+n].index+words[i+n][0].length))))];
         const contractRequest = {model,contents:instruction,config:{
@@ -3286,6 +3294,8 @@ async function runModelSemanticPlanner({
             ]
         }};
         const contractMessages=[...contractRequest.config.chatMessages];
+        contractMessages[0] = { ...contractMessages[0], content: contractMessages[0].content +
+            " Crear un archivo o transformar datos que el usuario ya proporcionó requiere tool_result: el archivo real verificado, no registros de plataforma. No conviertas ejemplos, importes suministrados o restricciones como no modificar registros en consultas de datos actuales. platform_records solo corresponde a información operativa que debe obtenerse de la plataforma. Para producir un archivo con datos proporcionados usa coverageMode=other y scope=explicit_scope. Si el pedido mezcla consultar datos actuales y producir un archivo, conserva ambos objetivos con sus evidencias respectivas." };
         for(let attempt=0;attempt<3;attempt++) {
             const response=await ai.models.generateContent({...contractRequest,config:{...contractRequest.config,chatMessages:[...contractMessages]}});
             let payload;try{payload=extractJsonObject(String(response?.text||""));}catch{payload=null;}
@@ -4095,7 +4105,7 @@ async function runModelSemanticPlanner({
         const pendingCapabilities = objectiveScopedCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
             .map(tool => ({name:tool.name,description:tool.description.slice(0,120),requiresEvidence:tool.requiresEvidence}));
         const fullAuditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
-            allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
+            allowedEvidenceKinds: executionEvidenceKinds(safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds),
             observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
         const auditTasks = measuredRepair ? fullAuditTasks : planningAuditTasks(fullAuditTasks,missionState,{
             repositoryOnly:safeCatalog.every(tool=>tool.name.startsWith("repo.") && tool.mutates===false && !tool.requiresApproval)

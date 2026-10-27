@@ -4366,7 +4366,9 @@ test('bounded evidence shares repeated field schemas losslessly and preserves th
 test('contracted closure grammar fixes each objective key and permits only successful evidence of its required kind',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const declaration=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='completionAuditSchema');
- const schemaFor=runInNewContext('('+source.slice(declaration.start,declaration.end)+')',{evidenceRequirementSuccessors:kind=>[kind]});
+ const evidenceDeclaration=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='executionEvidenceKinds');
+ const executionEvidenceKinds=runInNewContext('('+source.slice(evidenceDeclaration.start,evidenceDeclaration.end)+')');
+ const schemaFor=runInNewContext('('+source.slice(declaration.start,declaration.end)+')',{evidenceRequirementSuccessors:kind=>[kind],executionEvidenceKinds});
  const catalog=[{name:'source.reader',evidenceKinds:['repository_source']},{name:'records.reader',evidenceKinds:['platform_records']}];
  const contract=['population','relationships','deadlines'].map(objective=>({objective,requiredEvidenceKind:'platform_records'}));
  const tasks=[{name:'source.reader',observation:{ok:true}},{name:'records.reader',observation:{ok:false}}];

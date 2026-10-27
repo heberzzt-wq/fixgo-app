@@ -5662,7 +5662,9 @@ if (
                             const prepared = item.observation?.preparedArtifact || item.observation?.evidence || {};
                             return ["output", "title"].every(field => {
                                 const requested = value(executionCall.args[field]);
-                                const observed = value(prepared[field] || item.args?.[field]);
+                                // The composition call identifies the requested artifact;
+                                // generated display text may phrase its heading differently.
+                                const observed = value(item.args?.[field] || prepared[field]);
                                 return !requested || !observed || requested === observed;
                             });
                         });

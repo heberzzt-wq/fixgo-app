@@ -1924,7 +1924,38 @@ export function createSelfHostedSemanticEngine({
                 const response = await generateContent({ contents: input, config: {
                     systemInstruction, nativeTextChat: true, noDeadline: true, signal: responseSignal,
                     maxOutputTokens: outputTokens, semanticStage, onProgress,
-                    ...(spreadsheetStage ? {responseMimeType: "application/json"} : {})
+                    ...(spreadsheetStage ? {
+                        responseMimeType: "application/json",
+                        // Host-owned grammar: match the existing workbook limits and
+                        // prevent nested rows/objects from masquerading as cell values.
+                        responseJsonSchema: {
+                            type: "object", additionalProperties: false,
+                            required: ["title", "sheets"],
+                            properties: {
+                                title: { type: "string", minLength: 1 },
+                                sheets: {
+                                    type: "array", minItems: 1, maxItems: 12,
+                                    items: {
+                                        type: "object", additionalProperties: false,
+                                        required: ["name", "rows"],
+                                        properties: {
+                                            name: { type: "string", minLength: 1, maxLength: 31 },
+                                            rows: {
+                                                type: "array", minItems: 1, maxItems: 10000,
+                                                items: {
+                                                    type: "array", minItems: 1, maxItems: 80,
+                                                    items: { anyOf: [
+                                                        { type: "string" }, { type: "number" },
+                                                        { type: "boolean" }, { type: "null" }
+                                                    ] }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } : {})
                 } });
                 result = { ok: true, status: spreadsheetStage ? "SPREADSHEET_DRAFT_READY" : "DOCUMENT_DRAFT_READY", message: response.text,
                     partial: response.providerResponse?.finishReason === "length",

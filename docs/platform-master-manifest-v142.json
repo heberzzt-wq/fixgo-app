@@ -9,12 +9,12 @@
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
-        "passed": 1918,
+        "passed": 1926,
         "failed": 0,
         "skipped": 2,
         "exitCode": 0,
         "scope": "Pruebas locales automatizadas; no certifican produccion.",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-flows-verified-ci.txt"
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt"
       },
       "pending": [
         "Completar la mision compuesta Git/contexto/lecturas/pruebas/pendientes; las consultas acotadas Git y manifiesto ya completaron consecutivamente.",
@@ -46,17 +46,19 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "f4b71ef3f2145fc360e501f1690f1ea643554696",
+      "testedCodeBaseCommit": "c9c673a104687641e4922730ab9f4de769405c1a",
       "testedCodeFileSha256": {
-        "functions/jarvis-semantic-planner.js": "d7f052382ef87937e737223dac986df51adfbb804b2f97d1608bfce7e5fb371e",
+        "functions/jarvis-semantic-planner.js": "d04646afc2e9f41ce37ec4a0e05464279eaabe15e7ffe97b6729a00f634c04c9",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
         "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764",
         "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100",
-        "gestia-core/gestia-core.js": "5576d231a477dc99972a8697242f283f723ce278c200111f25b627ef9dd73737",
+        "gestia-core/gestia-core.js": "18e1c0dc8710b834fb650348023f52b55701c7a37dc1769bbee02573c15899fe",
         "gestia-core/jarvis/jarvis.current-turn-scope.js": "63ff018aa5814a06eb9ceddc099ffe9403af654fd313b8bf1ab9d2c25ea42f66",
         "gestia-core/jarvis/jarvis.actuator.pack.js": "7dd48500b7cd4db668dcf9f473417fe6e1058599b8e7e346b8e508d66576a3e1",
-        "gestia-core/jarvis/jarvis.multitool.pack.js": "e62764c1cfa5a24d7415e796abf72c6ad1cb89c529c14046e3f6dee19c896614",
-        "gestia-core/tools.runtime.js": "33f8d2268e6034ef965dc75e709717c84d8ef5a2dc8a220a4d0f500b2e477753"
+        "gestia-core/jarvis/jarvis.multitool.pack.js": "338f15f41b5cf3e97cf94dc57efd200538cc305f99dd03626733094dea7cee8c",
+        "gestia-core/tools.runtime.js": "33f8d2268e6034ef965dc75e709717c84d8ef5a2dc8a220a4d0f500b2e477753",
+        "functions/jarvis-repository-objectives.cjs": "35f93b1a3a8a7fb34b392ce068fef77652afa655659fe5cda0dda13527b7dbf2",
+        "jarvis-fs-bridge.js": "2234a46d77e7181cfab40f2a7f5e630d4009330a9f5cf72f9c24a121a6a26a30"
       },
       "verifiedWebQueries": [
         {
@@ -120,7 +122,7 @@
           "gitPush explicit branch and receipt-bound approval"
         ],
         "codeAndRegressionVerified": true,
-        "webRetestPending": true,
+        "webRetestPending": false,
         "remaining": [
           "image.generate and generative image.edit blocked",
           "general uploaded image analysis not integrated with local visual verifier",
@@ -128,7 +130,25 @@
           "authenticated screenshot context mismatch",
           "long compound missions and real platform data queries unverified",
           "automatic auxiliary laptop work distribution pending"
-        ]
+        ],
+        "physicalRetest": {
+          "missionId": "MISSION-20bd28b7-cf76-4d94-a203-972b1c9f8804",
+          "codeCommit": "c9c673a104687641e4922730ab9f4de769405c1a",
+          "result": "PARTIAL / PLANNER_UNAVAILABLE; correctly selected spreadsheet.compose, rejected invalid formula, no file delivered",
+          "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-retest-live.json"
+        },
+        "followupCorrections": [
+          "empty evidenceKinds falls back to tool_result without promoting to platform records",
+          "requested document identity takes precedence over generated title",
+          "server-owned spreadsheet JSON schema",
+          "reject nested and non-scalar workbook cells; align prompt to supported physical formula grammar"
+        ],
+        "followupEvidence": {
+          "objectiveContractQwenReplay": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-artifact-objective-probe.json",
+          "formulaFailureAfterBoundedRepairs": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-spreadsheet-bounded-repair.json",
+          "independentVerification": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-probe-verification.json"
+        },
+        "followupWebRetestPending": true
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -136,9 +156,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Auditoria integral de71herramientas activas/12familias,14registros desactivados excluidos. Prueba real Excel produjo enlace sandbox inventado sin archivo. Se corrigen seis mecanismos compartidos: gateartefactos, catalogocompleto, dedupe por identidad, vinculoblueprint, tests.run=ci:test y aprobacion GitPush conramaexplicita+recibo. Reproducciones RED/GREEN; replayQwen de misma peticion ahora selecciona spreadsheet.compose, no prueba archivo. CI 1918PASS/0FAIL/2SKIP. Retestwebpendiente trascommit. Persisten generacionimagen bloqueada, adjuntosvisuales nointegrados, formulasXLSX limitadas, screenshot sesionnueva y misionescompuestas/plataforma sincertificar. Sinpush/deploy/costeexterno.",
+    "lastSessionSummary": "2026-10-26: Auditoria 71 herramientas/12 familias. Excel real tras primer lote selecciona herramienta y reporta PARTIAL, ya no inventa descarga. Bloqueo persiste: formulas incorrectas incluso tras 2 reparaciones; no hay Excel certificado. Segundo lote corrige evidencia generica vacia, identidad documental, esquema JSON nativo y celdas no escalares. Replay Qwen clasifica correctamente objetivo tool_result. CI 1926 PASS/0 FAIL/2 SKIP. Retest web del segundo lote pendiente. NO listo para uso general. Sin push/deploy/coste externo.",
     "infrastructure": {
-      "bridge": "Mantenimiento detenido idle0 para integrar lote de auditoria. Reinicio tras commit limpio; supervisor pausado.",
+      "bridge": "Detenido para integrar segundo lote; reinicio controlado tras commit limpio.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",

@@ -3186,6 +3186,12 @@ function normalizeAndValidateWorkbookSheets(value = []) {
         ...sheet,
         rows: sheet.rows.map((row, rowIndex) =>
             row.map((cell, columnIndex) => {
+                if (cell !== null && !["string", "number", "boolean"].includes(typeof cell) ||
+                    typeof cell === "number" && !Number.isFinite(cell)) {
+                    invalidFormulas.push({ sheet: sheet.name, row: rowIndex + 1,
+                        column: columnIndex + 1, issue: "WORKBOOK_CELL_VALUE_INVALID" });
+                    return cell;
+                }
                 if (
                     typeof cell !== "string" ||
                     !cell.startsWith("=")
@@ -4760,8 +4766,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                     [
                         "Diseña un libro XLSX completo y ejecutable como JSON estricto.",
                         "Devuelve solamente un objeto JSON con title y sheets. sheets es un arreglo de objetos {name,rows}; rows es un arreglo de arreglos.",
-                        "Toda formula debe ser una cadena que empiece con = y usar referencias de Excel. Separa criterios, supuestos o fuentes en una hoja propia cuando la solicitud lo requiera.",
-                        "En formulas, las hojas con espacios deben citarse por su nombre exacto, por ejemplo ='Mano de Obra'!F4; no sustituyas espacios por guiones bajos.",
+                        "La primera fila de cada hoja contiene los encabezados. Los importes proporcionados son números JSON, nunca cadenas ni fórmulas como =120. Todas las filas conservan el mismo orden de columnas.",
+                        "CAPACIDAD DE RECÁLCULO VERIFICABLE: únicamente =SUM(B2:B3) sobre un rango numérico de la MISMA hoja, o una operación entre dos celdas numéricas de la MISMA hoja: =B2+C2, =B2-C2, =B2*C2, =B2/C2. Usa SUM en inglés, nunca SUMA. No uses referencias entre hojas, funciones IF/SUMIF, literales aritméticos ni fórmulas constantes: el verificador físico no las admite. No sustituyas silenciosamente un requisito incompatible ni afirmes haberlo verificado.",
+                        "Ejemplo de estructura, no datos para copiar: {\"title\":\"Ejemplo\",\"sheets\":[{\"name\":\"Datos\",\"rows\":[[\"Concepto\",\"Importe\"],[\"Elemento A\",10],[\"Elemento B\",20],[\"Total\",\"=SUM(B2:B3)\"]]}]}. Deriva letras y números de la cuadrícula real: con tres columnas solo existen A, B y C; el encabezado ocupa la fila 1. El total suma exclusivamente las filas de datos anteriores, nunca incluye su propia celda.",
                         "Nunca escribas comentarios, etiquetas ni la palabra SUPUESTO dentro de una formula; colocalos en una celda separada.",
                         "Cada referencia debe apuntar a una celda que exista dentro de las filas y columnas declaradas.",
                         "Ninguna formula puede depender de si misma, ni directamente ni a traves de otras formulas.",

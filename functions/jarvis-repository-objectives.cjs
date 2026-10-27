@@ -58,7 +58,7 @@ function validateContract(value,scopes,kinds,catalog=[],allowConstraintsOnly=fal
   satisfied:false,evidenceTaskIndexes:[],limitation:'Evidencia pendiente de ejecución y validación.'}));
 }
 async function extractRepositoryObjectives({ai,model,instruction,catalog}) {
- const kinds=[...new Set(catalog.flatMap(t=>t.evidenceKinds||['tool_result']))],scopes=literalScopes(instruction);
+ const kinds=[...new Set(catalog.flatMap(t=>t.evidenceKinds?.length?t.evidenceKinds:['tool_result']))],scopes=literalScopes(instruction);
  if(!scopes.length)throw failure('REPOSITORY_OBJECTIVES_UNGROUNDED',{reason:'EMPTY_REQUEST'});
  const assignments={};
  for(const scope of scopes){

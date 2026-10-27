@@ -6,6 +6,13 @@ const aiFor=value=>({models:{generateContent:async()=>({text:JSON.stringify(valu
 const scopedResponse=(req,values)=>({text:JSON.stringify({scopes:Object.fromEntries(
  req.config.responseJsonSchema.properties.scopes.required.map(id=>[id,values[id]]))})});
 
+test('mixed repository contracts retain generic artifact evidence from empty registered kinds',async()=>{
+ const result=await extractRepositoryObjectives({instruction:'Crea un informe.',catalog:[{name:'document.create',evidenceKinds:[]},...catalog],
+  ai:{models:{generateContent:async req=>scopedResponse(req,{scope_0:'tool_result'})}}
+ });
+ assert.equal(result[0].requiredEvidenceKind,'tool_result');assert.equal(result[0].satisfied,false);
+});
+
 test('literal scope and its original sentence resolve antecedents without rewriting or certifying the objective',async()=>{
  const input='Prepara contexto de dos archivos, y lee su contenido.';
  const value={scopes:{scope_0:{scope:'Prepara contexto de dos archivos,',kind:'repository_source'},
