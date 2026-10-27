@@ -295,7 +295,12 @@ test('six recorded tool envelopes traverse orchestrator argument completion and 
 
 test('recorded search and rehydrated read reach argument completion inside the mission loop',async()=>{
  const originalReceipt=JSON.stringify(receipt);
- assert.equal(createHash('sha256').update(content).digest('hex'),receipt.provenance.sourceSha256,'the rehydrated source must be the exact recorded source');
+ // The Chrome fixture captured the original source using Windows CRLF bytes.
+ // Git checkouts on Linux use LF. Recreate the recorded CRLF bytes before
+ // checking provenance, without changing any source text or source assertions.
+ const recordedSourceBytes=content.replace(/\r?\n/g,'\r\n');
+ assert.equal(createHash('sha256').update(recordedSourceBytes).digest('hex'),receipt.provenance.sourceSha256,
+  'rehydrated source must match the original Chrome receipt byte-for-byte with its recorded CRLF line endings');
  const catalog=[{name:'repo.search',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}},
   {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},
   {name:'platform.query',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}}];

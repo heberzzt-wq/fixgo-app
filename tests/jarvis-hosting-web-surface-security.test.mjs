@@ -12,7 +12,7 @@ test('FixGo hosting release excludes server-only local Jarvis files and leaves b
  assert.equal(hosting.public,'.');
  const denied=[
   'jarvis-fs-bridge.js','jarvis-upload-bridge.js',
-  'jarvis-github-worker.js','jarvis-semantic-http.js',
+  'jarvis-github-worker.js','jarvis-public-html-inspect.js','jarvis-semantic-http.js',
   'jarvis-qwen-decision-http.js','jarvis-qwen-local-action.js',
   'jarvis-qwen-context-policy.js','jarvis-qwen-evidence-pages.js',
   'jarvis-qwen-evidence-checkpoint.js','jarvis-repomix-context.js',

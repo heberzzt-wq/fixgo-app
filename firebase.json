@@ -117,6 +117,7 @@
         "jarvis-fs-bridge.js",
         "jarvis-upload-bridge.js",
         "jarvis-github-worker.js",
+        "jarvis-public-html-inspect.js",
         "jarvis-semantic-http.js",
         "jarvis-qwen-decision-http.js",
         "jarvis-qwen-local-action.js",
