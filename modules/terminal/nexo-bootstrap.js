@@ -655,7 +655,10 @@ export function installJarvisLocalBridgeTransport() {
                                 "X-Jarvis-Release-Id": contract.releaseId,
                                 ...(((path === "/semantic/plan" &&
                                     payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION") ||
-                                    path === "/workstation/health") &&
+                                    path === "/workstation/health" ||
+                                    path === "/qwen-isolated/evidence" ||
+                                    path === "/qwen-isolated/verify" ||
+                                    path === "/security/local/status") &&
                                     options.idToken ? { Authorization: `Bearer ${options.idToken}` } : {})
                             },
                             body: JSON.stringify(
