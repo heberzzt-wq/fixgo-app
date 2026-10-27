@@ -9,12 +9,12 @@
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
-        "passed": 1926,
+        "passed": 1938,
         "failed": 0,
         "skipped": 2,
         "exitCode": 0,
         "scope": "Pruebas locales automatizadas; no certifican produccion.",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt"
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt"
       },
       "pending": [
         "Completar la mision compuesta Git/contexto/lecturas/pruebas/pendientes; las consultas acotadas Git y manifiesto ya completaron consecutivamente.",
@@ -46,19 +46,19 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "c9c673a104687641e4922730ab9f4de769405c1a",
+      "testedCodeBaseCommit": "50b886a7972b8c7a2e1a70bfc6723352220dab43",
       "testedCodeFileSha256": {
-        "functions/jarvis-semantic-planner.js": "d04646afc2e9f41ce37ec4a0e05464279eaabe15e7ffe97b6729a00f634c04c9",
+        "functions/jarvis-semantic-planner.js": "cb2e6bcd8408855a52b56efe0da493ca803a059460e8d40bfb1f31ecf0e33fa5",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
         "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764",
         "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100",
         "gestia-core/gestia-core.js": "18e1c0dc8710b834fb650348023f52b55701c7a37dc1769bbee02573c15899fe",
         "gestia-core/jarvis/jarvis.current-turn-scope.js": "63ff018aa5814a06eb9ceddc099ffe9403af654fd313b8bf1ab9d2c25ea42f66",
         "gestia-core/jarvis/jarvis.actuator.pack.js": "7dd48500b7cd4db668dcf9f473417fe6e1058599b8e7e346b8e508d66576a3e1",
-        "gestia-core/jarvis/jarvis.multitool.pack.js": "338f15f41b5cf3e97cf94dc57efd200538cc305f99dd03626733094dea7cee8c",
+        "gestia-core/jarvis/jarvis.multitool.pack.js": "8e91f24449eefbb8cebdfe677229fd050997b1bffc3447a9b9391cce3d8d6ad2",
         "gestia-core/tools.runtime.js": "33f8d2268e6034ef965dc75e709717c84d8ef5a2dc8a220a4d0f500b2e477753",
         "functions/jarvis-repository-objectives.cjs": "35f93b1a3a8a7fb34b392ce068fef77652afa655659fe5cda0dda13527b7dbf2",
-        "jarvis-fs-bridge.js": "2234a46d77e7181cfab40f2a7f5e630d4009330a9f5cf72f9c24a121a6a26a30"
+        "jarvis-fs-bridge.js": "ffd71580067affe5fb713bf041f3c36b656cb6268125a6fcacfa64d863deaf6f"
       },
       "verifiedWebQueries": [
         {
@@ -162,6 +162,23 @@
           "closureError": "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION",
           "physicallyWritten": false
         }
+      },
+      "generalPurposeIteration": {
+        "status": "IMPLEMENTED_UI_PENDING",
+        "contextFix": "Three stages: objective audit, full catalog tool choice, grounded arguments; same Qwen8192; no lost conversation or evidence",
+        "fidelityFix": "Same Qwen compares spreadsheet against original request and evidence; max2 repairs, invalid/missing review fails closed",
+        "tests": {
+          "status": "PASSED",
+          "command": "npm run ci:test",
+          "passed": 1938,
+          "failed": 0,
+          "skipped": 2,
+          "exitCode": 0,
+          "scope": "Pruebas locales automatizadas; no certifican produccion.",
+          "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt"
+        },
+        "sourcePacketReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/excel-staged-budget-green.json",
+        "uiPlan": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ui-acceptance.json"
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -169,9 +186,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Auditoria 71 herramientas/12 familias. Excel real tras primer lote selecciona herramienta y reporta PARTIAL, ya no inventa descarga. Bloqueo persiste: formulas incorrectas incluso tras 2 reparaciones; no hay Excel certificado. Segundo lote corrige evidencia generica vacia, identidad documental, esquema JSON nativo y celdas no escalares. Replay Qwen clasifica correctamente objetivo tool_result. CI 1926 PASS/0 FAIL/2 SKIP. Retest web del segundo lote pendiente. NO listo para uso general. Sin push/deploy/coste externo. Retest web segundo lote d880010a: contrato tool_result correcto; formula SUM(C2:C4) valida, pero dos etiquetas se reemplazan por true. COMPLETION_AUDIT excede contexto y termina PARTIAL/PLANNER_UNAVAILABLE, sin archivo. No promover a listo. Siguientes P0: fidelidad de datos, contrato compose-create y presupuesto de contexto de cierre.",
+    "lastSessionSummary": "2026-10-26: Objetivo rector general integrado en commit50b886a7, matriz17capacidades y checkpoint1%. Implementados auditoria por etapas para evitar esquema71herramientas (paquete60777->16657/24044/16769chars) y revisionfidelidad por mismaQwen conreparacionmax2. CI 1938PASS/0FAIL/2SKIP. Pruebas dirigidas15/15. Pendientes misiones nuevas variadas GP01fisica/GP02Excel/GP03repo+PDF desdeUI trascommit. No certificaciongeneral ni publicacion.",
     "infrastructure": {
-      "bridge": "Bridge de mantenimiento verificado sano en d880010a; reinicio tras commit documental para alinear HEAD. Supervisor pausado; sin worker de publicacion.",
+      "bridge": "Detenido verificado idle0 PID19484 para integración; reiniciar mantenimiento tras commit limpio, supervisor pausado.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",
@@ -2035,7 +2052,7 @@
         },
         "implemented": {
           "status": "PARCIAL",
-          "scope": "Recibos, vistas por objetivo y compresión reversible presentes; persisten desbordamientos.",
+          "scope": "Recibos, vistas por objetivo y compresión reversible presentes; persisten desbordamientos. Nueva implementación: auditoría por etapas y revisión de fidelidad de hojas; UI pendiente.",
           "receipts": [
             {
               "kind": "SOURCE_AUDIT",
@@ -2048,6 +2065,12 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
               "outcome": "1926_PASS_0_FAIL_2_SKIP",
               "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt",
+              "outcome": "1938_PASS_0_FAIL_2_SKIP",
+              "scope": "Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz."
             }
           ]
         },
@@ -2099,7 +2122,7 @@
         },
         "implemented": {
           "status": "PARCIAL",
-          "scope": "Catálogo completo, dependencias y contratos presentes; selección y cierre compuestos limitados.",
+          "scope": "Catálogo completo, dependencias y contratos presentes; selección y cierre compuestos limitados. Nueva implementación: auditoría por etapas y revisión de fidelidad de hojas; UI pendiente.",
           "receipts": [
             {
               "kind": "SOURCE_AUDIT",
@@ -2112,6 +2135,12 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
               "outcome": "1926_PASS_0_FAIL_2_SKIP",
               "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt",
+              "outcome": "1938_PASS_0_FAIL_2_SKIP",
+              "scope": "Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz."
             }
           ]
         },
@@ -2527,7 +2556,7 @@
         },
         "implemented": {
           "status": "PARCIAL",
-          "scope": "Composición, vínculo por identidad, creación y validación presentes; dedupe exacto preserva archivos distintos.",
+          "scope": "Composición, vínculo por identidad, creación y validación presentes; dedupe exacto preserva archivos distintos. Nueva implementación: auditoría por etapas y revisión de fidelidad de hojas; UI pendiente.",
           "receipts": [
             {
               "kind": "SOURCE_AUDIT",
@@ -2540,6 +2569,12 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
               "outcome": "1926_PASS_0_FAIL_2_SKIP",
               "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt",
+              "outcome": "1938_PASS_0_FAIL_2_SKIP",
+              "scope": "Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz."
             }
           ]
         },
@@ -2657,7 +2692,7 @@
         },
         "implemented": {
           "status": "PARCIAL",
-          "scope": "Reparación acotada, cancelación y rutas de recuperación presentes; no transversalidad demostrada.",
+          "scope": "Reparación acotada, cancelación y rutas de recuperación presentes; no transversalidad demostrada. Nueva implementación: auditoría por etapas y revisión de fidelidad de hojas; UI pendiente.",
           "receipts": [
             {
               "kind": "SOURCE_AUDIT",
@@ -2670,6 +2705,12 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
               "outcome": "1926_PASS_0_FAIL_2_SKIP",
               "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt",
+              "outcome": "1938_PASS_0_FAIL_2_SKIP",
+              "scope": "Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz."
             }
           ]
         },
@@ -2700,7 +2741,7 @@
         },
         "implemented": {
           "status": "PARCIAL",
-          "scope": "Validadores, lectura física, fórmulas y auditoría por objetivo presentes; auditoría larga rebasa contexto.",
+          "scope": "Validadores, lectura física, fórmulas y auditoría por objetivo presentes; auditoría larga rebasa contexto. Nueva implementación: auditoría por etapas y revisión de fidelidad de hojas; UI pendiente.",
           "receipts": [
             {
               "kind": "SOURCE_AUDIT",
@@ -2713,6 +2754,12 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt",
               "outcome": "1926_PASS_0_FAIL_2_SKIP",
               "scope": "Suite local de regresión; no demuestra utilidad UI ni certifica producción."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt",
+              "outcome": "1938_PASS_0_FAIL_2_SKIP",
+              "scope": "Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz."
             }
           ]
         },

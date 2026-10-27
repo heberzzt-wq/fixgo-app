@@ -47,3 +47,10 @@ test("prose document generation does not inherit the workbook grammar", async ()
     } });
     assert.equal((await engine.respond({ input: "Redacta el informe.", semanticStage: "document_initial" })).message, "Informe.");
 });
+
+test('spreadsheet review uses bounded host-owned verdict grammar on the same local engine',async()=>{
+ let request;
+ const engine=createSelfHostedSemanticEngine({env:{},fetchImpl:async(_url,options)=>{request=JSON.parse(options.body);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({valid:true,issues:[]})},done_reason:'stop'})};}});
+ const result=await engine.respond({input:'Revisa fidelidad.',semanticStage:'spreadsheet_review',maxOutputTokens:512,responseJsonSchema:{type:'array'}});
+ assert.equal(result.ok,true);assert.deepEqual(request.format.required,['valid','issues']);assert.equal(request.format.additionalProperties,false);assert.equal(request.format.properties.valid.type,'boolean');assert.equal(request.format.properties.issues.maxItems,8);assert.equal(request.format.properties.issues.items.maxLength,200);assert.equal(request.options.num_predict,512);assert.equal(request.stream,true);
+});

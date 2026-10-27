@@ -1406,7 +1406,7 @@ export function createSelfHostedSemanticEngine({
                 qwenNative;
             const origin =
                 new URL(baseUrl).origin;
-            const documentGeneration = ["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair"].includes(request?.config?.semanticStage);
+            const documentGeneration = ["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair", "spreadsheet_review"].includes(request?.config?.semanticStage);
             // Native schemas constrain decomposition shape. Tool selection uses
             // native calls; grounding fixes the selected name and validates args
             // independently after generation.
@@ -1914,7 +1914,8 @@ export function createSelfHostedSemanticEngine({
             const responseSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
             responseSignal?.throwIfAborted();
             const spreadsheetStage = ["spreadsheet_initial", "spreadsheet_repair"].includes(semanticStage);
-            const documentStage = spreadsheetStage || ["document_initial", "document_segment", "document_repair"].includes(semanticStage);
+            const spreadsheetReviewStage = semanticStage === "spreadsheet_review";
+            const documentStage = spreadsheetReviewStage || spreadsheetStage || ["document_initial", "document_segment", "document_repair"].includes(semanticStage);
             let result;
             if (documentStage) {
                 const { DOCUMENT_OUTPUT_TOKENS, assertDocumentContext } = await import("./gestia-core/jarvis/jarvis.document.context.js");
@@ -1924,7 +1925,11 @@ export function createSelfHostedSemanticEngine({
                 const response = await generateContent({ contents: input, config: {
                     systemInstruction, nativeTextChat: true, noDeadline: true, signal: responseSignal,
                     maxOutputTokens: outputTokens, semanticStage, onProgress,
-                    ...(spreadsheetStage ? {
+                    ...(spreadsheetReviewStage ? {
+                        responseMimeType: "application/json",
+                        responseJsonSchema: {type: "object", additionalProperties: false, required: ["valid", "issues"],
+                            properties: {valid: {type: "boolean"}, issues: {type: "array", maxItems: 8, items: {type: "string", minLength: 1, maxLength: 200}}}}
+                    } : spreadsheetStage ? {
                         responseMimeType: "application/json",
                         // Host-owned grammar: match the existing workbook limits and
                         // prevent nested rows/objects from masquerading as cell values.

@@ -2864,7 +2864,7 @@ test('source discovery paths survive planner compaction and evidence-bound argum
  const observation=compactMissionPlannerObservation({ok:true,executionOk:true,repoCandidates:[{file:'actual-source.js',reasons:['Symbol and collection observed']}]});
  assert.equal(observation.repoCandidates[0].file,'actual-source.js');
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
- const from=source.indexOf('function bindEvidencePrerequisites('),to=source.indexOf('function completionAuditSchema(',from);
+ const from=source.indexOf('function bindEvidencePrerequisites('),to=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindEvidencePrerequisites').end;
  const bind=runInNewContext('('+source.slice(from,to).trim()+')',{structuredClone,buildNativeInputSchema:schema=>schema});
  const catalog=[{name:'fixture.read',evidenceKinds:['source']},{name:'fixture.query',requiresEvidence:[{kind:'source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}}}}];
  assert.equal(bind(catalog,[]).length,1);
@@ -2993,7 +2993,7 @@ test('AST source bindings survive execution and repeated planner compaction when
  const evidence=compactMissionPlannerObservation(compactMissionPlannerObservation(mission.completedTasks[0].observation));
  assert.deepEqual(evidence.verifiedRead.sourceStructure.dataBindings.collections,['actual_records']);
  assert.equal(evidence.verifiedRead.contentTruncated,true);
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8'),from=source.indexOf('function bindEvidencePrerequisites('),to=source.indexOf('function completionAuditSchema(',from);
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8'),from=source.indexOf('function bindEvidencePrerequisites('),to=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindEvidencePrerequisites').end;
  const bind=runInNewContext('('+source.slice(from,to).trim()+')',{structuredClone,buildNativeInputSchema:s=>s});
  const catalog=[{name:'fixture.read',evidenceKinds:['source']},{name:'fixture.query',requiresEvidence:[{kind:'source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{collection:{type:'string'}}}}];
  assert.deepEqual(Array.from(bind(catalog,[{name:'fixture.read',observation:evidence}])[1].inputSchema.properties.collection.enum),['actual_records']);

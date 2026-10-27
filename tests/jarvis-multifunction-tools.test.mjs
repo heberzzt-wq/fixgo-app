@@ -1582,7 +1582,7 @@ test("spreadsheet composition repairs invalid cross-sheet formulas before creati
                         status: "SEMANTIC_RESPONSE_READY",
                         provider: "test",
                         model: "test-model",
-                        message: JSON.stringify(workbook)
+                        message: JSON.stringify(requestCount === 3 ? {valid:true,issues:[]} : workbook)
                     }
                 })
             };
@@ -1596,7 +1596,7 @@ test("spreadsheet composition repairs invalid cross-sheet formulas before creati
             }
         );
 
-        assert.equal(requestCount, 2);
+        assert.equal(requestCount, 3);
         assert.equal(result.ok, true, JSON.stringify(result));
         assert.equal(result.status, "SPREADSHEET_BLUEPRINT_READY");
         assert.equal(result.formulaValidationPassed, true);
@@ -1725,7 +1725,7 @@ test("spreadsheet composition rebuilds empty and structurally invalid attempts b
                                     "test-model",
                                 message:
                                     JSON.stringify(
-                                        workbook
+                                        requestCount === 4 ? {valid:true,issues:[]} : workbook
                                     )
                             }
                         })
@@ -1743,7 +1743,7 @@ test("spreadsheet composition rebuilds empty and structurally invalid attempts b
                 }
             );
 
-        assert.equal(requestCount, 3);
+        assert.equal(requestCount, 4);
         assert.equal(
             result.ok,
             true,

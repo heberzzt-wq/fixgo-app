@@ -171,20 +171,21 @@ function spreadsheetTool() {
     return tools.get('spreadsheet.compose');
 }
 
-test('an informational workbook needs no invented formulas and finishes in one bounded request', async t => {
+test('an informational workbook needs no invented formulas and finishes after bounded generation and fidelity review', async t => {
     const prior = globalThis.JarvisLocalBridge;
     t.after(()=>{globalThis.JarvisLocalBridge=prior;});
     let calls=0;
     globalThis.JarvisLocalBridge={requestJson:async(_route,payload)=>{
         calls++;
         assert.ok(payload.maxOutputTokens<=1200);
+        if(payload.semanticStage==='spreadsheet_review') return {ok:true,message:JSON.stringify({valid:true,issues:[]})};
         assert.equal(payload.semanticStage,'spreadsheet_initial');
         return {ok:true,message:JSON.stringify({title:'Calendario',sheets:[{name:'Acciones',rows:[['Canal','Acción'],['Web','Propuesta: publicar contenido']]}]})};
     }};
     const result = await spreadsheetTool().execute({title:'Calendario',instructions:'Una hoja informativa con acciones propuestas.'});
     assert.equal(result.ok,true,JSON.stringify(result));
     assert.equal(result.formulaCount,0);
-    assert.equal(calls,1);
+    assert.equal(calls,2);
 });
 
 test('spreadsheet recovery stops when the same invalid draft makes no progress', async t => {
