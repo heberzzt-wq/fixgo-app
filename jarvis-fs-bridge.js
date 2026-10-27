@@ -8528,6 +8528,13 @@ export function createJarvisFsBridgeApp({
                 timeoutMs = 45000
             } = req.body || {};
             const url = normalizeBrowserUrl(rawUrl);
+            if(req.body?.mobileRelayPublicHtmlOnly===true){
+                if(action!=='inspect')return res.status(403).json({ok:false,status:'JARVIS_MOBILE_READ_ONLY_REQUIRED'});
+                const html=await inspectPublicHtmlSource(url,{timeoutMs:Math.min(Number(timeoutMs)||15000,15000)});
+                return res.json({ok:true,status:html.status,action,url,engine:html.engine,
+                    sourceKind:html.sourceKind,renderedDom:false,sourceBytes:html.sourceBytes,
+                    dom:html.dom,version:JARVIS_FS_BRIDGE_VERSION});
+            }
             const chrome = resolveChromeExecutable();
 
             if (!chrome) {

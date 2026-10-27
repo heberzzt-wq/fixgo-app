@@ -66,6 +66,10 @@ export function semanticFailurePresentation(error = "") {
         title: "El enlace privado requiere autorización",
         detail: "La sesión o las reglas no autorizaron esta solicitud. No se utilizará otro modelo ni una conexión pública sin protección."
     };
+    if (/JARVIS_MOBILE_RELAY_|JARVIS_MOBILE_PRIVATE_RELAY_NOT_ENABLED/.test(value)) return {
+        title: 'La conexión móvil está protegida',
+        detail: 'La solicitud no cumple la política móvil de solo lectura o el enlace seguro todavía no está habilitado. No se ejecutaron acciones ni se abrió un puerto público.'
+    };
     if (/JARVIS_RELAY_LOCAL_OPERATION_REQUIRED/.test(value)) return {
         title: "Esta operación requiere la laptop",
         detail: "El enlace de pruebas no permite escritura, publicación ni video remoto. La conversación y las consultas autorizadas sí usan el canal privado."
@@ -88,6 +92,7 @@ export function semanticFailurePresentation(error = "") {
     };
 }
 
+import {validateMobileRelayReadOperation} from '../../modules/terminal/jarvis-mobile-relay-policy.js';
 // Transport-only policy shared by the browser and the existing workstation.
 // The UID is a public identifier, never a password or a grant by itself.
 export const JARVIS_PRIVATE_RELAY = Object.freeze({
@@ -103,7 +108,11 @@ export const JARVIS_PRIVATE_RELAY = Object.freeze({
         "/semantic/plan", "/semantic/respond", "/semantic/local/health",
         "/memory/append", "/memory/query", "/workstation/health",
         "/read", "/grep", "/repo/graph", "/repo/candidates",
-        "/repo/resolve-target", "/repo/read-target", "/web/research"
+        "/repo/resolve-target", "/repo/read-target", "/web/research",
+        // Owner-only research / local Qwen action. Broker applies an additional
+        // read-only gate, without storing any Firebase ID token in Firestore.
+        "/research", "/browser", "/qwen-pilot/preflight",
+        "/qwen-isolated/evidence", "/qwen-isolated/verify"
     ])
 });
 
@@ -131,6 +140,10 @@ export function validateJarvisRelayRequest(request, { requestId, releaseId, now 
     let payload;
     try { payload = JSON.parse(request.body); } catch { throw new Error("JARVIS_RELAY_PAYLOAD_INVALID"); }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("JARVIS_RELAY_PAYLOAD_INVALID");
+    if (['/research','/browser','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(request.route) ||
+        request.route === '/semantic/plan' && payload?.missionState?.phase === 'DIRECT_READ_ONLY_ACTION') {
+        validateMobileRelayReadOperation(request.route,payload);
+    }
     if (request.route.startsWith("/memory/")) {
         if (payload.identity?.userId && payload.identity.userId !== policy.ownerUid) throw new Error("JARVIS_RELAY_MEMORY_OWNER_MISMATCH");
         payload.identity = { ...payload.identity, userId: policy.ownerUid };

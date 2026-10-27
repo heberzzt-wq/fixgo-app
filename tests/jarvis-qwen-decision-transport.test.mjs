@@ -92,7 +92,7 @@ test('actual browser bootstrap forwards token only in header and refuses private
     const bridge=installJarvisLocalBridgeTransport();
     const payload={...input,missionState:{phase:'DIRECT_READ_ONLY_ACTION'}};
     globalThis.location={hostname:'fixgo-44e4d.web.app'};
-    await assert.rejects(()=>bridge.requestJson('/semantic/plan',payload,{idToken:'private-token'}),/LOCAL_SESSION_REQUIRED/);
+    await assert.rejects(()=>bridge.requestJson('/semantic/plan',payload,{idToken:'private-token'}),/LOCAL_SESSION_REQUIRED|MOBILE_RELAY_READ_ONLY_REQUIRED/);
     assert.equal(calls,0);
     globalThis.location={hostname:'localhost'};
     assert.equal((await bridge.requestJson('/semantic/plan',payload,{idToken:'private-token'})).ok,true);

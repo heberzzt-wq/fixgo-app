@@ -569,6 +569,52 @@ test('private relay crosses the authenticated queue and delivers an exact correl
     assert.equal(fake.watchers.size, 0);
 });
 
+test('mobile owner Qwen read-only relay uses fresh workstation Firebase ID token and never stores it in Firestore',async()=>{
+ const fake=relayFakeSdk(),calls=[];
+ const ownerUser={uid:JARVIS_PRIVATE_RELAY.ownerUid,async getIdToken(){return 'fresh-owner-token-only-in-local-header';}};
+ const auth={currentUser:ownerUser,async authStateReady(){}};
+ const worker=await startJarvisBrowserRelay({auth,db:{},sdk:fake.sdk,contract:{releaseId:'mobile-test'},
+  requestLocal:async(route,payload,options)=>{
+   if(route==='/workstation/health'){
+    assert.equal(options.idToken,'fresh-owner-token-only-in-local-header');
+    return {ok:true,status:'JARVIS_WORKSTATION_LIVE',runtime:{bridgeStarted:true,loadedHead:'test'}};
+   }
+   calls.push({route,payload,options});
+   if(route==='/semantic/plan'){
+    assert.equal(options.idToken,'fresh-owner-token-only-in-local-header');
+    assert.equal(payload.missionState.runtimeTransport.writesAllowed,false);
+    return {ok:true,principalId:JARVIS_PRIVATE_RELAY.ownerUid,decision:{finish:true,report:'Research response'}};
+   }
+   if(route==='/browser'){
+    assert.equal(payload.mobileRelayPublicHtmlOnly,true);
+    assert.equal(payload.action,'inspect');
+    assert.equal(options.idToken,undefined);
+    return {ok:true,dom:'<html><title>Example</title><main>Example</main></html>'};
+   }
+   throw Error('UNEXPECTED_MOBILE_ROUTE:'+route);
+  },uuid:()=> 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'});
+ try{
+  const client=createJarvisPrivateRelayClient({auth,db:{},sdk:fake.sdk,uuid:()=>relayId});
+  const body={instruction:'Research HVAC filters',tools:[{name:'web.research',mutates:false}],
+   observations:[],missionState:{phase:'DIRECT_READ_ONLY_ACTION',pilotKind:'general-v1'}};
+  const pending=client.requestJson('/semantic/plan',body,{contract:{releaseId:'mobile-test'}});
+  fake.emit();fake.emit();
+  const result=await pending;
+  assert.equal(result.principalId,JARVIS_PRIVATE_RELAY.ownerUid);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].route,'/semantic/plan');
+  assert.ok(fake.writes.every(entry=>!JSON.stringify(entry).includes('fresh-owner-token-only-in-local-header')));
+  const htmlPending=client.requestJson('/browser',{action:'inspect',url:'https://www.energystar.gov/'},{contract:{releaseId:'mobile-test'}});
+  fake.emit();fake.emit();
+  const page=await htmlPending;
+  assert.match(page.dom,/<html/);
+  assert.equal(calls[1].payload.mobileRelayPublicHtmlOnly,true);
+  await assert.rejects(()=>client.requestJson('/browser',{action:'screenshot',url:'https://www.energystar.gov/'},
+   {contract:{releaseId:'mobile-test'}}),/JARVIS_MOBILE_RELAY_/);
+  assert.equal(calls.length,2,'blocked operations never reach workstation');
+ }finally{await worker.stop();}
+});
+
 test('private relay rejects another session unsupported operations and an offline workstation without loopback fallback', async () => {
     const fake = relayFakeSdk(); const auth = { currentUser: { uid: 'other' }, async authStateReady() {} };
     const client = createJarvisPrivateRelayClient({ auth, db: {}, sdk: fake.sdk });

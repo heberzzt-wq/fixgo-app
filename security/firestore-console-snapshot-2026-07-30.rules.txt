@@ -931,7 +931,8 @@ service cloud.firestore {
             data.schemaVersion == 1 && data.ownerUid == ownerUid && data.requestId == requestId &&
             requestId.matches('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') &&
             data.route in ['/semantic/plan', '/semantic/respond', '/semantic/local/health', '/memory/append', '/memory/query',
-              '/workstation/health', '/read', '/grep', '/repo/graph', '/repo/candidates', '/repo/resolve-target', '/repo/read-target', '/web/research'] &&
+              '/workstation/health', '/read', '/grep', '/repo/graph', '/repo/candidates', '/repo/resolve-target', '/repo/read-target', '/web/research',
+              '/research', '/browser', '/qwen-pilot/preflight', '/qwen-isolated/evidence', '/qwen-isolated/verify'] &&
             data.body is string && data.body.size() >= 2 && data.body.size() <= 393216 && data.state == 'QUEUED' &&
             data.createdAt == request.time && data.expiresAt is timestamp && data.expiresAt > request.time &&
             data.expiresAt <= request.time + duration.value(310, 's') &&
