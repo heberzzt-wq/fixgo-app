@@ -31,7 +31,7 @@ test('real Excel audit packet fits 8192 context by separating verdict, tool sele
  assert.equal(JSON.stringify(fixture),before);
 });
 
-test('failed Excel composition preserves all metadata and conversation references within the selection budget',async()=>{
+test('failed contracted Excel composition preserves metadata and context while retrying only its required tool',async()=>{
  const failed=require('./fixtures/jarvis-excel-failed-completion-context.json');
  let calls=0,firstContext;
  await assert.rejects(runJarvisSemanticPlanner({...structuredClone(failed),ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async req=>{
@@ -48,7 +48,9 @@ test('failed Excel composition preserves all metadata and conversation reference
   assert.deepEqual(encoded.metadataColumns,['evidenceKinds','requiredArguments','mutates','requiresApproval']);
   const metadata=encoded.metadata.map(row=>Object.fromEntries(encoded.metadataColumns.map((key,index)=>[key,row[index]])));
   assert.deepEqual(metadata.map(item=>encoded.metadataColumns.map(key=>item[key])),encoded.metadata,'metadata roundtrip preserves values and positions');
-  assert.equal(encoded.rows.length,54,'all executable candidates stay available');
+  assert.equal(failed.catalog.length,55,'the original full 55-tool catalog is retained');
+  assert.equal(encoded.rows.length,1,'only the explicitly failed contracted tool is offered on recovery');
+  assert.equal(encoded.rows[0][0],'spreadsheet.compose','the user-required failed tool remains eligible');
   for(const [name,description,index] of encoded.rows){
    const original=failed.catalog.find(t=>t.name===name);assert.ok(original);
    assert.equal(description,original.description.slice(0,60));
@@ -56,6 +58,8 @@ test('failed Excel composition preserves all metadata and conversation reference
    assert.equal(metadata[index].requiresApproval,original.requiresApproval);
   }
   assert.ok(req.config.chatMessages.some(m=>m.content.startsWith('INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=')));
+  assert.ok(req.config.chatMessages.some(m=>m.content.startsWith('HERRAMIENTAS_REQUERIDAS_FALLIDAS=')));
+  assert.equal(failed.missionState.requiredToolNames[0],encoded.rows[0][0]);
   throw Error('CAPTURE_COMPLETE_NO_INFERENCE');
  }}}}),/CAPTURE_COMPLETE_NO_INFERENCE/);
  assert.equal(calls,2);
