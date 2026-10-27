@@ -9,12 +9,12 @@
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
-        "passed": 1938,
+        "passed": 1940,
         "failed": 0,
         "skipped": 2,
         "exitCode": 0,
         "scope": "Pruebas locales automatizadas; no certifican produccion.",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt"
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-followup-ci.txt"
       },
       "pending": [
         "Completar la mision compuesta Git/contexto/lecturas/pruebas/pendientes; las consultas acotadas Git y manifiesto ya completaron consecutivamente.",
@@ -46,9 +46,9 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "50b886a7972b8c7a2e1a70bfc6723352220dab43",
+      "testedCodeBaseCommit": "80dfd4b241c6060d27ad2d03978dd9741ad048b5",
       "testedCodeFileSha256": {
-        "functions/jarvis-semantic-planner.js": "cb2e6bcd8408855a52b56efe0da493ca803a059460e8d40bfb1f31ecf0e33fa5",
+        "functions/jarvis-semantic-planner.js": "59fd74352780feb17300e84a13719d6bf8fed4103ecc9f6e356b1329641f0ed1",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
         "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764",
         "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100",
@@ -178,7 +178,47 @@
           "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt"
         },
         "sourcePacketReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/excel-staged-budget-green.json",
-        "uiPlan": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ui-acceptance.json"
+        "uiPlan": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ui-acceptance.json",
+        "uiAttempts": [
+          {
+            "id": "GP-01",
+            "status": "FAILED_BEFORE_MISSION",
+            "error": "SEMANTIC_RESPONSE_INCOMPLETE",
+            "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp01-live.json",
+            "result": "Physics explanation reached512 output tokens; no response delivered"
+          },
+          {
+            "id": "GP-02",
+            "missionId": "MISSION-8de86ad4-d9cc-46d2-a3c9-bb4ab7a6634a",
+            "status": "PARTIAL",
+            "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-live.json",
+            "result": "Formula validation failed; audit tool selection25221>24576 chars; no XLSX"
+          },
+          {
+            "id": "GP-03",
+            "status": "FAILED_BEFORE_MISSION",
+            "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp03-live.json",
+            "error": "LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION",
+            "result": "Mixed source reading and PDF stopped at CURRENT_TURN; no file created"
+          }
+        ],
+        "followup": {
+          "status": "IMPLEMENTED_RETEST_PENDING",
+          "changes": [
+            "direct chat output1024; truncation remains rejected; context8192 unchanged",
+            "metadataColumns reversible; selection23383 chars for failedExcel packet"
+          ],
+          "tests": {
+            "status": "PASSED",
+            "command": "npm run ci:test",
+            "passed": 1940,
+            "failed": 0,
+            "skipped": 2,
+            "exitCode": 0,
+            "scope": "Pruebas locales automatizadas; no certifican produccion.",
+            "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-followup-ci.txt"
+          }
+        }
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -186,7 +226,7 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Objetivo rector general integrado en commit50b886a7, matriz17capacidades y checkpoint1%. Implementados auditoria por etapas para evitar esquema71herramientas (paquete60777->16657/24044/16769chars) y revisionfidelidad por mismaQwen conreparacionmax2. CI 1938PASS/0FAIL/2SKIP. Pruebas dirigidas15/15. Pendientes misiones nuevas variadas GP01fisica/GP02Excel/GP03repo+PDF desdeUI trascommit. No certificaciongeneral ni publicacion.",
+    "lastSessionSummary": "2026-10-26: Objetivo rector y matriz17capacidades integrados. Tres pedidos nuevos UI sobre80dfd4b2: GP01fisica fallo respuesta512truncada; GP02Excel PARTIAL formulasinvalidas yseleccioncontexto25221>24576; GP03repo+PDF fallo CURRENT_TURNcontexto. Ninguna entrega nueva certificada. Seguimiento corrige salida directa1024 sinaceptartruncacion ymetadataColumns reversible23383chars. CI 1940PASS/0FAIL/2SKIP; dirigidas7/7. RetestGP01pendiente; GP02formula yGP03contexto siguenabiertos. Sinpush/deploy, supervisorpausado, Bridge27968 detenidoidle0 para integrar.",
     "infrastructure": {
       "bridge": "Detenido verificado idle0 PID19484 para integración; reiniciar mantenimiento tras commit limpio, supervisor pausado.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
@@ -2102,7 +2142,8 @@
           ]
         },
         "pending": [
-          "Cerrar presupuestos y retención de datos en misiones compuestas."
+          "Cerrar presupuestos y retención de datos en misiones compuestas.",
+          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
         ],
         "missingResources": [],
         "acceptance": [
@@ -2244,7 +2285,8 @@
           ]
         },
         "pending": [
-          "Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente."
+          "Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente.",
+          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
         ],
         "missingResources": [],
         "acceptance": [
@@ -2439,7 +2481,8 @@
           "receipts": []
         },
         "pending": [
-          "Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas."
+          "Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas.",
+          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
         ],
         "missingResources": [
           "Evaluador verificado para fórmulas avanzadas no implementado."
@@ -2584,7 +2627,8 @@
           "receipts": []
         },
         "pending": [
-          "Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física."
+          "Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física.",
+          "Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest."
         ],
         "missingResources": [
           "XML no está integrado en esquema/UI de entrega; fórmulas avanzadas limitadas."

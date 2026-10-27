@@ -1,0 +1,2693 @@
+{
+  "input": "Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula. Conserva esos nombres e importes y no consultes ni modifiques la plataforma.",
+  "catalog": [
+    {
+      "name": "document.compose",
+      "description": "Redacta en memoria el contenido completo y original de un documento solicitado, sin copiar fuentes ni escribir archivos; se usa antes de document.create.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "document"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "title": "string",
+        "format": "html|md|txt|docx|pdf",
+        "instructions": "string"
+      }
+    },
+    {
+      "name": "spreadsheet.compose",
+      "description": "Compone en memoria un libro XLSX con hojas, filas, supuestos y formulas cuando se solicita una hoja de calculo o analisis tabular. Se usa antes de document.create; no responde preguntas conceptuales generales ni analiza interfaces.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "document"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "title": "string",
+        "instructions": "string",
+        "requireFormulas": "boolean"
+      }
+    },
+    {
+      "name": "page.compose",
+      "description": "Prepara solamente un esquema JSON de textos para una página futura; no crea ni guarda archivos HTML descargables. Es una preparación interna de page.create, que produce el archivo final.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "page"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [],
+      "inputSchema": {
+        "brandName": "string",
+        "title": "string",
+        "instructions": "string",
+        "sections": "array",
+        "contactEmail": "string",
+        "whatsapp": "string",
+        "whatsappRequested": "boolean"
+      }
+    },
+    {
+      "name": "system.capabilities",
+      "description": "Describe las herramientas activas de SIA7 agrupadas por dominio y su politica de aprobacion.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "system.forensics",
+      "description": "Audita capacidades operativas reales, actuadores, evidencia, brechas y paridad sin exagerar funciones.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "system.health",
+      "description": "Comprueba sólo salud técnica del runtime, bridge y conectividad del navegador. No consulta registros de clientes, técnicos, trabajos, cobros ni módulos funcionales del negocio; no permite contarlos ni nombrarlos.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "system_telemetry"
+      ],
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "system.certify",
+      "description": "Ejecuta una certificacion real y read-only de conversacion, web, conectores, supervisor, bridge, Git y pruebas; solo declara paridad si toda la evidencia pasa.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "deep": "boolean"
+      }
+    },
+    {
+      "name": "system.supervision",
+      "description": "Consulta el ultimo reporte del supervisor diario read-only de Jarvis.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "timeoutMs": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "advertising.research",
+      "description": "Antes de crear publicidad, investiga referencias actuales del sector en Internet y consulta originales e historial local. Devuelve fuentes para proponer un concepto propio con mejor claridad, jerarquía y llamada a la acción, sin copiar textos, logos ni imágenes de terceros. Investigación local sin API pagada; no certifica superioridad ni análisis visual sin imágenes observadas.",
+      "contractStages": [
+        "sourceReview"
+      ],
+      "contractKinds": [
+        "advertising"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": true,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 600
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "web.research",
+      "description": "Investiga informacion actual en Google Search y devuelve una respuesta sustentada con fuentes estructuradas.",
+      "contractStages": [
+        "sourceReview"
+      ],
+      "contractKinds": [
+        "web"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "researchGoal"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "query",
+          "researchGoal"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "researchGoal": {
+            "type": "string",
+            "description": "Identidad estable RESEARCH_1, RESEARCH_2, etc. segun el orden de objetivos independientes en la instruccion original."
+          },
+          "objectiveId": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          },
+          "allowedDomain": {
+            "type": "string",
+            "description": "Hostname literal de la fuente, por ejemplo example.com; nunca una categoría o intención. Opcional."
+          },
+          "exactEntity": {
+            "type": "string"
+          },
+          "seedUrl": {
+            "type": "string",
+            "description": "URL http(s) exacta suministrada por el usuario; no inventar ni alterar la ruta."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "business.assist",
+      "description": "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones EMPRESARIALES mediante razonamiento semántico; no inspecciona paginas, interfaces web ni diseño visual, no inventa datos y no modifica sistemas.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "plan"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "prompt": "string"
+      }
+    },
+    {
+      "name": "marketing.plan",
+      "description": "JARVIS produce una campaña específica desde una instrucción natural y evidencia opcional; completa propuestas editables sin inventar hechos.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "plan"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": true,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "brandName": {
+            "type": "string",
+            "description": "Nombre propio exacto suministrado por el usuario, sin traducirlo ni añadir actividad o ubicación."
+          },
+          "audience": {
+            "type": "string",
+            "description": "Personas o empresas que comprarían el servicio. Una ciudad sola no describe al comprador; el proveedor tampoco es automáticamente su público."
+          },
+          "offer": {
+            "type": "string",
+            "description": "Servicio del negocio respaldado por la orden o por la fuente. El archivo de marketing solicitado no es el producto del negocio."
+          },
+          "pain": {
+            "type": "string",
+            "description": "Problema del comprador que el servicio del anunciante ayuda a resolver; nunca copiar la solicitud del usuario."
+          },
+          "promise": {
+            "type": "string",
+            "description": "Beneficio propuesto para el comprador al contratar el servicio del anunciante. No es el trabajo de marketing del asistente; no garantizar resultados."
+          },
+          "differentiator": {
+            "type": "string",
+            "description": "Posicionamiento propuesto del anunciante basado en su servicio; sin inventar experiencia, premios ni superioridad."
+          },
+          "tone": {
+            "type": "string"
+          },
+          "cta": {
+            "type": "string",
+            "description": "Invitación al comprador, por ejemplo: Solicita información sobre el servicio. No ofrecer gratuidad, descuentos, precios ni garantías que no estén en la evidencia."
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Canales de captación propuestos, como buscadores, LinkedIn o correo; no formatos de archivos."
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "testimonials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "photographs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "repoEvidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "webResearch": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "landing": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "hashtags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Indicadores propuestos de captación y conversión del negocio; no inventar resultados medidos."
+          },
+          "market": {
+            "type": "string",
+            "description": "Todo el alcance geográfico solicitado, conservando conjuntamente mercados locales y nacionales cuando aparecen en la orden."
+          },
+          "campaignName": {
+            "type": "string"
+          },
+          "campaignObjective": {
+            "type": "string",
+            "description": "Objetivo propuesto de marketing para el servicio y todos los mercados solicitados; no afirmar que la campaña ya se ejecutó."
+          },
+          "budget": {
+            "type": "string"
+          },
+          "mediumBudget": {
+            "type": "string"
+          },
+          "horizon": {
+            "type": "string",
+            "description": "Duración propuesta de la campaña expresada en días o meses, por ejemplo 90 días."
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "productionRequested": {
+            "type": "boolean"
+          },
+          "deliveryMode": {
+            "type": "string",
+            "enum": [
+              "planning_files",
+              "publishable_media"
+            ],
+            "description": "publishable_media si se pide publicidad para subir a redes. Un plan, HTML o manifiesto no satisface esa entrega. planning_files sólo para documentos."
+          },
+          "productionArtifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "toolName": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "platform": {
+                  "type": "string"
+                },
+                "publishable": {
+                  "type": "boolean"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Argumentos ejecutables respaldados por archivos aportados: sourceOutput, brandLogoOutput, variants para image.adapt; escenas y audio para reel.create. No inventar rutas."
+                }
+              },
+              "required": [
+                "type",
+                "toolName"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "brandName",
+          "audience",
+          "offer",
+          "pain",
+          "promise",
+          "differentiator",
+          "cta",
+          "market",
+          "campaignObjective",
+          "horizon",
+          "tone",
+          "channels",
+          "metrics",
+          "productionRequested",
+          "deliveryMode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "page.plan",
+      "description": "Diseña la especificacion responsive, editable y accesible de una pagina web NUEVA sin escribir ni desplegar. Sirve para planear una pagina por crear; no inspecciona ni analiza una pagina, plataforma o interfaz existente.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "plan"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "pageName"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "pageName": {
+            "type": "string"
+          },
+          "brandName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "style": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "pageName",
+          "brandName",
+          "title",
+          "description",
+          "sections"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "image.plan",
+      "description": "Define requisitos y prompts de imagen sustentados en evidencia sin generar archivos ni inventar materiales.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "plan"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brandName": {
+            "type": "string"
+          },
+          "campaignGoal": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string"
+          },
+          "concepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string"
+                },
+                "composition": {
+                  "type": "string"
+                },
+                "grounding": {
+                  "type": "string"
+                },
+                "generationPrompt": {
+                  "type": "string"
+                },
+                "exclusionPrompt": {
+                  "type": "string"
+                },
+                "aspectRatios": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "purpose",
+                "composition",
+                "grounding",
+                "generationPrompt",
+                "aspectRatios"
+              ]
+            }
+          }
+        },
+        "required": [
+          "brandName",
+          "campaignGoal",
+          "concepts"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "reel.plan",
+      "description": "Construye un storyboard vertical con timeline exacto y evidencia por escena sin producir video.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "plan"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brandName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "cta": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "sourceMediaPolicy": {
+            "type": "string"
+          },
+          "scenes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "durationSeconds": {
+                  "type": "number"
+                },
+                "visual": {
+                  "type": "string"
+                },
+                "overlay": {
+                  "type": "string"
+                },
+                "voiceover": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "type": "string"
+                },
+                "transition": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "durationSeconds",
+                "visual",
+                "overlay",
+                "voiceover",
+                "evidence"
+              ]
+            }
+          }
+        },
+        "required": [
+          "brandName",
+          "title",
+          "cta",
+          "durationSeconds",
+          "scenes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "media.analyze",
+      "description": "Analiza PDF e imagenes con doble verificacion visual; extrae documentos digitales y evidencia física temporal de video/audio de forma read-only con hash y trazabilidad por fuente.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [],
+      "inputSchema": {
+        "mimeType": "string",
+        "sourceName": "string",
+        "pages": "array",
+        "attachments": "array",
+        "questions": "array"
+      }
+    },
+    {
+      "name": "media.library",
+      "description": "Biblioteca local: exporta y copia archivos YA CREADOS (PNG/JPEG, video MP4, página HTML o documento) a la carpeta Salidas con action=export y output .jarvis-artifacts/ de una creación exitosa. También consulta originales e historial con action=list e importa originales con action=import. List devuelve referencias library: exactas, logos, música y regiones de foto. No crea contenido nuevo ni publica en redes.",
+      "contractStages": [
+        "sourceReview",
+        "delivery"
+      ],
+      "contractKinds": [
+        "material"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "import",
+              "export"
+            ]
+          },
+          "relativePath": {
+            "type": "string",
+            "description": "Ruta devuelta por list, sólo para import."
+          },
+          "output": {
+            "type": "string",
+            "description": "Artefacto existente .jarvis-artifacts/, sólo para export."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "browser.inspect",
+      "description": "Inspecciona una interfaz EXISTENTE. viewports reproduce el mismo DOM saneado de la pagina actual autenticada en hasta diez tamaños y diagnostica recortes, controles, texto y contraste CSS medible. phase distingue before/after. followUp=prepare_repair solicita continuar localizando codigo y preparando correccion, sin autorizar escritura. Sin viewports lee el DOM actual o usa headless para otra URL. No ve pixeles, no interactua ni prueba hardware fisico.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "interface_structure",
+        "interface_styles",
+        "responsive_layout"
+      ],
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "number"
+          },
+          "viewports": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "minimum": 240,
+                  "maximum": 3840
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 240,
+                  "maximum": 2160
+                }
+              },
+              "required": [
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "before",
+              "after"
+            ]
+          },
+          "followUp": {
+            "type": "string",
+            "enum": [
+              "diagnose",
+              "prepare_repair"
+            ]
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "system.observability",
+      "description": "Consulta salud y telemetria del runtime: latencia, errores y contadores de operaciones. No inspecciona interfaces, capturas, apariencia ni diseño grafico; ausencia de errores registrados no acredita calidad visual.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "system_telemetry"
+      ],
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "limit": "number"
+      }
+    },
+    {
+      "name": "page.create",
+      "description": "Crea y guarda el archivo HTML final de una página web local descargable, con los servicios, textos, fotografía y logo originales solicitados. Usa page.compose como preparación de contenido cuando falta. El resultado es un archivo físico HTML responsive y accesible; no publica ni despliega.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "page"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [],
+      "inputSchema": {
+        "brandName": "string",
+        "title": "string",
+        "description": "string",
+        "services": "array",
+        "evidenceMode": "verified|insufficient",
+        "requiredSections": "array",
+        "contentSections": "array",
+        "heroImage": "string",
+        "logoOutput": "string",
+        "sourceImages": "array<{output,role:hero|gallery,alt}>",
+        "gallery": "array",
+        "testimonials": "array",
+        "beforeAfter": "array",
+        "whatsapp": "string",
+        "whatsappRequested": "boolean",
+        "contactEmail": "string",
+        "mapUrl": "string",
+        "output": "string",
+        "caseId": "string",
+        "objectiveId": "string"
+      }
+    },
+    {
+      "name": "speech.synthesize",
+      "description": "Sintetiza narración local en un WAV físico verificado por SHA-256 para el reel. No usa Functions ni publica.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [],
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "volume": {
+            "type": "number"
+          },
+          "objectiveId": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "reel.create",
+      "description": "Crea un archivo de video MP4 vertical 9:16 local con escenas, fotografías, textos, logo original y música. Reutiliza los medios reales verificados de la misión cuando no hay material explícito. No genera metraje nuevo ni inventa logotipos. El audio explícito tiene prioridad; incorpora narración WAV verificada de speech.synthesize antes de renderizar. Entrega un video físico descargable, no un storyboard.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "video"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brandName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "cta": {
+            "type": "string"
+          },
+          "creativeDirection": {
+            "type": "object",
+            "properties": {
+              "insight": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "distinction": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "clarity": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "visualHierarchy": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "callToAction": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "references": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 5,
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "insight",
+              "distinction",
+              "clarity",
+              "visualHierarchy",
+              "callToAction",
+              "references"
+            ],
+            "additionalProperties": false
+          },
+          "durationSeconds": {
+            "type": "number",
+            "minimum": 30,
+            "maximum": 180
+          },
+          "scenes": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 18,
+            "items": {
+              "type": "object",
+              "properties": {
+                "durationSeconds": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "assetOutput": {
+                  "type": "string",
+                  "description": "Referencia library: exacta o output registrado; imagen o video."
+                },
+                "mediaType": {
+                  "type": "string",
+                  "enum": [
+                    "image",
+                    "video"
+                  ]
+                },
+                "presentation": {
+                  "type": "string",
+                  "enum": [
+                    "scene",
+                    "poster"
+                  ],
+                  "description": "poster conserva el anuncio completo sin añadir textos encima; scene anima una foto y sus textos."
+                },
+                "overlay": {
+                  "type": "string"
+                },
+                "subtitle": {
+                  "type": "string"
+                },
+                "transition": {
+                  "type": "string",
+                  "enum": [
+                    "fade",
+                    "cut",
+                    "slide",
+                    "zoom",
+                    "dissolve"
+                  ]
+                }
+              },
+              "required": [
+                "durationSeconds",
+                "assetOutput",
+                "mediaType",
+                "presentation"
+              ]
+            },
+            "description": "Las duraciones deben sumar durationSeconds."
+          },
+          "logoOutput": {
+            "type": "string",
+            "description": "Logo original, referencia library: o output importado."
+          },
+          "audioOutput": {
+            "type": "string",
+            "description": "Música autorizada, referencia library: o output importado."
+          },
+          "output": {
+            "type": "string"
+          },
+          "videoOutput": {
+            "type": "string"
+          },
+          "studioOutput": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          },
+          "objectiveId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "brandName",
+          "title",
+          "cta",
+          "durationSeconds",
+          "scenes"
+        ]
+      }
+    },
+    {
+      "name": "document.create",
+      "description": "Crea un documento local nuevo y descargable en HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro de .jarvis-artifacts; DOCX exige un document.compose completo y validado, y XLSX admite varias hojas y formulas. No edita archivos existentes.",
+      "contractStages": [
+        "work",
+        "delivery"
+      ],
+      "contractKinds": [
+        "document"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "format": "html|md|txt|csv|json|docx|xlsx|pptx|pdf",
+        "output": "string",
+        "title": "string",
+        "contentSource": "string",
+        "content": "string",
+        "rows": "array",
+        "sheets": "array<{name,rows}>",
+        "requireFormulas": "boolean",
+        "requireDocumentValidation": "boolean",
+        "documentContract": "object",
+        "documentValidation": "object",
+        "slides": "array",
+        "caseId": "string",
+        "objectiveId": "string"
+      }
+    },
+    {
+      "name": "document.pdf.edit",
+      "description": "Localiza y edita campos de un PDF existente, recalcula descuento antes de IVA y compara paginas renderizadas para bloquear cambios fuera de las regiones aprobadas.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "document"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "sourceOutput",
+        "output"
+      ],
+      "inputSchema": {
+        "sourceOutput": "string",
+        "output": "string",
+        "changes": "array<{page,x,y|yFromTop,width,height,text,fontSize,color,backgroundColor}>",
+        "quote": "{subtotal,discountPercent,taxPercent,currency,fields|fieldAnchors:{discount,taxableSubtotal,tax,total}}",
+        "safePlacement": "boolean"
+      }
+    },
+    {
+      "name": "document.xlsx.edit",
+      "description": "Edita celdas o formulas concretas de un XLSX existente, conserva hojas y estilos no solicitados y mantiene intacto el original.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "document"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "sourceOutput": "string",
+        "output": "string",
+        "changes": "array<{sheet|sheetIndex,cell,value|formula,result,numberFormat}>"
+      }
+    },
+    {
+      "name": "series.resume",
+      "description": "Recupera desde Artifact Studio el ultimo episodio aceptado, continuidad, reparto activo y siguiente numero derivable.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "seriesId": "string"
+      }
+    },
+    {
+      "name": "video.generate",
+      "description": "Genera video NUEVO real desde un guion o escenas semanticas mediante el motor fisico seleccionado por la politica de infraestructura. El proveedor certificado actual se conserva y el motor local solo se usa en modos explicitos. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como guia visual del sujeto; su envio no certifica fidelidad facial ni aceptacion creativa. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "video"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "output"
+      ],
+      "inputSchema": {
+        "script": "string",
+        "prompt": "string",
+        "scenes": "array<{prompt|visual|description:string}>",
+        "referenceOutputs": "array",
+        "aspectRatio": "9:16|16:9",
+        "output": "string",
+        "caseId": "string",
+        "objectiveId": "string",
+        "seriesId": "string",
+        "episodeId": "string"
+      }
+    },
+    {
+      "name": "image.generate",
+      "description": "Genera una imagen nueva usando el proveedor externo Google y guarda el resultado descargable. Requiere autorización del proveedor y su posible costo; para reutilizar originales sin API pagada, usar media.library e image.adapt.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "image"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "output"
+      ],
+      "inputSchema": {
+        "prompt": "string",
+        "aspectRatio": "string",
+        "imageSize": "string",
+        "output": "string",
+        "caseId": "string",
+        "objectiveId": "string"
+      }
+    },
+    {
+      "name": "image.edit",
+      "description": "Edita una imagen persistida usando evidencia visual real. Para piezas de marca puede recibir brandLogoOutput como identidad visual inmutable: el proveedor no dibuja el logotipo y el navegador superpone después los pixeles del archivo oficial.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "image"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "sourceOutput",
+        "variantId"
+      ],
+      "inputSchema": {
+        "sourceOutput": "string",
+        "referenceOutputs": "array",
+        "brandLogoOutput": "string",
+        "marketingRequirementId": "string",
+        "variantId": "string",
+        "identityMode": "string",
+        "ageMode": "string",
+        "prompt": "string",
+        "transformations": "array",
+        "aspectRatio": "string",
+        "imageSize": "string",
+        "preserveLogos": "boolean",
+        "preserveApprovedText": "boolean",
+        "logoPosition": "string",
+        "output": "string",
+        "caseId": "string",
+        "objectiveId": "string"
+      }
+    },
+    {
+      "name": "image.adapt",
+      "description": "Crea anuncios PNG/JPEG locales con originales importados por media.library, sin API pagada. composition permite maquetar los textos decididos por Qwen, photoCrop de una región fotográfica verificada y brandLogoOutput original. Sin composition sólo adapta tamaños: fit=contain conserva texto y logo existentes. No añade marcas de agua ni textos provisionales. Cada anuncio nuevo requiere su propia composition; después exportar con media.library action=export. La revisión visual sigue siendo necesari",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "image"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceOutput": {
+            "type": "string",
+            "description": "ref library: exacta del inventario o output registrado; nunca inventar rutas."
+          },
+          "variants": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,96}$"
+                },
+                "width": {
+                  "type": "number",
+                  "minimum": 64,
+                  "maximum": 4096
+                },
+                "height": {
+                  "type": "number",
+                  "minimum": 64,
+                  "maximum": 4096
+                },
+                "mimeType": {
+                  "type": "string",
+                  "enum": [
+                    "image/png",
+                    "image/jpeg"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "width",
+                "height",
+                "mimeType"
+              ]
+            }
+          },
+          "fit": {
+            "type": "string",
+            "enum": [
+              "contain",
+              "cover"
+            ]
+          },
+          "brandLogoOutput": {
+            "type": "string",
+            "description": "ref library: exacta del logo oficial o su output importado."
+          },
+          "logoPlacement": {
+            "type": "object"
+          },
+          "composition": {
+            "type": "object",
+            "description": "Componer un anuncio nuevo con textos decididos por Qwen y una región fotográfica del original. No reutiliza el texto incrustado fuera de photoCrop. Requiere brandLogoOutput.",
+            "properties": {
+              "layout": {
+                "type": "string",
+                "enum": [
+                  "split",
+                  "stack"
+                ]
+              },
+              "headline": {
+                "type": "string",
+                "maxLength": 140
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "brandName": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "cta": {
+                "type": "string",
+                "maxLength": 90,
+                "description": "Opcional: vacío si el cuerpo contiene la única URL autorizada."
+              },
+              "contact": {
+                "type": "string",
+                "maxLength": 120,
+                "description": "Opcional: vacío si la URL ya aparece en otro texto autorizado."
+              },
+              "inkColor": {
+                "type": "string",
+                "description": "Color hexadecimal #RRGGBB, opcional."
+              },
+              "accentColor": {
+                "type": "string",
+                "description": "Color hexadecimal #RRGGBB, opcional."
+              },
+              "photoCrop": {
+                "type": "object",
+                "description": "Coordenadas en píxeles del original; usar la photoRegion verificada del inventario cuando exista. No inventar coordenadas.",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "width": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ]
+              }
+            },
+            "required": [
+              "layout",
+              "headline",
+              "body",
+              "brandName",
+              "cta",
+              "contact",
+              "photoCrop"
+            ]
+          },
+          "creativeDirection": {
+            "type": "object",
+            "properties": {
+              "insight": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "distinction": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "clarity": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "visualHierarchy": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "callToAction": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "references": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 5,
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "insight",
+              "distinction",
+              "clarity",
+              "visualHierarchy",
+              "callToAction",
+              "references"
+            ],
+            "additionalProperties": false
+          },
+          "outputPrefix": {
+            "type": "string",
+            "description": "Nombre opcional sin extensión ni carpetas (letras, números, guiones). Omitir para asignación automática. El resultado se registra internamente y después media.library action=export lo entrega en Salidas."
+          }
+        },
+        "required": [
+          "sourceOutput",
+          "variants"
+        ]
+      }
+    },
+    {
+      "name": "artifact.list",
+      "description": "Consulta el registro versionado de artefactos ya registrados por tipo, expediente u objetivo. Devuelve sus metadatos; no recorre carpetas del Escritorio ni inventaría originales, logos o música de una biblioteca local.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "string",
+        "caseId": "string",
+        "objectiveId": "string",
+        "limit": "number"
+      }
+    },
+    {
+      "name": "artifact.read",
+      "description": "Lee bytes y metadatos de un entregable producido por Jarvis ya registrado en su ledger, como PNG, MP4 o PDF. Requiere su output exacto. Para código fuente y archivos del repositorio utiliza repo.read.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "output": "string"
+      }
+    },
+    {
+      "name": "agent.delegate",
+      "description": "Delega y ejecuta en paralelo hasta cuatro herramientas read-only solamente cuando el usuario lo solicita de forma explícita.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "tasks",
+          "delegationDirective"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "required": [
+                "tool"
+              ],
+              "properties": {
+                "tool": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "delegationDirective": {
+            "type": "string",
+            "description": "Cita literal de la instrucción original donde el usuario pide delegar, usar agentes o ejecutar en paralelo."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "connector.list",
+      "description": "Enumera conectores instalados y su estado real sin inventar disponibilidad.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "platform.query",
+      "description": "Lee registros actuales de Firestore con la sesión y permisos existentes, sin escribir. Primero acredita colección y campos mediante repo.read. mode=query inspecciona sólo campos pertinentes y devuelve cursor: sirve para descubrir valores reales o resolver parte del pedido, incluso si falta clasificar un subconjunto. mode=count cuenta exactamente el alcance acreditado por los filtros; no representa automáticamente otro subconjunto ni un total global. No inventes campos ni filtros. Conserva siempr",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "platform_records"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": [
+        {
+          "kind": "repository_source",
+          "argument": "sourceFile",
+          "observationPath": [
+            "verifiedRead",
+            "file"
+          ]
+        },
+        {
+          "kind": "repository_source",
+          "argument": "collection",
+          "observationPath": [
+            "verifiedRead",
+            "sourceStructure",
+            "dataBindings",
+            "collections"
+          ]
+        }
+      ],
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceFile": {
+            "type": "string",
+            "description": "Archivo de la aplicación ya leído con repo.read en esta misión que demuestra el esquema utilizado. Antes de la primera consulta debes localizarlo y leerlo."
+          },
+          "orderBy": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "asc",
+                    "desc"
+                  ]
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "collection": {
+            "type": "string",
+            "description": "Ruta de colección real descubierta en la aplicación, no un nombre deducido del pedido."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "query",
+              "count"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "description": "Campos acreditados de esta colección, obligatorios para query. Si faltan nombres de campos, ['__name__'] proyecta sólo IDs y devuelve fieldSchema de la página autorizada para una consulta posterior de la misma ruta. Ese descubrimiento no prueba valores ni cobertura global. Incluye sólo campos pertinentes; no todo el perfil."
+          },
+          "filters": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 10,
+            "description": "Sólo filtros acreditados. En mode=query, [] permite inspeccionar campos pertinentes dentro de una colección autorizada para descubrir sus valores; no afirma pertenencia a un subconjunto. En mode=count, [] cuenta toda esa colección y no un grupo particular. Nunca retires restricciones de tenant o permisos ni eludas una denegación.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "==",
+                    "!=",
+                    "<",
+                    "<=",
+                    ">",
+                    ">=",
+                    "in",
+                    "not-in",
+                    "array-contains",
+                    "array-contains-any"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null",
+                    "array"
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "op",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "nextCursor devuelto por la misma consulta; omitir para primera página."
+          },
+          "includeCount": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "collection",
+          "sourceFile",
+          "filters"
+        ],
+        "anyOf": [
+          {
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "count"
+                ]
+              },
+              "fields": {
+                "type": "array",
+                "maxItems": 0
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          {
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "query"
+                ]
+              },
+              "fields": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "fields"
+            ]
+          }
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.audit",
+      "description": "Devuelve un INVENTARIO ESTRUCTURAL del repositorio real: lista de rutas existentes, dependencias, pruebas detectadas y duplicados desde el grafo AST vivo. Audita e inventaría el proyecto completo. No devuelve el contenido ni líneas de archivos individuales. No ejecuta pruebas ni certifica producción.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_inventory"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "default": "",
+            "description": "OMITIR para auditar el repositorio activo completo: ya está seleccionado. Usar sólo para otro directorio o URL escrito explícitamente por el usuario o descubierto en evidencia. No es un nombre de proyecto, página, marca ni servicio."
+          },
+          "refresh": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.scan",
+      "description": "Escanea archivos reales desde el grafo AST vivo; el indice manual solo puede aportar metadata secundaria.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "refresh": {
+            "type": "boolean"
+          },
+          "maxFiles": {
+            "type": "integer"
+          },
+          "maxFileSizeBytes": {
+            "type": "integer"
+          },
+          "module": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "test",
+              "runtime"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.read",
+      "description": "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_source"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Ruta real verificada del archivo que se debe leer."
+          },
+          "startLine": {
+            "type": "integer",
+            "description": "Primera línea de un rango solicitado o necesario para investigar una coincidencia/referencia observada o ampliar una lectura truncada. Omitir para leer desde el inicio. La longitud pedida para la respuesta no determina este rango."
+          },
+          "endLine": {
+            "type": "integer",
+            "description": "Última línea del rango de fuente solicitado o necesario para investigar. Un resumen o respuesta de N líneas NO limita la lectura: no derives endLine de la extensión de la respuesta."
+          },
+          "maxBytes": {
+            "type": "integer",
+            "description": "Limite opcional de bytes."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.uiCompact",
+      "description": "Controla la UI compacta de Jarvis: minimizar review, minimizar queue, limpiar cards cerradas.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "toggleReview",
+              "toggleQueue",
+              "cleanClosed",
+              "closeCard"
+            ]
+          },
+          "cardId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.context",
+      "description": "Comprime hasta seis archivos reales de codigo mediante Repomix local. RUTAS PERMITIDAS: gestia-core/jarvis/*.js, gestia-core/repo/*.js, modules/terminal/*.js y jarvis-*.js en raiz; no admite gestia-core/gestia-core.js, gestia-core/tools.runtime.js, tests, .env ni archivos inexistentes. Maximo 85KB por archivo y 240KB total; presupuesto fijo de 1800 tokens controlado por el runtime, no por el modelo. Elige fuentes existentes ya identificadas por repo.read/grep/historial, no adivines. Solo adelant",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "items": {
+              "type": "string",
+              "pattern": "^(?:(?:gestia-core/(?:jarvis|repo)/|modules/terminal/)[A-Za-z0-9_./-]+|jarvis-[A-Za-z0-9_.-]+)[.](?:js|mjs|cjs)$"
+            }
+          },
+          "tokenBudget": {
+            "type": "integer",
+            "const": 1800
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitStatus",
+      "description": "Ejecuta git status --short --branch mediante Local FS Bridge.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string",
+            "const": ".",
+            "description": "Raiz del repositorio oficial registrado en el Bridge."
+          },
+          "timeoutMs": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitHistory",
+      "description": "Lee hasta ocho commits locales recientes de Git con SHA, fecha, asunto y nombres de archivos cambiados. No modifica archivos.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitDiff",
+      "description": "Ejecuta git diff mediante Local FS Bridge.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "number"
+          },
+          "cached": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitCommitPlan",
+      "description": "Genera un plan de commit con status y diff, sin mutar.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.search",
+      "description": "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala cuando todavía no conoces la fuente. Conserva el vocabulario del pedido original. Si ya devolvió candidatos para el mismo objetivo, no encadenes otra búsqueda semántica antes de inspeccionar una fuente: usa repo.read sobre un candidato o repo.grep para localizar un término literal. Sólo vuelve a buscar después de comprobar una fuente y necesitar evidencia distinta. No adivines rutas.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Consulta de búsqueda de código que conserva el vocabulario y los identificadores del pedido original. No traduzcas los términos de negocio a un idioma distinto ni uses la descripción genérica de una acción. Si aún no conoces nombres de campos, busca palabras del usuario, sin inventar un campo."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.grep",
+      "description": "Busca un término literal o símbolo en los archivos reales del checkout y devuelve rutas y líneas coincidentes. Sirve para localizar una definición antes de leer su archivo. No es una búsqueda de negocios en internet.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string",
+            "description": "Término literal o identificador a localizar."
+          }
+        },
+        "required": [
+          "term"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.prepareWrite",
+      "description": "Prepara la corrección del código de un archivo del repositorio mediante un patch de búsqueda y reemplazo exactos. Devuelve el cambio para aprobación humana; no ejecuta pruebas ni escribe todavía.",
+      "contractStages": [
+        "work"
+      ],
+      "contractKinds": [
+        "code"
+      ],
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "file",
+          "search",
+          "replace",
+          "matchCount"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Ruta del archivo del repositorio leído previamente."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "create"
+            ]
+          },
+          "search": {
+            "type": "string",
+            "description": "Código original exacto verificado en el snapshot."
+          },
+          "replace": {
+            "type": "string",
+            "description": "Código corregido que reemplaza el bloque original."
+          },
+          "matchCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Coincidencias exactas verificadas; cero únicamente para crear un archivo inexistente."
+          }
+        }
+      }
+    },
+    {
+      "name": "repo.graph",
+      "description": "Construye el grafo vivo del repositorio real con dependencias, funciones, llamadas, listeners, endpoints, colecciones y pruebas.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "refresh": {
+            "type": "boolean"
+          },
+          "maxFiles": {
+            "type": "integer"
+          },
+          "maxFileSizeBytes": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.rankCandidates",
+      "description": "Recupera y ordena archivos del repo con embeddings locales y evidencia estructural AST. El LLM decide la consulta y/o los archivos planeados; esta herramienta sólo recupera evidencia mecánica.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "query": "string",
+        "plannedFiles": "array",
+        "limit": "number",
+        "refresh": "boolean"
+      }
+    },
+    {
+      "name": "repo.architectReview",
+      "description": "Revisa un plan con evidencia del grafo y ranking antes de que pueda solicitar aprobación humana; nunca ejecuta ni concede aprobación.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": "exclusive",
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "instruction",
+          "plan"
+        ],
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "description": "Instruccion original inmutable que el plan debe conservar."
+          },
+          "plan": {
+            "type": "object",
+            "description": "Plan completo sustentado, con archivos objetivo, causa raiz, evidencia, alcance, pruebas y llamadas gobernadas.",
+            "additionalProperties": true
+          },
+          "refresh": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.impact",
+      "description": "Analiza las dependencias y el impacto de modificar UN archivo real previamente localizado. Requiere su ruta exacta verificada. No audita un proyecto completo, no comprueba funcionamiento ni certifica preparación para producción. Para inventariar un proyecto primero utiliza repo.audit o repo.scan.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Ruta real verificada del archivo cuyo impacto se debe analizar."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.diagnose",
+      "description": "Diagnóstico forense read-only de un archivo real del repo. Clasifica tipo, señales, riesgos y siguientes acciones sin escribir.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_diagnostics"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Ruta del archivo objetivo."
+          },
+          "mode": {
+            "type": "string",
+            "description": "diagnose, proposal, patch, patch_preview, verify o create_file."
+          },
+          "rawInput": {
+            "type": "string",
+            "description": "Comando original del usuario."
+          },
+          "searchTerm": {
+            "type": "string",
+            "description": "Término opcional para diagnóstico focalizado."
+          }
+        }
+      }
+    },
+    {
+      "name": "tests.run",
+      "description": "Ejecuta la suite local del repositorio ci:test por defecto, o check:syntax y responsive de forma explícita. test es la misión multimedia física histórica, no la suite del repo. Con fingerprints verifica escrituras autorizadas y revierte su patch si fallan las pruebas. Las regresiones responsive no sustituyen la comprobación de la misma interfaz y viewports.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "check:syntax",
+              "test",
+              "ci:test",
+              "responsive",
+              "pilot:security",
+              "v142:security-emulator"
+            ]
+          },
+          "fingerprints": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Fingerprints devueltos por repo.write para verificar y revertir exclusivamente esas escrituras."
+          },
+          "verificationFailure": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Fallo observado al comprobar el navegador; solo puede rechazar la reparacion y revertir los receipts, nunca acreditar exito."
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 5000
+          }
+        }
+      }
+    },
+    {
+      "name": "web.media.collect",
+      "description": "Descarga fotos y videos reales desde una URL explícita; si el HTML estático no expone suficientes medios, usa Chrome/CDP para observar y conservar los bytes visuales recibidos por esa misma sesión, y después valida host, MIME, firma de bytes, tamaño y SHA-256. Prioriza el medio principal y nunca genera material sintético.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "url"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "requireImages": {
+            "type": "boolean"
+          },
+          "requireVideos": {
+            "type": "boolean"
+          },
+          "requireAnyVisual": {
+            "type": "boolean"
+          },
+          "maxImages": {
+            "type": "number"
+          },
+          "maxVideos": {
+            "type": "number"
+          },
+          "allowedHosts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timeoutMs": {
+            "type": "number"
+          },
+          "objectiveId": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "marketing.package.real-media",
+      "description": "Crea un manifiesto de campaña que enlaza el plan de marketing con los archivos reales verificados por web.media.collect. Falla cerrado si faltan los bytes solicitados.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": false,
+      "requiresEvidence": null,
+      "mutates": true,
+      "requiresApproval": false,
+      "userArtifact": true,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": [
+        "sourceUrl"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "sourceUrl"
+        ],
+        "properties": {
+          "sourceUrl": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "requireImages": {
+            "type": "boolean"
+          },
+          "requireVideos": {
+            "type": "boolean"
+          },
+          "output": {
+            "type": "string",
+            "description": "Ruta JSON dentro de .jarvis-artifacts/ o nombre simple del archivo. Opcional; no es un nombre de herramienta."
+          },
+          "objectiveId": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ],
+  "missionState": {
+    "phase": "COMPLETION_AUDIT",
+    "rawInstructionLength": 269,
+    "routingInstructionLength": 269,
+    "requiredToolNames": [
+      "spreadsheet.compose"
+    ],
+    "evidenceObjectives": [
+      {
+        "objective": "Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula.",
+        "requiredEvidenceKind": "tool_result",
+        "requestQuote": "Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula.",
+        "coverageMode": "other",
+        "scope": "explicit_scope",
+        "groups": [
+          "cuadernos",
+          "lápices",
+          "carpetas"
+        ]
+      }
+    ],
+    "completionAssessment": {
+      "evaluatedTaskCount": 0,
+      "objectives": [
+        {
+          "objective": "Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula.",
+          "requiredEvidenceKind": "tool_result",
+          "requestQuote": "Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula.",
+          "coverageMode": "other",
+          "scope": "explicit_scope",
+          "groups": [
+            "cuadernos",
+            "lápices",
+            "carpetas"
+          ],
+          "satisfied": false,
+          "evidenceTaskIndexes": [],
+          "limitation": "La investigación aún no ha obtenido la evidencia requerida."
+        }
+      ]
+    },
+    "completedTasks": [],
+    "pendingTasks": [],
+    "blockedTasks": [
+      {
+        "obligationId": "spreadsheet.compose",
+        "completedAt": "2026-10-27T02:51:34.705Z",
+        "name": "spreadsheet.compose",
+        "args": {
+          "title": "Compra de prueba: cuadernos, lápices y carpetas",
+          "instructions": "Crear un libro con una hoja que contenga las filas: cuadernos 36 pesos (Categoría: Papelería), lápices 18 pesos (Categoría: Papelería) y carpetas 27 pesos (Categoría: Papelería). Incluir una columna de total calculado como suma de los tres ítems. Usar columnas Concepto, Categoría y Pesos.",
+          "requireFormulas": true
+        },
+        "reason": "SPREADSHEET_BLUEPRINT_INCOMPLETE",
+        "observation": {
+          "status": "SPREADSHEET_BLUEPRINT_INCOMPLETE",
+          "ok": false,
+          "executionOk": false,
+          "objectiveSatisfied": false,
+          "blocked": false,
+          "requiresInput": false,
+          "retryable": false,
+          "sourceCount": 0,
+          "summary": "Actuador no completado Herramienta: **spreadsheet.compose**. Causa: SPREADSHEET_FORMULA_VALIDATION_FAILED.",
+          "error": "SPREADSHEET_FORMULA_VALIDATION_FAILED"
+        }
+      }
+    ],
+    "iterations": 1,
+    "writeAllowed": false,
+    "userArtifactAllowed": true,
+    "semanticMemoryAvailable": true,
+    "modelContextTokens": 8192,
+    "advisorySemanticContext": {
+      "turns": [
+        {
+          "role": "user",
+          "content": "Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. Referencia sintética de la misma compra de prueba, sin identidades ni datos privados. "
+        }
+      ]
+    }
+  }
+}

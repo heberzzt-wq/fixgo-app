@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: Objetivo rector general integrado en commit50b886a7, matriz17capacidades y checkpoint1%. Implementados auditoria por etapas para evitar esquema71herramientas (paquete60777->16657/24044/16769chars) y revisionfidelidad por mismaQwen conreparacionmax2. CI 1938PASS/0FAIL/2SKIP. Pruebas dirigidas15/15. Pendientes misiones nuevas variadas GP01fisica/GP02Excel/GP03repo+PDF desdeUI trascommit. No certificaciongeneral ni publicacion.
+**Resumen:** 2026-10-26: Objetivo rector y matriz17capacidades integrados. Tres pedidos nuevos UI sobre80dfd4b2: GP01fisica fallo respuesta512truncada; GP02Excel PARTIAL formulasinvalidas yseleccioncontexto25221>24576; GP03repo+PDF fallo CURRENT_TURNcontexto. Ninguna entrega nueva certificada. Seguimiento corrige salida directa1024 sinaceptartruncacion ymetadataColumns reversible23383chars. CI 1940PASS/0FAIL/2SKIP; dirigidas7/7. RetestGP01pendiente; GP02formula yGP03contexto siguenabiertos. Sinpush/deploy, supervisorpausado, Bridge27968 detenidoidle0 para integrar.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -361,7 +361,7 @@
 ### Contexto y memoria — criterio y pendientes
 
 - **Frentes existentes:** `JARVIS-02`, `JARVIS-13`
-- **Pendiente:** Cerrar presupuestos y retención de datos en misiones compuestas.
+- **Pendiente:** Cerrar presupuestos y retención de datos en misiones compuestas. Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest.
 - **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
 - **Aceptación:** Reanudar un pedido nuevo conservando restricciones y fuentes; sin relecturas cíclicas ni éxito ficticio.
 - **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`; `AUTOMATED_TEST` 1938_PASS_0_FAIL_2_SKIP — Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt`
@@ -379,7 +379,7 @@
 ### Responder y explicar — criterio y pendientes
 
 - **Frentes existentes:** `JARVIS-02`, `JARVIS-10`
-- **Pendiente:** Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente.
+- **Pendiente:** Validar estudio y explicación de temas nuevos; no tratar ejecución de herramienta como respuesta suficiente. Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest.
 - **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
 - **Aceptación:** Respuesta visible contesta cada punto y distingue hechos, supuestos e incertidumbre.
 - **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
@@ -415,7 +415,7 @@
 ### Cálculo, matemáticas e ingeniería — criterio y pendientes
 
 - **Frentes existentes:** `JARVIS-05`
-- **Pendiente:** Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas.
+- **Pendiente:** Cerrar Excel simple; ampliar fórmulas con pruebas físicas antes de prometer porcentajes, IF o referencias entre hojas. Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest.
 - **Recursos faltantes o por comprobar:** Evaluador verificado para fórmulas avanzadas no implementado.
 - **Aceptación:** Resultado numérico contrastado independientemente; unidades, entradas y límites correctos; archivo descargado recalculado cuando se solicita.
 - **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`
@@ -442,7 +442,7 @@
 ### Documentos y entregables — criterio y pendientes
 
 - **Frentes existentes:** `JARVIS-05`, `JARVIS-06`
-- **Pendiente:** Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física.
+- **Pendiente:** Verificar Excel simple y dos PDF distintos desde UI hasta descarga y lectura física. Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest.
 - **Recursos faltantes o por comprobar:** XML no está integrado en esquema/UI de entrega; fórmulas avanzadas limitadas.
 - **Aceptación:** Cada archivo corresponde a su contenido y destino; descarga abre y coincide con datos solicitados.
 - **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`; `AUTOMATED_TEST` 1938_PASS_0_FAIL_2_SKIP — Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt`

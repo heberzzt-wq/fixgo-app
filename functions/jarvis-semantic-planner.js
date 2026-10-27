@@ -3130,7 +3130,12 @@ async function generateStagedCompletionAudit({ai, request, catalog}) {
             if(!lookup.has(key)){lookup.set(key,metadata.length);metadata.push(rest);}
             return [name,description,lookup.get(key)];
         });
-        return {...m,content:'CATALOGO_EJECUTABLE='+JSON.stringify({encoding:'rows=[name,description,metadataIndex]; merge metadata[metadataIndex] into each row',metadata,rows})};
+        const metadataColumns=Object.keys(metadata[0]||{});
+        const uniformMetadata=metadata.length>0 && metadata.every(item=>JSON.stringify(Object.keys(item))===JSON.stringify(metadataColumns));
+        return {...m,content:'CATALOGO_EJECUTABLE='+JSON.stringify({
+            encoding:'rows=[name,description,metadataIndex]; merge metadata[metadataIndex] into each row'+(uniformMetadata?'; metadata arrays follow metadataColumns':''),
+            ...(uniformMetadata?{metadataColumns}:{}),
+            metadata:uniformMetadata?metadata.map(item=>metadataColumns.map(key=>item[key])):metadata,rows})};
     });
     const selection=await ai.models.generateContent({...request,config:{...request.config,
         semanticStage:'COMPLETION_AUDIT_TOOL_SELECTION',
@@ -6055,7 +6060,7 @@ async function runModelSemanticPlanner({
                                 instruction
                         }
                     ],
-                    maxOutputTokens: 512,
+                    maxOutputTokens: 1024,
                     nativeTextChat: true,
                     temperature: 0,
                     thinkingConfig: {

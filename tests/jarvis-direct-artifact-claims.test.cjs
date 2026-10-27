@@ -42,3 +42,16 @@ test('an invented download in direct chat returns to actual tool selection',asyn
  assert.equal(result.toolCalls[0].args.prompt,input);
  assert.notEqual(result.planKind,'CURRENT_TURN_CONVERSATION_GATE_DIRECT');
 });
+
+test('direct educational reply can finish beyond the former 512-token cap without accepting truncation',async()=>{
+ for(const alwaysTruncated of [false,true]){
+  let calls=0;
+  const request=runJarvisSemanticPlanner({input:'Explica la segunda ley de Newton, calcula 7 por 3 y propone otro ejercicio.',catalog:[{name:'conversation.respond',mutates:false}],missionState:{phase:'CURRENT_TURN',conversationalGate:true},ai:{models:{generateContent:async req=>{
+   if(++calls===1)return {text:'{"mode":"chat","missing":"","question":"","action":""}'};
+   const truncated=alwaysTruncated||req.config.maxOutputTokens<768;
+   return {text:truncated?'La fuerza neta se calcula':'F=m·a. 7 kg × 3 m/s² = 21 N. Otro ejercicio: 4 kg × 2 m/s² = 8 N.',providerResponse:{finishReason:truncated?'length':'stop'}};
+  }}}});
+  if(alwaysTruncated)await assert.rejects(request,/SEMANTIC_RESPONSE_INCOMPLETE/);
+  else {const result=await request;assert.equal(result.planKind,'CURRENT_TURN_CONVERSATION_GATE_DIRECT');assert.match(JSON.stringify(result),/21 N/);}
+ }
+});
