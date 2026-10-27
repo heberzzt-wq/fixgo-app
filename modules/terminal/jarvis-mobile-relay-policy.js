@@ -1,6 +1,9 @@
 // Narrow, authenticated remote read-only extension of the existing Firestore relay.
 // This file does not start a worker, deploy rules, or authorize production writes.
 const permittedTools=new Set(['web.research','browser.inspect']);
+// These are inert receipt-origin labels emitted by the existing repo.read tool.
+// They are never authorization and must not be forwarded as bridge instructions.
+const permittedRepoReadSources=new Set(['jarvis_repo_read_v7','jarvis_repo_read_structure_v1']);
 const mobilePaths=new Set(['/semantic/plan','/research','/browser','/read','/qwen-pilot/preflight',
  '/qwen-isolated/evidence','/qwen-isolated/verify']);
 export const JARVIS_MOBILE_READONLY_ROUTES=Object.freeze([...mobilePaths]);
@@ -50,7 +53,8 @@ export function validateMobileRelayReadOperation(route,payload={}){
    text.startsWith('/')||/^[A-Za-z]:\//.test(text)||
    text.split('/').some(part=>part==='..'||part==='.'||!part)||
    /(?:^|\/)(?:\.git|\.env(?:\.|$)|[^/]*firebase-adminsdk[^/]*|serviceAccountKey\.json|[^/]*\.(?:pem|key|p12|pfx))(?:\/|$)/i.test(text)||
-   Object.keys(payload).some(k=>!['file','path','maxBytes','startLine','fromLine','endLine','toLine'].includes(k))||
+   Object.keys(payload).some(k=>!['file','path','maxBytes','startLine','fromLine','endLine','toLine','source'].includes(k))||
+   (Object.hasOwn(payload,'source')&&!permittedRepoReadSources.has(payload.source))||
    ['startLine','fromLine','endLine','toLine','maxBytes'].some(k=>payload[k]!==undefined&&
      (!Number.isSafeInteger(Number(payload[k]))||Number(payload[k])<1||Number(payload[k])>500000)))
    throw Error('JARVIS_MOBILE_RELAY_REPO_READ_SCOPE_INVALID');

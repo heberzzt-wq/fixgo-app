@@ -57,6 +57,17 @@ test('mobile repository reads are capped to 120 lines and 18KB without changing 
  const safe=boundedMobileRelayReadPayload(raw);
  assert.deepEqual(safe,{file:'panel-tecnico.js',startLine:1,endLine:120,maxBytes:18000});
  assert.equal(JSON.stringify(raw),before,'the signed original request is not mutated');
+ // Actual GestiaToolsRuntime.repo.read contract includes an inert source label.
+ // Accept only the two built-in labels and drop them from the Bridge payload.
+ for(const file of ['app-main.js','panel-b2b-admin.js'])for(const source of
+  ['jarvis_repo_read_v7','jarvis_repo_read_structure_v1']){
+  const request={file,path:file,maxBytes:300000,source};
+  const original=JSON.stringify(request);
+  assert.equal(restricted('/read',request).route,'/read');
+  assert.deepEqual(boundedMobileRelayReadPayload(request),
+   {file,startLine:1,endLine:120,maxBytes:18000});
+  assert.equal(JSON.stringify(request),original);
+ }
  assert.deepEqual(boundedMobileRelayReadPayload({path:'src/module.js',fromLine:301,toLine:900}),{
   file:'src/module.js',startLine:301,endLine:420,maxBytes:18000});
  assert.deepEqual(boundedMobileRelayReadPayload({file:'src/module.js',startLine:2,endLine:8,maxBytes:1000}),{
@@ -65,7 +76,10 @@ test('mobile repository reads are capped to 120 lines and 18KB without changing 
   {file:'../private.env'}, {file:'C:/Users/heber/private.txt'},
   {file:'.env'}, {file:'.git/config'}, {file:'serviceAccountKey.json'},
   {file:'nested/secret.pem'}, {file:'src/../private.js'},
-  {file:'src/code.js',action:'write'}, {file:'src/code.js',startLine:-1}
+  {file:'src/code.js',action:'write'},
+  {file:'app-main.js',source:'arbitrary_origin'},
+  {file:'app-main.js',source:'repo_prepareWrite'},
+  {file:'src/code.js',startLine:-1}
  ])assert.throws(()=>restricted('/read',attempted),/JARVIS_MOBILE_RELAY_REPO_READ_SCOPE_INVALID/);
 });
 test('remote HTML reads are HTTPS-only and never permit private host forms or screenshots',()=>{

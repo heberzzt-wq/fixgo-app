@@ -617,7 +617,9 @@ test('mobile owner Qwen read-only relay uses fresh workstation Firebase ID token
   assert.equal(calls[1].payload.mobileRelayPublicHtmlOnly,true);
   await assert.rejects(()=>client.requestJson('/browser',{action:'screenshot',url:'https://www.energystar.gov/'},
    {contract:{releaseId:'mobile-test'}}),/JARVIS_MOBILE_RELAY_/);
-  const read=client.requestJson('/read',{file:'panel-tecnico.js',startLine:1,endLine:998,maxBytes:300000},
+  const read=client.requestJson('/read',{
+   file:'panel-tecnico.js',path:'panel-tecnico.js',maxBytes:300000,
+   startLine:1,endLine:998,source:'jarvis_repo_read_v7'},
    {contract:{releaseId:'mobile-test'}});
   fake.emit();fake.emit();
   const readReceipt=await read;
