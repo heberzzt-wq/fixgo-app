@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {verifiedCodePreviewRecord,verifiedHostIsolatedProof} from '../modules/terminal/qwen-code-preview-download.js';
+import {verifiedCodePreviewRecord,verifiedHostIsolatedProof,isHistoricalCodePreview} from '../modules/terminal/qwen-code-preview-download.js';
 
 const id='general-38f6031b-b7cc-4ead-b056-43d349e9fa3a';
 const file='tests/fixtures/v142-rebate-preview.js';
@@ -59,10 +59,19 @@ test('Terminal restores code preview across reloads and offers a non-mutating do
  const html=readFileSync(new URL('../gestia-terminal.html',import.meta.url),'utf8');
  const ui=readFileSync(new URL('../modules/terminal/qwen-code-preview-download.js',import.meta.url),'utf8');
  assert.match(html,/restoreLatestCodePreviewReceiptCard/);
- assert.match(html,/code-preview-evidence-20261021-v2/);
+ assert.match(html,/code-preview-evidence-20261027-v3/);
+ assert.match(html,/currentMissionId:coreResult\.missionId/);
  assert.match(ui,/Parche preparado para revisión — NO aplicado/);
+ assert.match(ui,/Expediente histórico de otra misión — parche NO aplicado/);
  assert.match(ui,/Falta comprobar el parche en aislamiento antes\/después/);
  assert.ok(!ui.includes("window.JarvisLocalBridge.write"));
+});
+
+test('preview from another mission is labeled historical without applying it',()=>{
+ const excel='general-0611cbda-b2bb-4870-b813-7c39fe41fab3';
+ assert.equal(isHistoricalCodePreview(id,excel),true);
+ assert.equal(isHistoricalCodePreview(id,id),false);
+ assert.equal(isHistoricalCodePreview(id,'bad-id'),false);
 });
 
 test('Terminal trusts a host-issued controlled fixture summary only when all preview fingerprints match',()=>{

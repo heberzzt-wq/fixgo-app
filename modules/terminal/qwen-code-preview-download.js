@@ -54,7 +54,10 @@ export function verifiedHostIsolatedProof(preview,proof){
     proof.productionRepairCertified===false&&proof.humanApprovalStillRequired===true&&
     proof.scope==='controlled-fixture-only';
 }
-export function appendCodePreviewReceiptCard(host,{missionId,url,file,isolatedProof=false}={}){
+export function isHistoricalCodePreview(previewMissionId,latestMissionId){
+ return validMissionId(previewMissionId)&&validMissionId(latestMissionId)&&previewMissionId!==latestMissionId;
+}
+export function appendCodePreviewReceiptCard(host,{missionId,url,file,isolatedProof=false,historical=false}={}){
  if(!host||!validMissionId(missionId)||!FIXTURE.test(file||'')||
     typeof url!=='string'||!url.startsWith('blob:'+location.origin+'/'))return null;
  host.querySelectorAll('[data-jarvis-code-preview]').forEach(n=>n.remove());
@@ -62,7 +65,9 @@ export function appendCodePreviewReceiptCard(host,{missionId,url,file,isolatedPr
  section.className='jarvis-download-panel';
  section.dataset.jarvisCodePreview=missionId;
  const heading=document.createElement('strong');
- heading.textContent='Parche preparado para revisión — NO aplicado';
+ heading.textContent=historical?
+  'Expediente histórico de otra misión — parche NO aplicado':
+  'Parche preparado para revisión — NO aplicado';
  const detail=document.createElement('span');
  detail.textContent=missionId+' · '+file;
  const disclaimer=document.createElement('small');
@@ -79,8 +84,9 @@ export function appendCodePreviewReceiptCard(host,{missionId,url,file,isolatedPr
  return section;
 }
 
-export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge}={}){
+export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge,currentMissionId=null}={}){
  if(!host||!auth?.currentUser||!globalThis.indexedDB)return null;
+ let latestMissionId='',latestCreatedAt='';
  const identity=auth.currentUser;
  if(identity.uid!==JARVIS_PRIVATE_RELAY.ownerUid||typeof identity.getIdToken!=='function')return null;
  const candidate=await new Promise((resolve,reject)=>{
@@ -94,6 +100,9 @@ export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge}={})
    cursor.onsuccess=()=>{
     const it=cursor.result;if(!it)return;
     const row=it.value,receipts=row.record?.receipts;
+    if(validMissionId(row.missionId)&&String(row.createdAt||'')>=latestCreatedAt){
+     latestCreatedAt=String(row.createdAt||'');latestMissionId=row.missionId;
+    }
     if(validMissionId(row.missionId)&&row.record?.status==='SUCCESS'&&
        row.record?.reason==='VERIFIED_COMPLETE'&&
        receipts?.some(r=>r.name==='repo.prepareWrite')&&
@@ -136,5 +145,6 @@ export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge}={})
  if(auth.currentUser!==identity)return null;
  const url=URL.createObjectURL(new Blob([serialized],{type:'application/json'}));
  return appendCodePreviewReceiptCard(host,{missionId:candidate.missionId,
-    url,file:preview.file,isolatedProof:!!proof});
+    url,file:preview.file,isolatedProof:!!proof,
+    historical:isHistoricalCodePreview(candidate.missionId,currentMissionId||latestMissionId)});
 }

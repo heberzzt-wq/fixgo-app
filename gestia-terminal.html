@@ -682,7 +682,7 @@ const terminalDownloadRestoreInterval=setInterval(()=>{
             });
         })
         .catch(error=>console.warn('[JARVIS_DOWNLOAD_RESTORE_UNAVAILABLE]',error?.message||error));
-     void import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261021-v2')
+     void import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261027-v3')
          .then(({restoreLatestCodePreviewReceiptCard})=>restoreLatestCodePreviewReceiptCard({
              host:document.getElementById('gestia-output'),auth:window.auth,bridge:window.JarvisLocalBridge
          }))
@@ -3882,8 +3882,8 @@ if (
                         });
                         if(coreResult?.ok===true){
                             const {restoreLatestCodePreviewReceiptCard}=
-                                await import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261021-v2');
-                            await restoreLatestCodePreviewReceiptCard({host,auth:window.auth,bridge:window.JarvisLocalBridge});
+                                await import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261027-v3');
+                            await restoreLatestCodePreviewReceiptCard({host,auth:window.auth,bridge:window.JarvisLocalBridge,currentMissionId:coreResult.missionId});
                         }
                     })
                     .catch(error=>console.warn('[JARVIS_DOWNLOAD_UI_UNAVAILABLE]',error?.message||error));
