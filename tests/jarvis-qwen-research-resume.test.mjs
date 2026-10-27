@@ -64,6 +64,23 @@ test('second research continuation uses the original artifact directory and rech
  assert.deepEqual(result.map(r=>r.name),['web.research','browser.inspect']);
 });
 
+test('GP04 research context overflow can resume saved successful sources but no unrelated failure',async()=>{
+ const original={missionId:mission,record:{status:'PARTIAL',reason:'EVIDENCE_SEGMENTATION_REQUIRED',
+  failureCode:'LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION',receipts:[research,inspect]}};
+ const auth={currentUser:{getIdToken:async()=>'session-token-for-test'}};
+ const bridge={requestJson:async()=>{throw Error('NO_ASSET_REQUIRED_FOR_RESEARCH_ONLY')}};
+ const resumed=await verifiedResearchResumeReceipts(original,mission,bridge,auth,undefined,
+  'CONTINUAR_MISION: '+mission+'\nInvestiga mantenimiento de aire acondicionado con citas de fuentes independientes');
+ assert.deepEqual(resumed.map(r=>r.name),['web.research','browser.inspect']);
+ for(const [reason,code] of [
+  ['EVIDENCE_SEGMENTATION_REQUIRED','BRIDGE_IDENTITY_INVALID'],
+  ['PLANNER_UNAVAILABLE','LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION'],
+  ['MODEL_UNAVAILABLE','LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION']]){
+  await assert.rejects(()=>verifiedResearchResumeReceipts({...original,record:{...original.record,reason,failureCode:code}},
+   mission,bridge,auth),/QWEN_RESEARCH_RESUME_SCOPE_INVALID/);
+ }
+});
+
 test('real Qwen failure envelope can resume only with exact local incomplete failureCode',async()=>{
  const id='resume-71276af3-3ce5-483b-b335-abbb2dea70ec';
  const body={status:'PARTIAL',reason:'MODEL_UNAVAILABLE',failureCode:'LOCAL_QWEN_ACTION_INCOMPLETE',receipts:[research,inspect]};

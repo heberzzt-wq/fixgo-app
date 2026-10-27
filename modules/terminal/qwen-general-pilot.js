@@ -6,7 +6,7 @@ import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10';
 import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles,verifiedRepositoryGraphCoverage} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v32';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
-import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
+import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261027-v5';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
 // Session-only conversational memory, scoped to the authenticated Firebase user.
 // Never persisted as proof of a tool result.

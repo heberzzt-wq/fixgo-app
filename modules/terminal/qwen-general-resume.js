@@ -96,7 +96,11 @@ export async function verifiedResumeReceipts(record,missionId,bridge,auth,signal
 export async function verifiedResearchResumeReceipts(record,missionId,bridge,auth,signal,instruction='',artifactMissionId=missionId){
  const reason=record?.record?.reason;
  const retryable=['STEP_LIMIT_REACHED','LOCAL_QWEN_ACTION_INCOMPLETE'].includes(reason)||
-   reason==='MODEL_UNAVAILABLE'&&record?.record?.failureCode==='LOCAL_QWEN_ACTION_INCOMPLETE';
+   reason==='MODEL_UNAVAILABLE'&&record?.record?.failureCode==='LOCAL_QWEN_ACTION_INCOMPLETE'||
+   // Resume ONLY the exact earlier bounded-context failure with authenticated,
+   // SHA-checked research receipts. Other planner/auth failures stay blocked.
+   reason==='EVIDENCE_SEGMENTATION_REQUIRED'&&
+     record?.record?.failureCode==='LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION';
  if(!MISSION.test(missionId)||!GENERAL.test(artifactMissionId)||record?.missionId!==missionId||record.record?.status!=='PARTIAL'||
     !retryable||!Array.isArray(record.record.receipts))
    throw Error('QWEN_RESEARCH_RESUME_SCOPE_INVALID');
