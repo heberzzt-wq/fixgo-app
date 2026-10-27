@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.
+**Resumen:** Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -88,6 +88,8 @@
 - CI oficial final por objetivo exit0 {"pass":1894,"fail":0,"skipped":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.
 - 2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales.
 - GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.
+- Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes.
+- Guardado local5fb153de; corregido tipo documental del recibo Qwen a AUTOMATED_TEST (script offline, no UI) para cumplir contrato del manifiesto. Sin cambios adicionales de runtime.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -273,6 +275,11 @@
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci-exit.json`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-red.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-physical.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-ci.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-remaining-tests.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-search-isolated.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-manifest.txt`
 
 ### Reporte diario automatico
 
@@ -367,7 +374,7 @@
 - **Pendiente:** Cerrar presupuestos y retención de datos en misiones compuestas. Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest.
 - **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
 - **Aceptación:** Reanudar un pedido nuevo conservando restricciones y fuentes; sin relecturas cíclicas ni éxito ficticio.
-- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`; `AUTOMATED_TEST` 1938_PASS_0_FAIL_2_SKIP — Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt`; `AUTOMATED_TEST` 8_PASS_0_FAIL — Ultimo recibo GP02 particionado: conversacion y evidencia conservadas,54 candidatos,indices locales,rechazos y limite24576. No demuestra mision UI. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt`
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`; `AUTOMATED_TEST` 1938_PASS_0_FAIL_2_SKIP — Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt`; `AUTOMATED_TEST` 8_PASS_0_FAIL — Ultimo recibo GP02 particionado: conversacion y evidencia conservadas,54 candidatos,indices locales,rechazos y limite24576. No demuestra mision UI. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt`; `AUTOMATED_TEST` CONTEXT_FITS_SEMANTIC_SELECTION_WRONG — Qwen local8192,9 llamadas86.3s; auditoria completa sin overflow. Seleccion HTML incorrecta; sin ejecucion ni UI. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-physical.json`
 - **Recibos UI:** `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`; `UI_MISSION` PARTIAL — Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json`
 
 ### Planificación y selección de herramientas — criterio y pendientes

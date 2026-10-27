@@ -287,7 +287,8 @@
           "Qwen still selects HTML instead of spreadsheet repair.",
           "No correct XLSX or UI completion demonstrated.",
           "Bridge running old14b371dc with invalid identity; no restart performed."
-        ]
+        ],
+        "codeCommit": "5fb153de"
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -363,7 +364,8 @@
       "CI oficial final por objetivo exit0 {\"pass\":1894,\"fail\":0,\"skipped\":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.",
       "2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales.",
       "GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.",
-      "Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes."
+      "Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes.",
+      "Guardado local5fb153de; corregido tipo documental del recibo Qwen a AUTOMATED_TEST (script offline, no UI) para cumplir contrato del manifiesto. Sin cambios adicionales de runtime."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -2212,7 +2214,7 @@
               "scope": "Ultimo recibo GP02 particionado: conversacion y evidencia conservadas,54 candidatos,indices locales,rechazos y limite24576. No demuestra mision UI."
             },
             {
-              "kind": "LOCAL_MODEL_REPLAY",
+              "kind": "AUTOMATED_TEST",
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-physical.json",
               "outcome": "CONTEXT_FITS_SEMANTIC_SELECTION_WRONG",
               "scope": "Qwen local8192,9 llamadas86.3s; auditoria completa sin overflow. Seleccion HTML incorrecta; sin ejecucion ni UI."
