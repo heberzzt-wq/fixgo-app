@@ -1,5 +1,5 @@
 import { readSemanticStream, semanticFailurePresentation, JARVIS_PRIVATE_RELAY, validateJarvisRelayRequest, jarvisRelayPresenceIsLive, relayTimestampMs } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
-import {validateMobileRelayReadOperation,mobileRelayNeedsFreshOwnerToken} from './jarvis-mobile-relay-policy.js';
+import {validateMobileRelayReadOperation,mobileRelayNeedsFreshOwnerToken,boundedMobileRelayReadPayload} from './jarvis-mobile-relay-policy.js';
 /*
  * ======================================================================================
  * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
@@ -152,7 +152,7 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
             await auth.authStateReady?.();
             if (auth.currentUser?.uid !== policy.ownerUid) throw new Error("JARVIS_RELAY_OWNER_REQUIRED");
             if (!policy.routes.includes(route)) throw new Error("JARVIS_RELAY_LOCAL_OPERATION_REQUIRED");
-            if (['/research','/browser','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route) ||
+            if (['/research','/browser','/read','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route) ||
                 route === '/semantic/plan' && payload?.missionState?.phase === 'DIRECT_READ_ONLY_ACTION')
                 validateMobileRelayReadOperation(route,payload);
             signal?.throwIfAborted();
@@ -381,7 +381,9 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
         try {
             // Session facts are stamped by this authenticated gateway after
             // envelope validation. They describe limits; they never grant rights.
-            const localPayload = approved.route === '/browser' ?
+            const localPayload = approved.route === '/read' ?
+                boundedMobileRelayReadPayload(approved.payload) :
+                approved.route === '/browser' ?
                 {...approved.payload,mobileRelayPublicHtmlOnly:true} :
                 approved.route === "/semantic/plan" ? {
                 ...approved.payload,

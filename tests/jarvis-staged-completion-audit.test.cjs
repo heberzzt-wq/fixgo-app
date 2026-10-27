@@ -50,6 +50,8 @@ test('failed contracted Excel composition preserves metadata and context while r
   assert.deepEqual(metadata.map(item=>encoded.metadataColumns.map(key=>item[key])),encoded.metadata,'metadata roundtrip preserves values and positions');
   assert.equal(failed.catalog.length,55,'the original full 55-tool catalog is retained');
   assert.equal(encoded.rows.length,1,'only the explicitly failed contracted tool is offered on recovery');
+  assert.equal(encoded.metadata.length,1,'a one-tool selection never includes unrelated tools authority metadata');
+  assert.equal(encoded.rows[0][2],0,'metadata indexes must be remapped to the scoped subset');
   assert.equal(encoded.rows[0][0],'spreadsheet.compose','the user-required failed tool remains eligible');
   for(const [name,description,index] of encoded.rows){
    const original=failed.catalog.find(t=>t.name===name);assert.ok(original);

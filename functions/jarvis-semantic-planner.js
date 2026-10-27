@@ -3149,8 +3149,18 @@ async function generateStagedCompletionAudit({ai, request, catalog, contextToken
     // Partition only candidates, never evidence or authority. Each index belongs
     // to that request's rows and is mapped back before the final comparison.
     const selectCandidates=async indices=>{
-        const scopedMessages=selectionMessages.map(m=>isCatalog(m)?{...m,content:'CATALOGO_EJECUTABLE='+JSON.stringify({
-            ...encodedCatalog,rows:indices.map(index=>encodedCatalog.rows[index])})}:m);
+        // Restrict BOTH rows and their authority metadata to this decision.
+        // Leaving the entire metadata table in a one-row partition can exceed
+        // the local 8192-token budget despite recursively splitting rows.
+        const selectedRows=indices.map(index=>encodedCatalog.rows[index]);
+        const metadataIds=[...new Set(selectedRows.map(row=>row[2]))];
+        const metadataIndex=new Map(metadataIds.map((value,index)=>[value,index]));
+        const scopedCatalog={...encodedCatalog,
+            metadata:metadataIds.map(index=>encodedCatalog.metadata[index]),
+            rows:selectedRows.map(([name,description,index])=>
+                [name,description,metadataIndex.get(index)])};
+        const scopedMessages=selectionMessages.map(m=>isCatalog(m)?{...m,
+            content:'CATALOGO_EJECUTABLE='+JSON.stringify(scopedCatalog)}:m);
         const selectionRequest={...request,config:{...request.config,
             semanticStage:'COMPLETION_AUDIT_TOOL_SELECTION',
             chatMessages:[...scopedMessages,currentAssessment,...(retryGuidance?[retryGuidance]:[]),{role:'system',content:'Selecciona solo el índice cero-based de una fila del catálogo que avance un objetivo pendiente. No redactes argumentos ni certifiques cumplimiento. Usa index=-1 si no hay operación fundamentada.'}],

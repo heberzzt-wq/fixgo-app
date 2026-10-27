@@ -140,7 +140,7 @@ export function validateJarvisRelayRequest(request, { requestId, releaseId, now 
     let payload;
     try { payload = JSON.parse(request.body); } catch { throw new Error("JARVIS_RELAY_PAYLOAD_INVALID"); }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("JARVIS_RELAY_PAYLOAD_INVALID");
-    if (['/research','/browser','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(request.route) ||
+    if (['/research','/browser','/read','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(request.route) ||
         request.route === '/semantic/plan' && payload?.missionState?.phase === 'DIRECT_READ_ONLY_ACTION') {
         validateMobileRelayReadOperation(request.route,payload);
     }

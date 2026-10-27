@@ -591,6 +591,12 @@ test('mobile owner Qwen read-only relay uses fresh workstation Firebase ID token
     assert.equal(options.idToken,undefined);
     return {ok:true,dom:'<html><title>Example</title><main>Example</main></html>'};
    }
+   if(route==='/read'){
+    assert.equal(options.idToken,undefined);
+    assert.deepEqual(payload,{file:'panel-tecnico.js',startLine:1,endLine:120,maxBytes:18000});
+    return {ok:true,file:payload.file,startLine:1,endLine:120,totalLines:2200,partial:true,
+     content:'// 120 lines: source preview'};
+   }
    throw Error('UNEXPECTED_MOBILE_ROUTE:'+route);
   },uuid:()=> 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'});
  try{
@@ -611,7 +617,17 @@ test('mobile owner Qwen read-only relay uses fresh workstation Firebase ID token
   assert.equal(calls[1].payload.mobileRelayPublicHtmlOnly,true);
   await assert.rejects(()=>client.requestJson('/browser',{action:'screenshot',url:'https://www.energystar.gov/'},
    {contract:{releaseId:'mobile-test'}}),/JARVIS_MOBILE_RELAY_/);
-  assert.equal(calls.length,2,'blocked operations never reach workstation');
+  const read=client.requestJson('/read',{file:'panel-tecnico.js',startLine:1,endLine:998,maxBytes:300000},
+   {contract:{releaseId:'mobile-test'}});
+  fake.emit();fake.emit();
+  const readReceipt=await read;
+  assert.equal(readReceipt.ok,true);
+  assert.equal(readReceipt.partial,true);
+  assert.equal(readReceipt.endLine,120);
+  assert.equal(calls[2].payload.maxBytes,18000);
+  await assert.rejects(()=>client.requestJson('/read',{file:'../private.txt'},{
+   contract:{releaseId:'mobile-test'}}),/JARVIS_MOBILE_RELAY_REPO_READ_SCOPE_INVALID/);
+  assert.equal(calls.length,3,'blocked operations never reach workstation');
  }finally{await worker.stop();}
 });
 

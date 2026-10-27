@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JARVIS_PRIVATE_RELAY,validateJarvisRelayRequest} from '../gestia-core/jarvis/jarvis.semantic.transport.js';
 import {JARVIS_MOBILE_READONLY_ROUTES,validateMobileRelayReadOperation,
- mobileRelayNeedsFreshOwnerToken,safeMobileReadUrl} from '../modules/terminal/jarvis-mobile-relay-policy.js';
+ mobileRelayNeedsFreshOwnerToken,safeMobileReadUrl,boundedMobileRelayReadPayload} from '../modules/terminal/jarvis-mobile-relay-policy.js';
 const missionId='general-11111111-2222-4333-8444-555555555555';
 const requestId='11111111-2222-4333-8444-555555555555';
 const owner=JARVIS_PRIVATE_RELAY.ownerUid;
@@ -49,6 +49,24 @@ test('mobile direct inference carries only whitelisted read-only tools and owner
   {...direct,idToken:'must-not-persist'},
   {...direct,tools:[],privateKey:'must-not-persist'}
  ])assert.throws(()=>restricted('/semantic/plan',variant),/JARVIS_MOBILE_RELAY_/);
+});
+test('mobile repository reads are capped to 120 lines and 18KB without changing request provenance',()=>{
+ const raw={file:'panel-tecnico.js',startLine:1,endLine:998,maxBytes:300000};
+ const before=JSON.stringify(raw);
+ assert.equal(restricted('/read',raw).route,'/read');
+ const safe=boundedMobileRelayReadPayload(raw);
+ assert.deepEqual(safe,{file:'panel-tecnico.js',startLine:1,endLine:120,maxBytes:18000});
+ assert.equal(JSON.stringify(raw),before,'the signed original request is not mutated');
+ assert.deepEqual(boundedMobileRelayReadPayload({path:'src/module.js',fromLine:301,toLine:900}),{
+  file:'src/module.js',startLine:301,endLine:420,maxBytes:18000});
+ assert.deepEqual(boundedMobileRelayReadPayload({file:'src/module.js',startLine:2,endLine:8,maxBytes:1000}),{
+  file:'src/module.js',startLine:2,endLine:8,maxBytes:1000});
+ for(const attempted of [
+  {file:'../private.env'}, {file:'C:/Users/heber/private.txt'},
+  {file:'.env'}, {file:'.git/config'}, {file:'serviceAccountKey.json'},
+  {file:'nested/secret.pem'}, {file:'src/../private.js'},
+  {file:'src/code.js',action:'write'}, {file:'src/code.js',startLine:-1}
+ ])assert.throws(()=>restricted('/read',attempted),/JARVIS_MOBILE_RELAY_REPO_READ_SCOPE_INVALID/);
 });
 test('remote HTML reads are HTTPS-only and never permit private host forms or screenshots',()=>{
  for(const url of ['http://example.com','http://127.0.0.1:3344','https://localhost','https://10.0.0.1/',
