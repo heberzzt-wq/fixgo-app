@@ -136,7 +136,7 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
             'speech.synthesize':['text','output','language','rate','volume','timingScenes'], 'reel.create':['brandName','title','cta','durationSeconds','scenes','audioOutput','logoOutput','creativeDirection','output','studioOutput'], 'image.adapt':['sourceOutput','variants','fit','brandLogoOutput','composition','creativeDirection','outputPrefix'], 'media.analyze':['output'], 'browser.inspect':['url'], 'browser.open':['url'], 'browser.screenshot':['url','output'],
             'page.create':['brandName','title','description','services','output'],
             'document.create':['format','title','content','output','requireDocumentValidation','requireFormulas','sheets','rows','documentContract','documentValidation'], 'artifact.read':['output'],
-            'web.research':['query','researchGoal','allowedDomain']
+            'web.research':['query','researchGoal','allowedDomain','seedUrl']
         }[tool.name];
         if(bounded){for(const key of Object.keys(p))if(!bounded.includes(key))delete p[key];
             t.inputSchema.required=(t.inputSchema.required||[]).filter(key=>bounded.includes(key));t.inputSchema.additionalProperties=false;}
@@ -702,6 +702,31 @@ export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     const search=catalog.find(t=>t.name==='web.research');
     if(!search)return [];
     const past=receipts.filter(r=>r.ok&&r.name==='web.research');
+    // Exact HTTPS URLs supplied in this mission are source candidates, not proof.
+    // Ask the search provider for each anchor; only a real search receipt plus
+    // independent browser.inspect and literal quotations can certify a source.
+    const attemptedSeeds=new Set(receipts.filter(r=>r.name==='web.research')
+        .map(r=>r.args?.seedUrl).filter(Boolean));
+    const exactSeeds=[...new Set([...String(instruction).matchAll(/https:\/\/[^\s<>"']+/giu)]
+        .map(m=>m[0].replace(/[.,;]+$/u,'')))];
+    const nextSeed=exactSeeds.find(candidate=>{
+        if(attemptedSeeds.has(candidate))return false;
+        try{const u=new URL(candidate);return u.protocol==='https:'&&
+            u.hostname.includes('.')&&!used.has(candidate)&&!credited.has(organization(candidate));}
+        catch{return false;}
+    });
+    if(nextSeed){
+        const next=structuredClone(search),host=new URL(nextSeed).hostname.replace(/^www\./i,'');
+        const topic=/aire acondicionado|climatizaci[oó]n|hvac|air condition/i.test(instruction)
+            ?'air conditioner maintenance filters coils':researchTopic(instruction).slice(0,120);
+        next.inputSchema.properties.query={type:'string',const:topic+' '+host};
+        next.inputSchema.properties.seedUrl={type:'string',const:nextSeed};
+        next.inputSchema.properties.allowedDomain={type:'string',const:host};
+        next.inputSchema.properties.researchGoal={type:'string',const:'RESEARCH_'+(past.length+1)};
+        next.inputSchema.required=[...new Set([...(next.inputSchema.required||[]),
+            'query','seedUrl','allowedDomain','researchGoal'])];
+        return [next];
+    }
     if(past.length>=24)return [];
     const normalized=q=>String(q||'').toLowerCase().replace(/\s+/g,' ').trim();
     const usedQueries=new Set(past.map(r=>normalized(r.args?.query)));

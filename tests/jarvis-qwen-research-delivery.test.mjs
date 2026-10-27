@@ -17,6 +17,32 @@ const build=(count=3)=>[
 const prompt='Investiga aire acondicionado residencial con tres fuentes independientes y entrega informe DOCX y PDF.';
 const mock=(name)=>({name,inputSchema:{type:'object',properties:{format:{type:'string'},title:{type:'string'},content:{type:'string'},output:{type:'string'},url:{type:'string'},query:{type:'string'}},required:[]}});
 
+test('three user-provided HTTPS source URLs are searched separately, never credited without inspection',async()=>{
+ const {prioritizeResearchDiscovery}=await import('../modules/terminal/qwen-general-pilot.js');
+ const urls=[
+  'https://www.energystar.gov/saveathome/heating-cooling/maintenance-checklist',
+  'https://www.carrier.com/us/en/residential/hvac-resources/air-conditioners/ac-maintenance/',
+  'https://www.trane.com/residential/en/resources/maintenance-tips/air-conditioners/'
+ ];
+ const instruction='Investiga mantenimiento preventivo de aire acondicionado residencial con tres fuentes independientes. URLs: '+urls.join(' ; ')+'. No crees archivos ni modifiques codigo.';
+ const catalog=['web.research','browser.inspect'].map(mock);
+ const first=prioritizeResearchDiscovery(catalog,[],instruction);
+ assert.deepEqual(first.map(x=>x.name),['web.research']);
+ assert.equal(first[0].inputSchema.properties.seedUrl.const,urls[0]);
+ assert.equal(first[0].inputSchema.properties.allowedDomain.const,'energystar.gov');
+ assert.equal(first[0].inputSchema.properties.researchGoal.const,'RESEARCH_1');
+ const web={name:'web.research',ok:true,args:{query:first[0].inputSchema.properties.query.const,seedUrl:urls[0],researchGoal:'RESEARCH_1'},observation:{ok:true,sources:[{url:urls[0],title:'Maintenance Checklist | ENERGY STAR'}]}};
+ const inspect=prioritizeResearchDiscovery(catalog,[web],instruction);
+ assert.deepEqual(inspect.map(x=>x.name),['browser.inspect']);
+ assert.deepEqual(inspect[0].inputSchema.properties.url.enum,[urls[0]]);
+ const evidence={name:'browser.inspect',ok:true,args:{url:urls[0]},observation:{ok:true,url:urls[0],dom:'<html><title>Maintenance Checklist | ENERGY STAR</title><main><li>Check and inspect the condensate drain in your central air conditioner to prevent humidity problems and water damage.</li></main></html>'}};
+ const next=prioritizeResearchDiscovery(catalog,[web,evidence],instruction);
+ assert.deepEqual(next.map(x=>x.name),['web.research']);
+ assert.equal(next[0].inputSchema.properties.seedUrl.const,urls[1]);
+ assert.equal(next[0].inputSchema.properties.researchGoal.const,'RESEARCH_2');
+ assert.ok(!next[0].inputSchema.properties.query.const.includes('site:localhost'));
+});
+
 test('relevant HVAC list item is quotable while a menu list cannot impersonate a source',()=>{
  const url='https://www.energystar.gov/saveathome/heating-cooling/maintenance-checklist';
  const instruction='Investiga mantenimiento preventivo de aire acondicionado residencial con fuentes independientes.';
