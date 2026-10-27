@@ -5644,14 +5644,41 @@ if (
                         };
                     }
 
-                    const blueprintTask =
-                            [...missionContext.completedTasks]
-                                .reverse()
-                                .find(item =>
-                                    item?.name === "spreadsheet.compose" ||
-                                    item?.name === "document.compose"
-                                ) ||
-                            null;
+                    const blueprintBinding = (() => {
+                        if (argumentGrounded) return { task: null };
+                        const value = item => String(item || "").trim();
+                        const requestedFormat = value(executionCall.args.format).toLowerCase();
+                        const candidates = missionContext.completedTasks.filter(item => {
+                            if (!["document.compose", "spreadsheet.compose"].includes(item?.name)) return false;
+                            const prepared = item.observation?.preparedArtifact || item.observation?.evidence || {};
+                            const format = item.name === "spreadsheet.compose" ? "xlsx"
+                                : value(prepared.format || item.args?.format || "docx").toLowerCase();
+                            return !requestedFormat || requestedFormat === format;
+                        });
+                        if (!candidates.length) return { task: null };
+                        // Composition order is not artifact identity: stage ordering may
+                        // run all composers first. Match explicit identities mechanically.
+                        const compatible = candidates.filter(item => {
+                            const prepared = item.observation?.preparedArtifact || item.observation?.evidence || {};
+                            return ["output", "title"].every(field => {
+                                const requested = value(executionCall.args[field]);
+                                const observed = value(prepared[field] || item.args?.[field]);
+                                return !requested || !observed || requested === observed;
+                            });
+                        });
+                        if (compatible.length === 1) return { task: compatible[0] };
+                        return { error: compatible.length > 1 ? "DOCUMENT_BLUEPRINT_AMBIGUOUS" : "DOCUMENT_BLUEPRINT_IDENTITY_MISMATCH" };
+                    })();
+                    if (blueprintBinding.error) {
+                        return {
+                            ok: false, executionOk: false, objectiveSatisfied: false,
+                            blocked: true, retryable: false,
+                            status: blueprintBinding.error, error: blueprintBinding.error,
+                            message: "No se pudo vincular este archivo a una composición única con su formato e identidad; no se reutilizó contenido de otro documento.",
+                            missionExecution: { name: call.name, args: executionCall.args }
+                        };
+                    }
+                    const blueprintTask = blueprintBinding.task;
                         const blueprint =
                             blueprintTask?.observation?.preparedArtifact ||
                             blueprintTask?.observation?.evidence ||

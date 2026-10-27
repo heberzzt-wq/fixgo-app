@@ -3086,7 +3086,7 @@ test("browser runtime fails closed on bridge identity and avoids dead cloud plan
     );
     assert.match(
         toolsRuntime,
-        /args\.script \|\|\s*"test"/
+        /args\.script \|\|\s*"ci:test"/
     );
     assert.match(brain, /COMPATIBILITY_CANARY_ONLY/);
     assert.match(

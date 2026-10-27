@@ -1017,7 +1017,8 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
-            missionDedupeBy: ["format"],
+            // Distinct files may share a format. The planner already suppresses
+            // exact duplicate calls; format alone is not an artifact identity.
             execute: async (args = {}, context = {}) => {
                 const contentSource =
                     String(args.contentSource || "")

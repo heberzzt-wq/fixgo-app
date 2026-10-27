@@ -5394,13 +5394,24 @@ JarvisToolRuntime.register({
         "REPO_GIT_PUSH_RESULT_V7",
     execute:
         async (args = {}, context = {}) => {
+            const branch = typeof args.branch === "string" ? args.branch.trim() : "";
+            const commitReceiptId = typeof args.commitReceiptId === "string" ? args.commitReceiptId.trim() : "";
+            if (!branch || !commitReceiptId) return {
+                ok: false, success: false, executionOk: false, requiresInput: true,
+                status: "GIT_PUSH_TARGET_AND_RECEIPT_REQUIRED",
+                error: "Explicit branch and an existing commit receipt ID are required.",
+                tool: "repo.gitPush"
+            };
+            // This is the approval text required by the bridge, not an approval.
+            // The bridge still verifies receipt existence, freshness and HEAD.
+            const approvalCommand = `AUTORIZO PUSH ${commitReceiptId}`;
             const approved =
                 args.approved === true ||
                 args.codexApproved === true ||
                 context?.approved === true ||
                 context?.codexApproved === true;
 
-            if (approved !== true) {
+            if (approved !== true || args.approvalCommand !== approvalCommand) {
                 return {
                     ok: false,
                     success: false,
@@ -5409,7 +5420,7 @@ JarvisToolRuntime.register({
                     requiresApproval: true,
                     mutates: true,
                     approvalCommand:
-                        `Jarvis, apruebo git push ${args.remote || "origin"} ${args.branch || "v94-media-v4n-negative-claims"}`,
+                        approvalCommand,
                     tool:
                         "repo.gitPush"
                 };
@@ -5418,8 +5429,6 @@ JarvisToolRuntime.register({
             const remote =
                 args.remote || "origin";
 
-            const branch =
-                args.branch || "v94-media-v4n-negative-claims";
 
             const pushResult =
                 await JarvisGitWorkflowBridge.request({
@@ -5428,7 +5437,7 @@ JarvisToolRuntime.register({
                     remote,
                     branch,
                     commitReceiptId:
-                        args.commitReceiptId,
+                        commitReceiptId,
                     approvalCommand:
                         args.approvalCommand,
                     approvedBy:
@@ -9292,7 +9301,7 @@ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
 
 JarvisToolRuntime.register({
     name: "tests.run",
-    description: "Ejecuta validaciones del repo: check:syntax, test, ci:test o responsive. Con fingerprints verifica escrituras autorizadas y revierte su patch si fallan las pruebas. Las regresiones responsive no sustituyen la comprobacion posterior de la misma interfaz y matriz de viewports.",
+    description: "Ejecuta la suite local del repositorio ci:test por defecto, o check:syntax y responsive de forma explícita. test es la misión multimedia física histórica, no la suite del repo. Con fingerprints verifica escrituras autorizadas y revierte su patch si fallan las pruebas. Las regresiones responsive no sustituyen la comprobación de la misma interfaz y viewports.",
     mutates: false,
     requiresApproval: false,
     output: "TEST_RUN_RESULT",
@@ -9310,7 +9319,7 @@ JarvisToolRuntime.register({
         const command =
             args.command ||
             args.script ||
-            "test";
+            "ci:test";
 
         const allowedCommands =
             new Set([

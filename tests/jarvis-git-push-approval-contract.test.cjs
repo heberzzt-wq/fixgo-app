@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{parse}=require('acorn');
+function load(){const s=fs.readFileSync(require.resolve('../gestia-core/tools.runtime.js'),'utf8'),ast=parse(s,{sourceType:'module',ecmaVersion:'latest'});const node=ast.body.map(n=>n.expression).filter(n=>n?.type==='CallExpression'&&n.callee?.object?.name==='JarvisToolRuntime'&&n.callee.property?.name==='register').map(n=>n.arguments[0]).find(n=>n.properties?.some(p=>p.key?.name==='name'&&p.value?.value==='repo.gitPush'));const calls=[];const tool=vm.runInNewContext('('+s.slice(node.start,node.end)+')',{JarvisGitWorkflowBridge:{request:async args=>{calls.push(args);return {ok:false,status:'GIT_COMMIT_RECEIPT_REQUIRED'};}}});return{tool,calls};}
+test('git push requires explicit branch and receipt before proposing an exact human approval',async()=>{
+ const {tool,calls}=load();for(const args of [{},{branch:'v142-official'},{commitReceiptId:'observed-receipt'}]){const out=await tool.execute(args);assert.equal(out.ok,false);assert.equal(out.requiresInput,true);assert.equal(out.approvalCommand,undefined);}
+ const out=await tool.execute({branch:'v142-official',commitReceiptId:'observed-receipt'});assert.equal(out.status,'PENDING_APPROVAL');assert.equal(out.approvalCommand,'AUTORIZO PUSH observed-receipt');assert.equal(calls.length,0);
+});
+test('push never invents approval and delegates receipt freshness to the authoritative bridge',async()=>{
+ const {tool,calls}=load(),base={branch:'v142-official',commitReceiptId:'observed-receipt'};
+ for(const args of [{...base,approved:true},{...base,approved:true,approvalCommand:'AUTORIZO PUSH different'},{...base,approvalCommand:'AUTORIZO PUSH observed-receipt'}])assert.equal((await tool.execute(args)).status,'PENDING_APPROVAL');assert.equal(calls.length,0);
+ const out=await tool.execute({...base,approved:true,approvalCommand:'AUTORIZO PUSH observed-receipt'});assert.equal(calls.length,1);assert.equal(calls[0].branch,'v142-official');assert.equal(calls[0].approvalCommand,'AUTORIZO PUSH observed-receipt');assert.equal(calls[0].commitReceiptId,'observed-receipt');assert.equal(out.ok,false);assert.equal(out.status,'GIT_COMMIT_RECEIPT_REQUIRED');
+});

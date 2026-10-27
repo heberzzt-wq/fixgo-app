@@ -18,7 +18,6 @@ export function jarvisExternalEducationQuery(text = "") {
         /\b[\w-]+\.(js|mjs|ts|cjs|py)\b/.test(s);
     return education && request && !coding;
 }
-const researchNames=new Set(["web.research","browser.inspect","conversation.respond"]);
 // Hard evidence boundary, not an intent-to-tool mapping or a second model.
 // A request to inspect *current* changes in the owner's repo cannot be
 // satisfied by conversation.respond without ever reading repository state.
@@ -45,13 +44,10 @@ export function scopeValidatedRepositoryMission({catalog=[],toolCalls=[],objecti
         objectives.some(goal=>goal.explicitTools!==undefined && (!Array.isArray(goal.explicitTools) || goal.explicitTools.some(name=>!names.has(name)))))return null;
     return readers;
 }
-export function scopeJarvisToolsForQuestion(tools = [], instruction = "") {
-    const source=Array.isArray(tools)?tools:[];
-    if (jarvisExternalEducationQuery(instruction)) return source.filter(tool =>
-        researchNames.has(tool?.name) && tool?.mutates !== true &&
-        tool?.requiresApproval !== true);
-    if (jarvisRepositoryEvidenceRequest(instruction)) return source.filter(tool =>
-        gitEvidenceNames.has(tool?.name) && tool?.mutates !== true &&
-        tool?.requiresApproval !== true && tool?.userArtifact !== true);
-    return source.slice();
+export function scopeJarvisToolsForQuestion(tools = []) {
+    // A topic does not establish the whole mission: repository reviews can
+    // require tests or a document, and external research can require exports.
+    // Preserve the supplied catalog and its approval metadata until the model
+    // establishes a complete contract. Only validated contracts may narrow it.
+    return Array.isArray(tools) ? tools.slice() : [];
 }

@@ -9,12 +9,12 @@
       "automatedTests": {
         "status": "PASSED",
         "command": "npm run ci:test",
-        "passed": 1905,
+        "passed": 1918,
         "failed": 0,
         "skipped": 2,
         "exitCode": 0,
         "scope": "Pruebas locales automatizadas; no certifican produccion.",
-        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/contract-reuse-ci.txt"
+        "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-flows-verified-ci.txt"
       },
       "pending": [
         "Completar la mision compuesta Git/contexto/lecturas/pruebas/pendientes; las consultas acotadas Git y manifiesto ya completaron consecutivamente.",
@@ -46,12 +46,17 @@
       },
       "uncommittedEngineeringChanges": false,
       "productionCertified": false,
-      "testedCodeBaseCommit": "0d3837cd61d7d8bb50744c5cbeecdacfde829df1",
+      "testedCodeBaseCommit": "f4b71ef3f2145fc360e501f1690f1ea643554696",
       "testedCodeFileSha256": {
-        "functions/jarvis-semantic-planner.js": "71b6e4d5d6ace579967804be837bee9bad8b119239c2d1c631444f757bfd16c8",
+        "functions/jarvis-semantic-planner.js": "d7f052382ef87937e737223dac986df51adfbb804b2f97d1608bfce7e5fb371e",
         "functions/jarvis-repository-audit-codec.cjs": "0cc6a3dc579a8e46984284a23aea30e272948b79f02a319a60717ecd6d0c3330",
         "functions/jarvis-repository-objective-proof.cjs": "ae8da5f57217bd7f2d9371eedc150b07783a653eb949e0c912fd7d5443ee2764",
-        "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100"
+        "gestia-core/jarvis/jarvis.conversation.composer.js": "d87c13c1fe31c9b0442dd3f0effa2f84b5abc62b8cc2bdba412fa81b8ccaf100",
+        "gestia-core/gestia-core.js": "5576d231a477dc99972a8697242f283f723ce278c200111f25b627ef9dd73737",
+        "gestia-core/jarvis/jarvis.current-turn-scope.js": "63ff018aa5814a06eb9ceddc099ffe9403af654fd313b8bf1ab9d2c25ea42f66",
+        "gestia-core/jarvis/jarvis.actuator.pack.js": "7dd48500b7cd4db668dcf9f473417fe6e1058599b8e7e346b8e508d66576a3e1",
+        "gestia-core/jarvis/jarvis.multitool.pack.js": "e62764c1cfa5a24d7415e796abf72c6ad1cb89c529c14046e3f6dee19c896614",
+        "gestia-core/tools.runtime.js": "33f8d2268e6034ef965dc75e709717c84d8ef5a2dc8a220a4d0f500b2e477753"
       },
       "verifiedWebQueries": [
         {
@@ -93,6 +98,37 @@
         "durationMs": 17929,
         "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json",
         "scope": "Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta."
+      },
+      "toolFlowAudit": {
+        "registeredTools": 71,
+        "disabledExcluded": 14,
+        "families": 12,
+        "verdict": "NOT_READY_FOR_GENERAL_USE",
+        "catalogReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-catalog.json",
+        "report": "C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.html",
+        "physicalFailure": {
+          "request": "Excel de gastos120+80+50 con total250",
+          "result": "CURRENT_TURN_CONVERSATION_GATE_DIRECT invented sandbox download without creating file",
+          "receipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-live.json"
+        },
+        "corrections": [
+          "artifact gate and ungrounded local download rejection",
+          "preserve full catalog before semantic contract",
+          "deduplicate artifacts by exact calls instead of format",
+          "bind each document to unique compatible composition",
+          "tests.run defaults to ci:test",
+          "gitPush explicit branch and receipt-bound approval"
+        ],
+        "codeAndRegressionVerified": true,
+        "webRetestPending": true,
+        "remaining": [
+          "image.generate and generative image.edit blocked",
+          "general uploaded image analysis not integrated with local visual verifier",
+          "XLSX formulas beyond narrow arithmetic rejected",
+          "authenticated screenshot context mismatch",
+          "long compound missions and real platform data queries unverified",
+          "automatic auxiliary laptop work distribution pending"
+        ]
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -100,9 +136,9 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Utilidad acotada comprobada en Terminal autenticada local, HEAD 0d3837cd61d7d8bb50744c5cbeecdacfde829df1: consulta Git MISSION-5fe74483-f9f6-4d3d-93af-17aac5a09416 COMPLETED17929ms, ocho commits adquiridos y resumen agregado visible con estado limpio. Consulta siguiente del manifiesto MISSION-dc87ec4e-6759-4e17-9200-1c7cc17b7e98 COMPLETED51443ms, respuesta1905PASS/0FAIL/2SKIP y pendientes reales. Ambas con respuesta SEMANTIC_RESPONSE_READY. CI completa1905PASS/0FAIL/2SKIP. Laptopvieja29/29 snapshotaislado a62e5455; no repartidor automatico. Mision compuesta original siguependiente. Capturas en bu/outputs y trazas en bu/work. Se registra cierre y se reinicia bridge contra HEAD documental limpio; supervisor pausado, sinpush/deploy y sin certificacion productiva.",
+    "lastSessionSummary": "2026-10-26: Auditoria integral de71herramientas activas/12familias,14registros desactivados excluidos. Prueba real Excel produjo enlace sandbox inventado sin archivo. Se corrigen seis mecanismos compartidos: gateartefactos, catalogocompleto, dedupe por identidad, vinculoblueprint, tests.run=ci:test y aprobacion GitPush conramaexplicita+recibo. Reproducciones RED/GREEN; replayQwen de misma peticion ahora selecciona spreadsheet.compose, no prueba archivo. CI 1918PASS/0FAIL/2SKIP. Retestwebpendiente trascommit. Persisten generacionimagen bloqueada, adjuntosvisuales nointegrados, formulasXLSX limitadas, screenshot sesionnueva y misionescompuestas/plataforma sincertificar. Sinpush/deploy/costeexterno.",
     "infrastructure": {
-      "bridge": "Bridge mantenimiento idle0 detenido para registrar evidencia. Reinicio contra commit documental limpio tras verificar manifiesto; supervisor3345 permanece pausado.",
+      "bridge": "Mantenimiento detenido idle0 para integrar lote de auditoria. Reinicio tras commit limpio; supervisor pausado.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
       "ports": [
         "5000",

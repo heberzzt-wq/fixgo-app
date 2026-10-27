@@ -5726,6 +5726,7 @@ async function runModelSemanticPlanner({
             browserGroundingInstruction(missionState),
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'General conceptual questions are chat even when their topic is also something a tool can create. Do not turn explaining a concept into creating an artifact, a spreadsheet or inspecting a system. An evaluation of a specific external object requires evidence of that object.',
+            'A request for a downloadable or saved file is always mode=tools, even when every fact and calculation is supplied in the message. Creating Excel, PDF, Word, images, audio or video requires executing the artifact tools. A table or text in chat does not create a file. A prohibition on changing platform records does not prohibit creating the requested local deliverable.',
             'currentPage is only an available destination, never an instruction to inspect it. A question about the meaning or scope of a discipline needs an explanation, not a choice of specialization or a production plan.',
             'A broad analysis or evaluation does not require the user to choose subtopics before work can begin. If the target/resource is already resolved and available tools can gather relevant evidence, missing must be empty and mode=tools; report evidence limits after execution instead of asking the user to narrow the scope.',
             'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
@@ -5751,6 +5752,8 @@ async function runModelSemanticPlanner({
             { role: "assistant", content: "{\"mode\":\"chat\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"\"}" }
             ,{ role: "user", content: "Qué es la fotografía y qué abarca?" },
             { role: "assistant", content: '{"mode":"chat","requiresConversationContext":false,"missing":"","question":"","action":""}' }
+            ,{ role: "user", content: "Guarda esta lista como un PDF descargable: revisar llantas, aceite y frenos. No cambies datos de la empresa." },
+            { role: "assistant", content: '{"mode":"tools","requiresConversationContext":false,"missing":"","question":"","action":"create downloadable document from supplied content"}' }
         ];
 
         const gateResponse = await ai.models.generateContent({
@@ -5941,7 +5944,7 @@ async function runModelSemanticPlanner({
             }
         }
 
-        const direct =
+        let direct =
             !pendingContinuation &&
             !explicitExternalResource &&
             (
@@ -5960,6 +5963,7 @@ async function runModelSemanticPlanner({
         if (direct && gatePayload.mode === "chat") {
             const responseSystemInstruction = [
                 "You are Jarvis, also called ADJUNTO: the assistant, not the human. Reply to the human in natural Mexican Spanish.",
+                "No tools have executed in this direct-chat route. You cannot create, save or attach a file here. Never invent download links, sandbox paths, receipts or completed actions. Actual downloadable files require the artifact execution route.",
                 "Interpret familiar forms of address as friendly conversation, not as assertions about a family relationship. Match the human tone without unsolicited corrections or disclaimers about kinship. If asked to draft a message, return the requested message without claiming it has been sent. Preserve supplied details exactly; omit unspecified logistics rather than asserting their absence.",
                 "Jarvis in a user greeting is YOUR name: it must not become a name for the human. If the human states or corrects their name, accept that exact spelling and do not ask for information already given.",
                 "Never rewrite their message in the first person as though you were the human. Answer knowledge questions directly and fully; do not offer to answer a question already asked. Do not invent performed actions or missing facts. An unspecified detail is unknown, not false or nonexistent; omit it or use a clearly marked placeholder. Answer the actual question after a greeting, not just hello. When asked about your abilities, give at least three concrete examples of useful help and state execution limits. A vague statement that you can help with many things or asking what they want does not answer that question.",
@@ -6010,6 +6014,13 @@ async function runModelSemanticPlanner({
                 ).trim();
             if (!directMessage) throw new Error("SEMANTIC_RESPONSE_EMPTY");
             directMessage = await repairConversationEcho(directMessage);
+            // Generated local download URLs are never delivery evidence. Re-enter
+            // the same semantic tool selector; do not route by user keywords.
+            if (/\]\(\s*(?:sandbox:|blob:|file:)/i.test(directMessage)) {
+                direct = false;
+                currentTurnGateRecovery = true;
+                directMessage = "";
+            }
         }
 
         if (!direct) {

@@ -4323,7 +4323,8 @@ export function registerJarvisMultifunctionTools(runtime) {
             contractStages: ["work"], contractKinds: ["document"],
             description: "Redacta en memoria el contenido completo y original de un documento solicitado, sin copiar fuentes ni escribir archivos; se usa antes de document.create.",
             output: "DOCUMENT_CONTENT_BLUEPRINT",
-            missionDedupeBy: ["format"],
+            // Multiple requested documents can have the same format. Preserve
+            // their separate instructions and deduplicate exact calls only.
             inputSchema: {
                 title: "string",
                 format: "html|md|txt|docx|pdf",
@@ -4728,7 +4729,8 @@ export function registerJarvisMultifunctionTools(runtime) {
             contractStages: ["work"], contractKinds: ["document"],
             description: "Compone en memoria un libro XLSX con hojas, filas, supuestos y formulas cuando se solicita una hoja de calculo o analisis tabular. Se usa antes de document.create; no responde preguntas conceptuales generales ni analiza interfaces.",
             output: "SPREADSHEET_BLUEPRINT",
-            missionDedupeBy: [],
+            // An empty semantic key collapses every workbook in the same plan.
+            // Exact-call deduplication still prevents identical repeated work.
             inputSchema: {
                 title: "string",
                 instructions: "string",

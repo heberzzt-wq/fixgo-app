@@ -2786,6 +2786,33 @@ test("tests.run routes responsive receipts through governed verification without
     assert.equal(calls.length, 1);
 });
 
+test("tests.run defaults to repository CI rather than the historical physical media mission", async () => {
+    const source = fs.readFileSync(path.resolve("gestia-core/tools.runtime.js"), "utf8");
+    const nameIndex = source.indexOf('name: "tests.run"');
+    const start = source.lastIndexOf("JarvisToolRuntime.register({", nameIndex);
+    const end = source.indexOf("\n});", nameIndex) + 4;
+    const calls = [];
+    let tool;
+    vm.runInNewContext(source.slice(start, end), {
+        JarvisToolRuntime: { register(definition) { tool = definition; } },
+        window: { JarvisLocalBridge: {
+            async runCommand(payload) { calls.push(payload); return { ok: true, exitCode: 0 }; },
+            async testWriteReceipts(payload) { calls.push(payload); return { ok: true, status: "POST_WRITE_TESTS_PASSED", testResult: { exitCode: 0 } }; }
+        } }
+    });
+    const result = await tool.execute();
+    assert.equal(calls[0].command, "npm run ci:test");
+    assert.equal(result.command, "ci:test");
+    assert.equal(result.testsPassed, true);
+    await tool.execute({ fingerprints: ["authorized-receipt"] });
+    assert.equal(calls[1].command, "ci:test");
+    await tool.execute({ command: "check:syntax" });
+    assert.equal(calls[2].command, "npm run check:syntax");
+    const invalid = await tool.execute({ command: "npm run deploy" });
+    assert.equal(invalid.error, "TEST_COMMAND_NOT_ALLOWED");
+    assert.equal(calls.length, 3);
+});
+
 test("repo.prepareWrite emits an exact review event only after canonical preparation succeeds", async () => {
     const source = fs.readFileSync(path.resolve("gestia-core/tools.runtime.js"), "utf8");
     const nameIndex = source.indexOf('name: "repo.prepareWrite"');

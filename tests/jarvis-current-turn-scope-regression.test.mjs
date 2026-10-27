@@ -7,15 +7,28 @@ import {simpleJarvisGreeting,jarvisExternalEducationQuery,jarvisRepositoryEviden
 const defs=['conversation.respond','web.research','browser.inspect','repo.audit','repo.read','platform.query']
  .map(name=>({name,mutates:false,requiresApproval:false}));
 const uveg='busca informacion de la uveg de guanajuato y dime la ingenieria de sistemas que modulos lleva';
+
+test('mixed repository and education missions retain their requested executable capabilities',()=>{
+ const tools=[...defs,{name:'repo.gitHistory',mutates:false},{name:'tests.run',mutates:false},
+  {name:'document.compose',mutates:false},{name:'document.create',mutates:false,userArtifact:true},
+  {name:'repo.prepareWrite',mutates:false},{name:'repo.write',mutates:true,requiresApproval:true}];
+ for(const request of ['Revisa los últimos commits del repositorio y ejecuta las pruebas; crea un informe PDF.',
+  'Investiga las carreras de UVEG y crea un documento PDF con las fuentes.']){
+  const original=JSON.stringify(tools),scoped=scopeJarvisToolsForQuestion(tools,request);
+  assert.deepEqual(scoped,tools,'natural-language topic must not remove requested operations');
+  assert.notEqual(scoped,tools,'callers receive a separate array');
+  assert.equal(JSON.stringify(tools),original,'authority and approval metadata stay unchanged');
+  assert.equal(scoped.find(t=>t.name==='repo.write').requiresApproval,true);
+ }
+});
 test('greetings bypass planning only if message is exactly a greeting',()=>{
  assert.match(simpleJarvisGreeting('Buenos días!!!'),/ayudo/);
  assert.equal(simpleJarvisGreeting('buenos dias, lee mi codigo'),null);
  assert.equal(simpleJarvisGreeting('hola, investiga UVEG'),null);
 });
-test('real external education question cannot access private repository tools',()=>{
+test('external education topic remains a hint without preselecting the mission tools',()=>{
  assert.equal(jarvisExternalEducationQuery(uveg),true);
- assert.deepEqual(scopeJarvisToolsForQuestion(defs,uveg).map(t=>t.name),
-  ['conversation.respond','web.research','browser.inspect']);
+ assert.deepEqual(scopeJarvisToolsForQuestion(defs,uveg),defs);
 });
 test('real code auditing request retains private source tools',()=>{
  const task='Audita mi repositorio fixgo y lee jarvis-upload-bridge.js';
@@ -27,7 +40,7 @@ test('mixed code and university research must not be silently stripped',()=>{
  assert.equal(jarvisExternalEducationQuery(task),false);
  assert.deepEqual(scopeJarvisToolsForQuestion(defs,task),defs);
 });
-test('private tools cannot be reintroduced after the initial model decision',()=>{
+test('initial and mission catalogs share the same catalog-preservation boundary',()=>{
  const source=fs.readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
  assert.match(source,/const registeredCurrentTurnTools\s*=\s*scopeJarvisToolsForQuestion\(/);
  assert.match(source,/const registeredMissionTools\s*=\s*scopeJarvisToolsForQuestion\(/);
@@ -76,8 +89,7 @@ test('real user Git-change audit requires actual Git evidence instead of chat',(
   {name:'repo.read',mutates:false},{name:'repo.gitCommit',mutates:true,requiresApproval:true},
   {name:'system.health',mutates:false},{name:'repo.audit',mutates:false}];
  assert.equal(jarvisRepositoryEvidenceRequest(request),true);
- assert.deepEqual(scopeJarvisToolsForQuestion(tools,request).map(t=>t.name),
-  ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search','repo.read']);
+ assert.deepEqual(scopeJarvisToolsForQuestion(tools,request),tools);
 });
 test('conceptual Git conversation does not get forced into repository operations',()=>{
  for(const q of ['¿Qué es Git y para qué sirve?', 'Explícame Git sin revisar archivos', '¿Qué hace un commit?',
@@ -86,14 +98,14 @@ test('conceptual Git conversation does not get forced into repository operations
  }
  assert.deepEqual(scopeJarvisToolsForQuestion(defs,'¿Qué es Git y para qué sirve?'),defs);
 });
-test('tool-only Git scope never widens into writes or other tenants',()=>{
+test('topic scoping preserves the supplied authority without inventing tools or approvals',()=>{
  const q='Checa el estado actual del repositorio y dime qué archivos modificaste';
  const tools=[{name:'repo.gitStatus',mutates:false},{name:'repo.gitHistory',mutates:false},{name:'repo.gitDiff',mutates:false},
   {name:'repo.gitCommitPlan',mutates:false},{name:'repo.gitCommit',mutates:true},
   {name:'repo.read',mutates:false,requiresApproval:true},{name:'repo.search',mutates:false},
   {name:'conversation.respond',mutates:false}];
- assert.deepEqual(scopeJarvisToolsForQuestion(tools,q).map(t=>t.name),
-  ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search']);
+ assert.deepEqual(scopeJarvisToolsForQuestion(tools,q),tools);
+ assert.deepEqual(scopeJarvisToolsForQuestion(null,q),[]);
 });
 
 test('light current-turn planner delegates a real Git request to read-only Qwen tools, not CASUAL_NOOP',async()=>{
@@ -123,9 +135,8 @@ test('light current-turn planner delegates a real Git request to read-only Qwen 
  assert.equal(seen.length,1);
  assert.equal(seen[0].context.missionState.conversationalGate,false);
  assert.equal(seen[0].context.missionState.writeAllowed,false);
- assert.deepEqual(Array.from(seen[0].context.toolCatalog,x=>x.name),
-  ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search']);
- assert.ok(!seen[0].context.toolCatalog.some(x=>x.mutates===true));
+ assert.deepEqual(Array.from(seen[0].context.toolCatalog,x=>x.name),tools.map(x=>x.name));
+ assert.equal(seen[0].context.toolCatalog.find(x=>x.name==='repo.gitCommit').requiresApproval,true);
  assert.equal(plan.toolCalls[0].name,'repo.gitStatus');
 });
 
