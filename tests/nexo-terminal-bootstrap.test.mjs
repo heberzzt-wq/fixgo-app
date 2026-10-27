@@ -115,7 +115,7 @@ async function connectCdp(webSocketDebuggerUrl) {
     };
 }
 
-test("V142 predeploy Chrome verifies production loopback transport while source certifies the Jarvis bootstrap", {
+test("V142 Chrome public HTTPS cannot bypass owner-only relay with stale workstation preference", {
     skip: process.env.GITHUB_ACTIONS !== "true" || process.platform !== "linux",
     timeout: 120000
 }, async t => {
@@ -332,9 +332,9 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
                 let research = null;
                 let transportError = null;
                 if (hasBridge) {
-                    // This isolated browser fixture owns only a local loopback
-                    // server, not a Firebase account. Select that transport
-                    // explicitly; do not weaken the separate private-relay gate.
+                    // A public HTTPS page has no authenticated Firebase owner here.
+                    // Even Chrome loopback permission and forged old localStorage
+                    // must NOT grant access to this laptop's local Bridge.
                     const workstationKey = "jarvis.privateRelay.workstation.v1";
                     const previousWorkstation = localStorage.getItem(workstationKey);
                     localStorage.setItem(workstationKey, "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2");
@@ -418,13 +418,11 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
     assert.equal(result?.importError, null);
     assert.equal(result?.permissionState, "granted");
     assert.equal(result?.hasBridge, true);
-    assert.equal(result?.transportError, null);
-    assert.equal(result?.transportProbe?.httpStatus, 400);
-    assert.equal(result?.transportProbe?.error, "WEB_RESEARCH_QUERY_REQUIRED");
-    assert.ok(
-        result?.research?.status,
-        "Taquería El Dorado research must return through the served production bridge"
-    );
+    // A fake workstation key and Chrome loopback permission must fail closed
+    // without owner authentication; neither research call can be executed.
+    assert.equal(result?.transportError?.message, "JARVIS_RELAY_OWNER_REQUIRED");
+    assert.equal(result?.transportProbe, null);
+    assert.equal(result?.research, null);
     assert.equal(
         bootstrap.includes(PRODUCTION_BOOTSTRAP_VERSION),
         true
