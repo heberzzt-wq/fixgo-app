@@ -4122,8 +4122,21 @@ export const GestiaCore = {
             projectId: "adjunto"
         };
         const localQwenMode=new URLSearchParams(globalThis.location?.search||'').get('qwenPilot');
-        if (globalThis.location?.protocol==='http:' && ['localhost','127.0.0.1'].includes(globalThis.location?.hostname) &&
-            globalThis.location?.port==='5000' && (!localQwenMode||localQwenMode==='general-v1')) {
+        const localGeneralHost=globalThis.location?.protocol==='http:'&&
+            ['localhost','127.0.0.1'].includes(globalThis.location?.hostname)&&
+            globalThis.location?.port==='5000'&&(!localQwenMode||localQwenMode==='general-v1');
+        let ownerMobileResearchHost=false;
+        if(!localGeneralHost && globalThis.location?.protocol==='https:'&&
+            ['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com'].includes(globalThis.location?.hostname)){
+            const [{generalObjectives},{mobileGeneralResearchPilot}]=await Promise.all([
+                import('../modules/terminal/qwen-general-evidence.js?release=v142-code-preview-20261021-v32'),
+                import('../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10')]);
+            ownerMobileResearchHost=mobileGeneralResearchPilot(globalThis.location,generalObjectives(inputRaw));
+        }
+        // Public mobile research reuses the independently verified Qwen pilot.
+        // The server's authenticated Firestore relay and this pilot's policy
+        // prohibit repo tools, writes, advertising and other broad capabilities.
+        if(localGeneralHost||ownerMobileResearchHost) {
             try {
                 const {runQwenGeneralPilot}=await import('../modules/terminal/qwen-general-pilot.js?release=v142-code-preview-20261021-v32');
                 context.missionAbortSignal?.throwIfAborted?.();

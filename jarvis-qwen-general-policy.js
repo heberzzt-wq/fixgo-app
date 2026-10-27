@@ -10,8 +10,18 @@ export function localGeneralPilot(location){
     return location?.protocol==='http:' && ['127.0.0.1','localhost'].includes(location.hostname) &&
         location.port==='5000' && (!mode||mode==='general-v1');
 }
+export function mobileGeneralResearchPilot(location,objectives={}){
+    const mode=new URLSearchParams(location?.search||'').get('qwenPilot');
+    return location?.protocol==='https:'&&
+        ['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com'].includes(location?.hostname)&&
+        (!mode||mode==='general-v1')&&objectives.research===true&&
+        !['code','architecture','sourceDocument','advertising','records','page','document',
+          'reel','unsupported','prohibited','capabilities'].some(key=>objectives[key]===true);
+}
 export function createGeneralToolPolicy({location,missionId,objectives={},instruction='',mediaPreflight}={}){
-    if(!localGeneralPilot(location)||!/^general-[a-zA-Z0-9-]{8,80}$/.test(missionId||''))throw Error('QWEN_GENERAL_LOCAL_SCOPE_REQUIRED');
+    const mobileResearch=mobileGeneralResearchPilot(location,objectives);
+    if(!(localGeneralPilot(location)||mobileResearch)||
+       !/^general-[a-zA-Z0-9-]{8,80}$/.test(missionId||''))throw Error('QWEN_GENERAL_LOCAL_SCOPE_REQUIRED');
     const artifactRoot='.jarvis-artifacts/qwen-general/'+missionId+'/';
     const media=mediaPaths(missionId);
     const ownPath=value=>media.owns(value)||typeof value==='string'&&value.startsWith(artifactRoot)&&
@@ -19,7 +29,10 @@ export function createGeneralToolPolicy({location,missionId,objectives={},instru
     const created=(receipts,path)=>producedMedia(receipts).some(p=>p.output===path)||receipts.some(r=>r.ok&&r.name==='media.library'&&r.args.action==='import'&&r.observation.output===path);
     const preview=path=>'http://127.0.0.1:3344/qwen-artifact?output='+encodeURIComponent(path);
     return {artifactRoot,preview,ownPath,...media,
-        accept:tool=>MEDIA_TOOLS.has(tool.name)?tool.userArtifact===true&&tool.requiresApproval===false:READS.has(tool.name)?tool.mutates!==true&&tool.requiresApproval!==true:
+        accept:tool=>mobileResearch?
+            ['web.research','browser.inspect'].includes(tool.name)&&
+                tool.mutates!==true&&tool.requiresApproval!==true:
+            MEDIA_TOOLS.has(tool.name)?tool.userArtifact===true&&tool.requiresApproval===false:READS.has(tool.name)?tool.mutates!==true&&tool.requiresApproval!==true:
             PREPARES.has(tool.name)?objectives.code===true&&tool.mutates!==true&&tool.requiresApproval!==true:
             CREATES.has(tool.name)?tool.userArtifact===true&&tool.requiresApproval===false:
             BROWSER.has(tool.name)&&tool.requiresApproval===true,

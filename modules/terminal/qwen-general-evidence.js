@@ -101,7 +101,11 @@ export function codePreviewOnlyRequested(instruction=''){
 // General engineering intent must not depend on one historical financial bug.
 export function generalEngineeringRequested(instruction=''){
  const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase()
-  .replace(/\b(?:sin|no|nunca|evita|ni)\s+(?:modificar|modifiques|tocar|cambiar|editar|publicar|escribir)\s+(?:el\s+)?(?:codigo|repositorio|repo)\b/gu,'');
+  .replace(/\b(?:sin|no|nunca|evita|ni)\s+(?:modificar|modifiques|tocar|cambiar|editar|publicar|escribir)\s+(?:el\s+)?(?:codigo|repositorio|repo)\b/gu,'')
+  // Negative source/tool instructions are restrictions, never engineering intent.
+  // Preserve positive audits elsewhere in the same request (e.g. audita codigo).
+  .replace(/\b(?:no|sin|nunca|evita|evitar|ni)\s+(?:leas?|leer|consultes?|consultar|busques?|buscar|inspecciones?|inspeccionar|revises?|revisar)\s+(?:(?:los?|las?|el)\s+)?(?:archivos?\s+(?:del?\s+)?(?:codigo|repositorio|repo)|(?:codigo|repositorio|repo))\b/gu,'')
+  .replace(/\b(?:no|sin|nunca|evita|evitar|ni)\s+(?:ejecutes?|ejecutar|uses?|usar|llames?|llamar|consultes?|consultar)\s+(?:la\s+herramienta\s+)?\b(?:repo\.(?:audit|read|search|grep)|tests\.run)\b/gu,'');
  // Building an HTML artifact is not a repository audit merely because its sample
  // data mentions KYC, security or tests. Keep true mixed requests in both tracks.
  const pageArtifact=/\b(?:crea|crear|genera|generar|disena|disenar|construye|construir|haz)\b[\s\S]{0,130}\b(?:pagina|landing|html)\b/u.test(s);
