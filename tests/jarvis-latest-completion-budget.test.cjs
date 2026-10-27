@@ -15,6 +15,8 @@ test('latest GP02 receipt partitions selection without losing evidence, candidat
   assert.ok(messages.some(m=>m.content.startsWith('OBJETIVOS_ESTABLECIDOS_INMUTABLES=')));
   if(stage==='COMPLETION_AUDIT')return {text:JSON.stringify({completionAssessment:{objectives:Object.fromEntries(fixture.missionState.evidenceObjectives.map((o,i)=>['objective_'+i,{...o,satisfied:false,evidenceTaskIndexes:[],limitation:'No hay evidencia suficiente ni archivo entregado.'}]))},toolCalls:[]})};
   if(stage==='COMPLETION_AUDIT_TOOL_SELECTION'){
+   assert.ok(messages.some(m=>m.content.startsWith('OBLIGACIONES_DEL_CONTRATO_AUN_PENDIENTES=["spreadsheet.compose"]')),
+    'previously failed required tool remains available for grounded retry');
    const content=messages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE=')).content;
    const encoded=JSON.parse(content.slice(content.indexOf('=')+1));
    for(const [name,description,index] of encoded.rows){

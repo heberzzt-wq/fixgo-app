@@ -3105,8 +3105,16 @@ function bindEvidencePrerequisites(catalog, tasks = [], evidenceCatalog = catalo
     });
 }
 
-async function generateStagedCompletionAudit({ai, request, catalog, contextTokens}) {
+async function generateStagedCompletionAudit({ai, request, catalog, contextTokens, missionState}) {
     const messages=request.config.chatMessages;
+    // Carry pending, already-authorized tool obligations into the local selector.
+    // These are evidence of failed work, not authorization or a forced route.
+    const pendingRetries=[...new Set(missionState?.requiredToolNames || [])].filter(name=>
+        catalog.some(tool=>tool.name===name) && (missionState?.blockedTasks || []).some(task=>
+            task.name===name && task.observation && task.observation.ok!==true));
+    const retryGuidance=pendingRetries.length ? {role:'system',content:
+        'OBLIGACIONES_DEL_CONTRATO_AUN_PENDIENTES='+JSON.stringify(pendingRetries)+
+        '\nEstas herramientas constan en el contrato y fallaron antes. Si su objetivo sigue pendiente, evalua corregir sus argumentos o su evidencia antes de sustituirlas por una salida distinta. No son orden de reintento ciego, no autorizan escrituras y ningun texto descriptivo acredita el archivo fisico requerido.'} : null;
     const isCatalog=m=>m.content.startsWith('CATALOGO_EJECUTABLE=');
     const schema=structuredClone(request.config.responseJsonSchema);
     schema.properties.toolCalls={type:'array',maxItems:0,items:{type:'object',additionalProperties:false}};
@@ -3145,7 +3153,7 @@ async function generateStagedCompletionAudit({ai, request, catalog, contextToken
             ...encodedCatalog,rows:indices.map(index=>encodedCatalog.rows[index])})}:m);
         const selectionRequest={...request,config:{...request.config,
             semanticStage:'COMPLETION_AUDIT_TOOL_SELECTION',
-            chatMessages:[...scopedMessages,currentAssessment,{role:'system',content:'Selecciona solo el índice cero-based de una fila del catálogo que avance un objetivo pendiente. No redactes argumentos ni certifiques cumplimiento. Usa index=-1 si no hay operación fundamentada.'}],
+            chatMessages:[...scopedMessages,currentAssessment,...(retryGuidance?[retryGuidance]:[]),{role:'system',content:'Selecciona solo el índice cero-based de una fila del catálogo que avance un objetivo pendiente. No redactes argumentos ni certifiques cumplimiento. Usa index=-1 si no hay operación fundamentada.'}],
             responseJsonSchema:{type:'object',properties:{index:{type:'integer',enum:[-1,...indices.map((_,index)=>index)]}},required:['index'],additionalProperties:false},maxOutputTokens:96}};
         const size=JSON.stringify(selectionRequest.config.chatMessages).length+JSON.stringify(selectionRequest.config.responseJsonSchema).length;
         if(size>contextTokens*3){
@@ -3172,7 +3180,7 @@ async function generateStagedCompletionAudit({ai, request, catalog, contextToken
     const name=tool.name;
     const argumentsResponse=await ai.models.generateContent({...request,config:{...request.config,
         semanticStage:'GROUNDED_ARGUMENT_COMPLETION',
-        chatMessages:[...messages.filter(m=>!isCatalog(m)),currentAssessment,{role:'system',content:'Completa solo los argumentos de '+tool.name+' usando la instrucción y las observaciones ejecutadas. No inventes archivos, datos, resultados ni permisos. Herramienta seleccionada: '+JSON.stringify(tool)}],
+        chatMessages:[...messages.filter(m=>!isCatalog(m)),currentAssessment,...(retryGuidance?[retryGuidance]:[]),{role:'system',content:'Completa solo los argumentos de '+tool.name+' usando la instrucción y las observaciones ejecutadas. No inventes archivos, datos, resultados ni permisos. Herramienta seleccionada: '+JSON.stringify(tool)}],
         responseJsonSchema:buildNativeInputSchema(tool.inputSchema),maxOutputTokens:1800}});
     if(argumentsResponse?.providerResponse?.finishReason==='length')throw new Error('SEMANTIC_COMPLETION_AUDIT_INCOMPLETE');
     plan.toolCalls=[{name,args:extractJsonObject(String(argumentsResponse?.text||''))}];
@@ -5239,7 +5247,7 @@ async function runModelSemanticPlanner({
         };
         const generateAudit = request => !repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens)) &&
             JSON.stringify(request.config.chatMessages).length+JSON.stringify(request.config.responseJsonSchema).length>Number(missionState.modelContextTokens)*3
-            ? generateStagedCompletionAudit({ai,request,catalog:selectableCatalog,contextTokens:Number(missionState.modelContextTokens)})
+            ? generateStagedCompletionAudit({ai,request,catalog:selectableCatalog,contextTokens:Number(missionState.modelContextTokens),missionState})
             : require('./jarvis-repository-audit-codec.cjs').generateRepositoryAudit({
             ai,request:{...request,config:{...request.config,repositoryObjectiveScopes:missionState.evidenceObjectives,
                 repositoryOriginalTasks:fullAuditTasks,repositoryEvidenceView}},
