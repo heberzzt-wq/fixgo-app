@@ -104,8 +104,10 @@ export function prioritizeGeneralOfficeCatalog(catalog,receipts,instruction=''){
   const financial=financialRequestedAmounts(instruction).length>0;
   const next=financial&&remaining.includes('xlsx')?['xlsx']:remaining;
   inputSchema.properties.format={type:'string',enum:next};
-  if(financial&&next.length===1&&next[0]==='xlsx'){
-    const workbook=financialWorkbookFromInstruction(instruction);
+  const purchase=next.length===1&&next[0]==='xlsx'&&!financial
+    ? groundedPurchaseWorkbookFromInstruction(instruction) : null;
+  if(next.length===1&&next[0]==='xlsx'&&(financial||purchase)){
+    const workbook=financial?financialWorkbookFromInstruction(instruction):purchase;
     if(!workbook)return [];
     inputSchema.properties.sheets={type:'array',const:workbook.sheets};
     inputSchema.properties.requireFormulas={type:'boolean',const:true};
@@ -230,6 +232,33 @@ export function verifiedFinancialPdfContent(instruction,receipts=[]){
  return financialRequestedAmounts(instruction).every(n=>
    normalized.includes(String(n).replace(/[^\d.]/g,'')))&&
    ['totalpagado','saldopendiente'].every(s=>normalized.includes(s));
+}
+
+// Bind only literal line items supplied by the user. A missing category is
+// explicitly unknown; neither the host nor Qwen may manufacture one as fact.
+export function groundedPurchaseWorkbookFromInstruction(instruction=''){
+ const request=String(instruction||'');
+ if(!requiredDeliveryFormats(request).includes('xlsx')||
+    !/\b(?:f[oó]rmulas?|total\s+calculado)\b/iu.test(request)||
+    !/\bconcepto\b/iu.test(request)||!/\bcategor[ií]a\b/iu.test(request)||
+    !/\bpesos\b/iu.test(request))return null;
+ const parts=[...request.matchAll(/(?:[:;,]|\by\s+)\s*([\p{L}][\p{L}\p{M} -]{0,35}?)\s+\$?(-?\d+(?:\.\d{1,2})?)\s+pesos\b/giu)];
+ if(parts.length<2||parts.length>30)return null;
+ const items=parts.map(match=>({name:match[1].trim(),amount:Number(match[2])}));
+ if(items.some(item=>!item.name||!Number.isFinite(item.amount)||item.amount<0)||
+    new Set(items.map(item=>item.name.toLocaleLowerCase('es'))).size!==items.length)return null;
+ const total=Number(items.reduce((sum,item)=>sum+item.amount,0).toFixed(2));
+ const explicit=/\btotal\s+(?:de\s+)?\$?(\d+(?:\.\d{1,2})?)\s+pesos\b/iu.exec(request);
+ if(explicit&&Math.abs(Number(explicit[1])-total)>0.00001)return null;
+ // A partially parsed purchase must never silently drop an item or amount.
+ const moneyMentions=[...request.matchAll(/-?\$?\d+(?:\.\d{1,2})?\s+pesos\b/giu)];
+ if(moneyMentions.length!==parts.length+(explicit?1:0))return null;
+ const formula='=SUM(C2:C'+(items.length+1)+')';
+ return {sheets:[{name:'Datos',rows:[
+  ['Concepto','Categoría','Pesos'],
+  ...items.map(item=>[item.name,'Sin especificar',item.amount]),
+  ['Total','',formula]
+ ]}],expected:{items,total,formula}};
 }
 
 export function financialWorkbookFromInstruction(instruction=''){

@@ -83,7 +83,7 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
                 p.output={type:'string',pattern:'^\\.jarvis-artifacts/qwen-general/'+policy.artifactRoot.split('/').at(-2)+'/'+(/^(?:CONTINUAR_MISION:)\s*general-/iu.test(instruction)?'recovery-':'')+'[a-zA-Z0-9_-]{1,40}\\.('+formats.join('|')+')$'};
                 p.requireDocumentValidation={type:'boolean',const:true};
                 p.documentContract={type:'object',const:{documentKind:'original_draft',minWords:80,minSections:3}};
-                p.requireFormulas={type:'boolean',const:/f[oó]rmulas|c[aá]lculos|totales/i.test(instruction)};
+                p.requireFormulas={type:'boolean',const:/f[oó]rmulas?|c[aá]lculos?|totales|total\s+calculado/iu.test(instruction)};
                 p.sheets={type:'array',maxItems:5,items:{type:'object',properties:{
                     name:{type:'string',minLength:1,maxLength:31},
                     rows:{type:'array',minItems:1,maxItems:300,items:{type:'array',items:{type:['string','number','boolean','null']}}}

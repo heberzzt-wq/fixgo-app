@@ -48,6 +48,35 @@ test('independent verification rejects missing or fake download deliverables, no
  const bogus={name:'document.create',ok:true,args:{format:'pdf'},observation:{ok:true,output:'.jarvis-artifacts/a.pdf',artifact:{file:'.jarvis-artifacts/a.pdf',sha256:'b'.repeat(64),mimeType:'application/pdf'}}};
  assert.deepEqual(unfulfilledDownloadFormats(instruction,[bogus]),['pdf','docx']);
 });
+test('GP02 standalone Excel purchase is routed to a source-bound workbook with recalculating total',async()=>{
+ const {generalToolCatalog}=await import('../modules/terminal/qwen-general-pilot.js');
+ const {groundedPurchaseWorkbookFromInstruction}=await import('../modules/terminal/qwen-general-contract.js');
+ const instruction='Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula. Conserva esos nombres e importes y no consultes ni modifiques la plataforma.';
+ const objectives=generalObjectives(instruction);
+ assert.equal(objectives.code,false);
+ assert.equal(objectives.document,true);
+ const base=['repo.read','repo.grep','document.create','artifact.read','media.library'].map(name=>({
+  name,inputSchema:{type:'object',properties:{
+   format:{type:'string'},output:{type:'string'},title:{type:'string'},
+   content:{type:'string'},sheets:{type:'array'},requireFormulas:{type:'boolean'},
+   documentContract:{type:'object'},requireDocumentValidation:{type:'boolean'}},required:[]}
+ }));
+ const policy={accept:()=>true,artifactRoot:'.jarvis-artifacts/qwen-general/general-11111111-1111-4111-8111-111111111111/'};
+ const offered=generalToolCatalog({list:()=>base},policy,objectives,instruction);
+ assert.equal(offered.some(tool=>tool.name==='repo.read'||tool.name==='repo.grep'),false);
+ assert.equal(offered.find(tool=>tool.name==='document.create')?.inputSchema.properties.requireFormulas.const,true);
+ const workbook=groundedPurchaseWorkbookFromInstruction(instruction);
+ assert.deepEqual(workbook.expected.items,[{name:'cuadernos',amount:36},{name:'lápices',amount:18},{name:'carpetas',amount:27}]);
+ assert.equal(workbook.expected.total,81);
+ const selected=prioritizeGeneralOfficeCatalog(offered,[],instruction);
+ assert.equal(selected.length,1);
+ assert.equal(selected[0].name,'document.create');
+ assert.equal(selected[0].inputSchema.properties.requireFormulas.const,true);
+ assert.deepEqual(selected[0].inputSchema.properties.sheets.const,workbook.sheets);
+ assert.deepEqual(workbook.sheets[0].rows.at(-1),['Total','','=SUM(C2:C4)']);
+ assert.equal(groundedPurchaseWorkbookFromInstruction(instruction.replace('36 pesos','-36 pesos')),null,'cannot bind a negative amount from an ambiguous receipt');
+});
+
 test('finite source data amounts are needed for spreadsheets unless explicit fictional examples',()=>{
  assert.deepEqual(missingMissionInputs('Crear Excel con pagos y saldo de $1000 MXN y dos movimientos de $300 MXN'),[]);
  assert.deepEqual(missingMissionInputs('Crear Excel de pagos ficticios como ejemplo sin datos privados'),[]);
