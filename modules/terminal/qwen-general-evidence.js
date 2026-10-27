@@ -204,7 +204,7 @@ export function researchSourceProofs(receipts,instruction=''){
     return rows.filter(r=>r.name==='browser.inspect'&&urls.has(r.observation.url)&&r.observation.dom).map(r=>{
         const dom=r.observation.dom,title=researchText(dom.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||'');
         const content=(dom.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1]||dom).replace(/<(nav|header|footer|aside)\b[^>]*>[\s\S]*?<\/\1>/gi,'');
-        const paragraphs=[...content.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map(m=>researchText(m[1]));
+        const paragraphs=[...content.matchAll(/<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map(m=>researchText(m[2]));
         if(!paragraphs.length)paragraphs.push(researchText(content));
         const terms=title.toLowerCase().match(/[\p{L}\p{N}]{5,}/gu)||[];
         const quotes=[...new Set(paragraphs.filter(p=>p.split(/\s+/).length>=8).map(p=>p.split(/\s+/).slice(0,20).join(' ')).filter(q=>q.length>=32&&researchText(content).includes(q)&&!/[{};]/.test(q)&&!/\.ast-|menu-item-|display:|line-height:|vertical-align:|@media|css\b/i.test(q)&&researchQuoteRelevant(q,instruction,title)))].slice(0,8);

@@ -17,6 +17,18 @@ const build=(count=3)=>[
 const prompt='Investiga aire acondicionado residencial con tres fuentes independientes y entrega informe DOCX y PDF.';
 const mock=(name)=>({name,inputSchema:{type:'object',properties:{format:{type:'string'},title:{type:'string'},content:{type:'string'},output:{type:'string'},url:{type:'string'},query:{type:'string'}},required:[]}});
 
+test('relevant HVAC list item is quotable while a menu list cannot impersonate a source',()=>{
+ const url='https://www.energystar.gov/saveathome/heating-cooling/maintenance-checklist';
+ const instruction='Investiga mantenimiento preventivo de aire acondicionado residencial con fuentes independientes.';
+ const search={name:'web.research',ok:true,observation:{ok:true,sources:[{url}]}};
+ const inspected={name:'browser.inspect',ok:true,args:{url},observation:{ok:true,url,
+  dom:'<html><title>Maintenance Checklist | ENERGY STAR</title><nav><ul><li>Sign in for free and click on any navigation menu item to continue viewing maintenance services.</li></ul></nav><main><ul><li>Check and inspect the condensate drain in your central air conditioner to prevent water damage and indoor humidity issues.</li></ul></main></html>'}};
+ const proof=researchSourceProofs([search,inspected],instruction);
+ assert.equal(proof.length,1);
+ assert.equal(proof[0].quotes.length,1);
+ assert.match(proof[0].quotes[0],/condensate drain in your central air conditioner/);
+ assert.ok(!proof[0].quotes[0].includes('Sign in'));
+});
 test('unquoted third page cannot release a document to Qwen',()=>{
  const rows=build(3);
  rows.at(-1).observation.dom='<html><title>Empty government directory</title><main>Navigation only</main></html>';
