@@ -26,6 +26,15 @@ test('three user-provided HTTPS source URLs are searched separately, never credi
  ];
  const instruction='Investiga mantenimiento preventivo de aire acondicionado residencial con tres fuentes independientes. URLs: '+urls.join(' ; ')+'. No crees archivos ni modifiques codigo.';
  const catalog=['web.research','browser.inspect'].map(mock);
+ const goals=generalObjectives(instruction);
+ assert.equal(goals.research,true);
+ assert.equal(goals.document,false);
+ const runtime={list:()=>catalog};
+ const policy={accept:()=>true,artifactRoot:'.jarvis-artifacts/qwen-general/general-fixture/'};
+ const liveCatalog=generalToolCatalog(runtime,policy,goals,instruction);
+ const routed=prioritizeGeneralAdvertisingCatalog(liveCatalog,[],goals,instruction);
+ assert.deepEqual(routed.map(t=>t.name),['web.research']);
+ assert.equal(routed[0].inputSchema.properties.seedUrl.const,urls[0]);
  const first=prioritizeResearchDiscovery(catalog,[],instruction);
  assert.deepEqual(first.map(x=>x.name),['web.research']);
  assert.equal(first[0].inputSchema.properties.seedUrl.const,urls[0]);

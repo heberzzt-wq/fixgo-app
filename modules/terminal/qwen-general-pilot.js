@@ -344,7 +344,7 @@ export function prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives=
                 return reader?[reader]:[];
             }
         }
-        if(objectives.research&&requiredDeliveryFormats(instruction).length){
+        if(objectives.research){
             const verifiedSources=independentResearchProofs(receipts,instruction);
             if(verifiedSources.length<3)return prioritizeResearchDiscovery(grounded,receipts,instruction);
         }
