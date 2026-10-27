@@ -27,6 +27,19 @@ test('broad senior requests route to engineering without magic bug keyword',()=>
  'Crea una pagina HTML comercial.','Cuanto es dos mas dos?'])
   assert.equal(generalObjectives(text).code,false,text);
 });
+test('GP02 compra de prueba remains an XLSX office mission, never a repository audit',()=>{
+ const prompt='Crea un Excel descargable para una compra de prueba: cuadernos 36 pesos, lápices 18 pesos y carpetas 27 pesos. Usa columnas Concepto, Categoría y Pesos; incluye un total calculado con fórmula. Conserva esos nombres e importes y no consultes ni modifiques la plataforma.';
+ const goals=generalObjectives(prompt);
+ assert.equal(goals.document,true,'physical spreadsheet remains required');
+ assert.equal(goals.code,false,'purchase of trial stationery is not software testing');
+ assert.equal(goals.records,false,'negative platform constraint grants no records access');
+ const {document}=goals;
+ assert.equal(document,true);
+ for(const genuine of ['Audita el código backend y ejecuta pruebas','Ejecuta pruebas unitarias del repositorio']){
+  assert.equal(generalObjectives(genuine).code,true,genuine);
+ }
+});
+
 test('cross-layer mission targets authenticated browser, bridge and executor sources in real repository',()=>{
  assert.deepEqual(required,['modules/terminal/qwen-direct-transport.js','jarvis-workstation-health.js','jarvis-qwen-tool-bridge.js']);
  const catalog=['repo.read','repo.grep','tests.run'].map(tool);

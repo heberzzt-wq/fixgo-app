@@ -112,7 +112,9 @@ export function generalEngineeringRequested(instruction=''){
  if((pageArtifact||officeArtifact)&&!explicitCodeAudit)return false;
  const engineeringObject=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|autenticacion|sesiones?|firebase|bridge|arquitectura|dependencias|seguridad|kyc|pruebas?|tests?|programacion|implementacion|modulos?\s+de\s+codigo)\b/u;
  const engineeringAction=/\b(?:audita|auditar|rastrea|rastrear|revisa|revisar|analiza|analizar|depura|depurar|diagnostica|diagnosticar|investiga|investigar|verifica|verificar|evalua|evaluar|refactoriza|refactorizar|implementa|implementar|programa|programar|escribe|escribir|desarrolla|desarrollar|prueba|probar|ejecuta|ejecutar|corrige|corregir|repara|reparar|explica|explicar)\b/u;
- const softwareContext=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|firebase|bridge|kyc|arquitectura\s+de\s+(?:autenticacion|software)|pruebas?|tests?|programacion)\b/u;
+ // Generic 'prueba' can be an Excel purchase example, not software testing.
+ // Require a software source/technology or an explicitly qualified test suite.
+ const softwareContext=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|firebase|bridge|kyc|arquitectura\s+de\s+(?:autenticacion|software)|programacion|pruebas?\s+(?:unitarias?|automatizadas?|de\s+(?:integracion|regresion|concurrencia|codigo))|tests?\s+(?:unitarios?|automatizados?|de\s+(?:software|codigo)))\b/u;
  return engineeringAction.test(s)&&engineeringObject.test(s)&&softwareContext.test(s);
 }
 export function generalRecordsRequested(instruction=''){
