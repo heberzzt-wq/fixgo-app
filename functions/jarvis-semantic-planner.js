@@ -3105,7 +3105,7 @@ function bindEvidencePrerequisites(catalog, tasks = [], evidenceCatalog = catalo
     });
 }
 
-async function generateStagedCompletionAudit({ai, request, catalog}) {
+async function generateStagedCompletionAudit({ai, request, catalog, contextTokens}) {
     const messages=request.config.chatMessages;
     const isCatalog=m=>m.content.startsWith('CATALOGO_EJECUTABLE=');
     const schema=structuredClone(request.config.responseJsonSchema);
@@ -3137,12 +3137,35 @@ async function generateStagedCompletionAudit({ai, request, catalog}) {
             ...(uniformMetadata?{metadataColumns}:{}),
             metadata:uniformMetadata?metadata.map(item=>metadataColumns.map(key=>item[key])):metadata,rows})};
     });
-    const selection=await ai.models.generateContent({...request,config:{...request.config,
-        semanticStage:'COMPLETION_AUDIT_TOOL_SELECTION',
-        chatMessages:[...selectionMessages,currentAssessment,{role:'system',content:'Selecciona solo el índice cero-based de una fila del catálogo que avance un objetivo pendiente. No redactes argumentos ni certifiques cumplimiento. Usa index=-1 si no hay operación fundamentada.'}],
-        responseJsonSchema:{type:'object',properties:{index:{type:'integer',enum:[-1,...catalog.map((_,index)=>index)]}},required:['index'],additionalProperties:false},maxOutputTokens:96}});
-    if(selection?.providerResponse?.finishReason==='length')throw new Error('SEMANTIC_COMPLETION_AUDIT_INCOMPLETE');
-    const selectedIndex=extractJsonObject(String(selection?.text||'')).index;
+    const encodedCatalog=JSON.parse(selectionMessages.find(isCatalog).content.slice('CATALOGO_EJECUTABLE='.length));
+    // Partition only candidates, never evidence or authority. Each index belongs
+    // to that request's rows and is mapped back before the final comparison.
+    const selectCandidates=async indices=>{
+        const scopedMessages=selectionMessages.map(m=>isCatalog(m)?{...m,content:'CATALOGO_EJECUTABLE='+JSON.stringify({
+            ...encodedCatalog,rows:indices.map(index=>encodedCatalog.rows[index])})}:m);
+        const selectionRequest={...request,config:{...request.config,
+            semanticStage:'COMPLETION_AUDIT_TOOL_SELECTION',
+            chatMessages:[...scopedMessages,currentAssessment,{role:'system',content:'Selecciona solo el índice cero-based de una fila del catálogo que avance un objetivo pendiente. No redactes argumentos ni certifiques cumplimiento. Usa index=-1 si no hay operación fundamentada.'}],
+            responseJsonSchema:{type:'object',properties:{index:{type:'integer',enum:[-1,...indices.map((_,index)=>index)]}},required:['index'],additionalProperties:false},maxOutputTokens:96}};
+        const size=JSON.stringify(selectionRequest.config.chatMessages).length+JSON.stringify(selectionRequest.config.responseJsonSchema).length;
+        if(size>contextTokens*3){
+            if(indices.length<=2)throw new Error('LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION');
+            const middle=Math.ceil(indices.length/2);
+            const left=await selectCandidates(indices.slice(0,middle));
+            const right=await selectCandidates(indices.slice(middle));
+            const finalists=[left,right].filter(index=>index!==-1);
+            if(!finalists.length)return -1;
+            if(finalists.length===1)return finalists[0];
+            return selectCandidates(finalists);
+        }
+        const selection=await ai.models.generateContent(selectionRequest);
+        if(selection?.providerResponse?.finishReason==='length')throw new Error('SEMANTIC_COMPLETION_AUDIT_INCOMPLETE');
+        const index=extractJsonObject(String(selection?.text||'')).index;
+        if(index===-1)return -1;
+        if(!Number.isInteger(index)||index<0||index>=indices.length)throw new Error('SEMANTIC_TOOL_NOT_ALLOWED');
+        return indices[index];
+    };
+    const selectedIndex=await selectCandidates(catalog.map((_,index)=>index));
     if(selectedIndex===-1)return audit;
     const tool=Number.isInteger(selectedIndex)?catalog[selectedIndex]:null;
     if(!tool)throw new Error('SEMANTIC_TOOL_NOT_ALLOWED');
@@ -5216,7 +5239,7 @@ async function runModelSemanticPlanner({
         };
         const generateAudit = request => !repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens)) &&
             JSON.stringify(request.config.chatMessages).length+JSON.stringify(request.config.responseJsonSchema).length>Number(missionState.modelContextTokens)*3
-            ? generateStagedCompletionAudit({ai,request,catalog:selectableCatalog})
+            ? generateStagedCompletionAudit({ai,request,catalog:selectableCatalog,contextTokens:Number(missionState.modelContextTokens)})
             : require('./jarvis-repository-audit-codec.cjs').generateRepositoryAudit({
             ai,request:{...request,config:{...request.config,repositoryObjectiveScopes:missionState.evidenceObjectives,
                 repositoryOriginalTasks:fullAuditTasks,repositoryEvidenceView}},

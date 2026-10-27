@@ -235,6 +235,59 @@
             "result": "Invalid JSON in mission contract recovered only partially; spreadsheet formulas failed; COMPLETION_AUDIT still exceeds context; no artifact"
           }
         ]
+      },
+      "gp02ContextPartition": {
+        "asOf": "2026-10-27T04:03:32.181Z",
+        "status": "CONTEXT_RECOVERY_CONFIRMED_OFFLINE_MISSION_STILL_FAILED",
+        "sourceMission": "MISSION-27f51176-f549-4585-8d13-a3aa097acf92",
+        "contextTokens": 8192,
+        "maxRequestChars": 24006,
+        "limitChars": 24576,
+        "tests": {
+          "passed": 8,
+          "failed": 0
+        },
+        "redReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-red.txt",
+        "greenReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt",
+        "physicalReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-physical.json",
+        "ciReceipt": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-ci.txt",
+        "uiRetest": false,
+        "artifactCreated": false,
+        "physical": {
+          "provider": "ollama-openai-compatible-local",
+          "model": "qwen3.5:9b",
+          "contextTokens": 8192,
+          "inferenceCalls": 9,
+          "durationMs": 86312,
+          "contextErrors": 0,
+          "selectedTool": "document.compose",
+          "selectedFormat": "html",
+          "toolExecution": false,
+          "uiMission": false,
+          "semanticSelectionCorrect": false
+        },
+        "ci": {
+          "exitCode": 1,
+          "passed": 1913,
+          "failed": 1,
+          "skipped": 1,
+          "remainingTestsRunSeparately": {
+            "passed": 32,
+            "failed": 0
+          },
+          "failure": "physical repo.search: expected REPO_SEMANTIC_SEARCH_READY, got COMPLETED after Bridge503 BRIDGE_IDENTITY_INVALID",
+          "isolatedFailureReproduced": true
+        },
+        "manifest": {
+          "passed": 14,
+          "failed": 0
+        },
+        "limits": [
+          "Partition increases inference calls:7 selection calls observed.",
+          "Qwen still selects HTML instead of spreadsheet repair.",
+          "No correct XLSX or UI completion demonstrated.",
+          "Bridge running old14b371dc with invalid identity; no restart performed."
+        ]
       }
     },
     "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
@@ -242,7 +295,7 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-26: Objetivo rector y17capacidades integrados preservandoacuerdos. Código14b371dc CI1940PASS/0FAIL/2SKIP. DemostradoUI GP01fisica exacto:21N, unidades y ejercicio48/12=4; analysisId beb8566c-7414-4289-bd8c-86bc20497497. GP02retestMISSION-27f51176 PARTIAL:JSONcontratoinvalido, formulasfallidas ycontextocierre aúnexcedido; noExcel. GP03repo+PDF fallóCURRENT_TURNcontexto; noPDF. Implementado revisiónfidelidad mismaQwen, auditoríapor etapas, metadata reversible ysalidadirecta1024; no generalUseCertified. Checkpoint conarchivos,recibos,procesosypendientes en outputs/jarvis-punto-continuacion.md. Sinpush/deploy.",
+    "lastSessionSummary": "Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes.",
     "infrastructure": {
       "bridge": "Mantenimiento PID12532 iniciado limpio sobre14b371dc; saludverificada idle0. Supervisor3345 pausado;Hosting5000 yOllama11434. SoloQwen3.5:9b8192/45s/prewarm0/150000ms.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
@@ -308,7 +361,9 @@
       "2026-10-26 WEB bec1af4d MISSION-fd282c54-f976-4ddc-9a25-cc65cf8fa21f termino PARTIAL/PLANNER_UNAVAILABLE por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION tras110inferencias. Git/contexto/lecturas tuvieron proof independiente intermedio; luego numerosas lecturas parciales del manifiesto expulsaron cuerpos fuente pequeños y auditor exigio documento completo para reportar hechos. Bridge7428 detenidoidle0. Correccion en curso: rehidratar recibos originales por objetivo y acotar tambien verificador independiente, con identidades/rangos/flags preservados; no certificacion general. Se adelanta latestHandoff en JSON para coincidir con LEE ESTO PRIMERO del Markdown; historial íntegro.",
       "Hito local siguiente: auditoria rehidrata originales SOLO de cada objetivo antes de acotarlos; verificador independiente usa misma proyeccion por alcance con guardas de identidad/hash/rangos/prefijo/flags y falla cerrado si desaparece fuente citada. Pruebas dirigidas nuevas+existentes54/54 y codec/proof29/29. Desbordamiento restante localizado en recuperacion: messages17345+schema7636 duplicado >24576. Sharing reversible de schemas args ($defs/$ref), expansión exacta al original, mensajes intactos:22530chars; Ollama fisico HTTP200 prompt4046tokens devuelve JSONvalido. No contexto/modelo/permisos ampliados. Navegacion alternativa preparada en scratch no aplicada porque web ya encontro manifiesto. CI completa en curso; nueva prueba WEB pendiente.",
       "CI oficial final por objetivo exit0 {\"pass\":1894,\"fail\":0,\"skipped\":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.",
-      "2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales."
+      "2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales.",
+      "GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.",
+      "Sesion acotada GP02: seleccion particionada por presupuesto preservando evidencia completa,54 candidatos e indices locales. RED27639>24576; GREEN max24006,8/8 dirigidas. Qwen3.5:9b real8192 completo auditoria/7selecciones/argumentos en86.3s,9inferencias,0 fallos de contexto; eligio document.compose HTML, no spreadsheet.compose, sin ejecutar herramientas ni crear archivo. CI fallo:1913pass1fail1skip;32 pruebas restantes pasan separadas (agregado1945pass1fail1skip). Fallo repo.search repetido aislado: Bridge503 BRIDGE_IDENTITY_INVALID en /repo/candidates y /grep; runtime devolvio COMPLETED sin evidencia. No alterar esa prueba para ocultarlo. Manifiesto14/14. Cambios locales, sin push/despliegue/reinicio, Excel y UI siguen pendientes."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -469,7 +524,14 @@
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/oversize-stage-requests.json",
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/native-schema-sharing-physical.json",
       "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci.txt",
-      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci-exit.json"
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci-exit.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-red.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-physical.json",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-ci.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-remaining-tests.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-search-isolated.txt",
+      "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-manifest.txt"
     ],
     "deployment": {
       "status": "BLOCKED_NOT_DEPLOYED",
@@ -503,7 +565,8 @@
     },
     "nextSessionActions": [
       "PRIMERO leer generalPurposeAssistant y este latestHandoff; verificar Git y health antes de actuar.",
-      "Reproducir OFFLINE último COMPLETION_AUDIT de work/gp02-retest-live.json (MISSION-27f51176), medir cada etapa completa incluyendo conversación y esquema; corregir partición reversible sin aumentar8192 ni perder evidencia.",
+      "GP02 contexto: particion comprobada con Qwen real (gp02-budget-physical.json), sin desbordamiento. Pendiente corregir seleccion document.compose HTML y contrato contaminado con fisica/platform_records; preservar instruccion actual y datos de compra. No usar recibo como XLSX entregado.",
+      "Antes de UI/CI fisico: recuperar Bridge con identidad valida de forma controlada. CI actual fallo en repo.search por503 BRIDGE_IDENTITY_INVALID; runtime reporto COMPLETED sin candidatos. Conservar negativos; no relajar prueba ni guardas.",
       "Corregir generación/reparación de fórmulas y ejecutar GP02 exacto desdeUI hasta descargar, abrir y comprobar etiquetas36/18/27 y total81. No fabricar archivo porfuera deJarvis.",
       "Diagnosticar CURRENT_TURN de work/gp03-live.json; preservarlecturarepopolicy+PDF, probar mezcla nueva y salida física.",
       "Mantener limitados los estados; próximos pendientes: investigaciones, adjuntosvisuales y repartoauxiliar. Sinpublicación implícita."
@@ -2141,6 +2204,18 @@
               "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt",
               "outcome": "1938_PASS_0_FAIL_2_SKIP",
               "scope": "Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz."
+            },
+            {
+              "kind": "AUTOMATED_TEST",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt",
+              "outcome": "8_PASS_0_FAIL",
+              "scope": "Ultimo recibo GP02 particionado: conversacion y evidencia conservadas,54 candidatos,indices locales,rechazos y limite24576. No demuestra mision UI."
+            },
+            {
+              "kind": "LOCAL_MODEL_REPLAY",
+              "path": "C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-physical.json",
+              "outcome": "CONTEXT_FITS_SEMANTIC_SELECTION_WRONG",
+              "scope": "Qwen local8192,9 llamadas86.3s; auditoria completa sin overflow. Seleccion HTML incorrecta; sin ejecucion ni UI."
             }
           ]
         },

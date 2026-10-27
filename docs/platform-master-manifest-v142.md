@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26: Objetivo rector y17capacidades integrados preservandoacuerdos. Código14b371dc CI1940PASS/0FAIL/2SKIP. DemostradoUI GP01fisica exacto:21N, unidades y ejercicio48/12=4; analysisId beb8566c-7414-4289-bd8c-86bc20497497. GP02retestMISSION-27f51176 PARTIAL:JSONcontratoinvalido, formulasfallidas ycontextocierre aúnexcedido; noExcel. GP03repo+PDF fallóCURRENT_TURNcontexto; noPDF. Implementado revisiónfidelidad mismaQwen, auditoríapor etapas, metadata reversible ysalidadirecta1024; no generalUseCertified. Checkpoint conarchivos,recibos,procesosypendientes en outputs/jarvis-punto-continuacion.md. Sinpush/deploy.
+**Resumen:** GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -87,6 +87,7 @@
 - Hito local siguiente: auditoria rehidrata originales SOLO de cada objetivo antes de acotarlos; verificador independiente usa misma proyeccion por alcance con guardas de identidad/hash/rangos/prefijo/flags y falla cerrado si desaparece fuente citada. Pruebas dirigidas nuevas+existentes54/54 y codec/proof29/29. Desbordamiento restante localizado en recuperacion: messages17345+schema7636 duplicado >24576. Sharing reversible de schemas args ($defs/$ref), expansión exacta al original, mensajes intactos:22530chars; Ollama fisico HTTP200 prompt4046tokens devuelve JSONvalido. No contexto/modelo/permisos ampliados. Navegacion alternativa preparada en scratch no aplicada porque web ya encontro manifiesto. CI completa en curso; nueva prueba WEB pendiente.
 - CI oficial final por objetivo exit0 {"pass":1894,"fail":0,"skipped":2}. Candidato local ligado a hashes de archivos de codigo; siguiente commit/arranque/retest web, sin push/deploy.
 - 2026-10-26 objetivo general del propietario integrado en generalPurposeAssistant: 17 capacidades con planeado/implementado/demostradoUI separados, pendientes, recursos, aceptación y recibos. Conserva 57 frentes y governance; no declara utilidad general ni eleva pruebas internas a UI. Política de checkpoint al1% restante de cuota, independiente de créditos adicionales.
+- GP02 MISSION-27f51176: reproducido offline ultimo paquete completo. Seleccion excedia24576chars (27639 con veredicto de prueba); catalogo particionado por presupuesto, conserva evidencia/conversacion y compara ganadores con indices locales validados. 8/8 dirigidas; mayor paquete24006. No prueba Excel final ni UI; CI y Qwen fisico en curso. Bridge responde pero identidad invalida por SHA cargado14b371dc frente HEAD70a7d55f; sin reinicio/push/deploy.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -270,6 +271,8 @@
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/native-schema-sharing-physical.json`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/objective-view-ci-exit.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-red.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt`
 
 ### Reporte diario automatico
 
@@ -364,7 +367,7 @@
 - **Pendiente:** Cerrar presupuestos y retención de datos en misiones compuestas. Pruebas UI nuevas GP01/GP02/GP03 fallidas sobre80dfd4b2; ver currentLocalEvidence.generalPurposeIteration.uiAttempts. Correcciones de salida/contexto requieren retest.
 - **Recursos faltantes o por comprobar:** No se identificó un recurso externo faltante en este corte; quedan implementación y pruebas, no garantía de disponibilidad.
 - **Aceptación:** Reanudar un pedido nuevo conservando restricciones y fuentes; sin relecturas cíclicas ni éxito ficticio.
-- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`; `AUTOMATED_TEST` 1938_PASS_0_FAIL_2_SKIP — Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt`
+- **Recibos de implementación (no UI):** `SOURCE_AUDIT` NO_LISTO_PARA_USO_GENERAL — 71 herramientas registradas; 14 excluidas; 12 familias revisadas. Registro no equivale a ejecución. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/outputs/jarvis-auditoria-herramientas.json`; `AUTOMATED_TEST` 1926_PASS_0_FAIL_2_SKIP — Suite local de regresión; no demuestra utilidad UI ni certifica producción. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-evidence-final-ci.txt`; `AUTOMATED_TEST` 1938_PASS_0_FAIL_2_SKIP — Auditoría por etapas y revisión de fidelidad integradas; todavía no demostradas en interfaz. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/general-purpose-ci-verified.txt`; `AUTOMATED_TEST` 8_PASS_0_FAIL — Ultimo recibo GP02 particionado: conversacion y evidencia conservadas,54 candidatos,indices locales,rechazos y limite24576. No demuestra mision UI. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/gp02-budget-green.txt`
 - **Recibos UI:** `UI_MISSION` COMPLETED — Historial real de ocho commits y resumen agregado visible; estado limpio. No lista individual de ocho SHA en la respuesta. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-reuse-web-success-trace.json`; `UI_MISSION` COMPLETED — Consulta consecutiva del manifiesto: 1905 pruebas aprobadas, 0 fallidas, 2 omitidas y pendientes documentados, respuesta visible. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/manifest-reuse-web-success-trace.json`; `UI_MISSION` PARTIAL — Excel gastos120+80+50: fórmula válida; tornillos/transporte reemplazados por true; cierre excede contexto; ningún archivo escrito. — `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/audit-excel-final-live.json`
 
 ### Planificación y selección de herramientas — criterio y pendientes
