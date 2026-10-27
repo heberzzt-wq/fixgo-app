@@ -16,7 +16,7 @@ export function trustedCodePreviewContext(missionId,instruction=''){
        !codePreviewOnlyRequested(instruction))return {};
     return {objectiveId:'QWEN_PREVIEW_'+missionId,caseId:missionId};
 }
-import {requiredDeliveryFormats,missingMissionInputs,unavailableMissionOperations,unfulfilledDownloadFormats,prioritizeGeneralOfficeCatalog} from './qwen-general-contract.js';
+import {requiredDeliveryFormats,missingMissionInputs,unavailableMissionOperations,unfulfilledDownloadFormats,prioritizeGeneralOfficeCatalog,requestedSourceDocumentFile,sourceBoundDidacticPdfContent} from './qwen-general-contract.js';
 
 function variantSelections(formats){
     const variants=formats.map(f=>({id:'w'+f.properties.width.const+'-h'+f.properties.height.const,width:f.properties.width.const,height:f.properties.height.const,mimeType:'image/png'}));
@@ -36,6 +36,7 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
         ...(objectives?.advertising?['advertising.research','media.library','image.adapt','media.analyze','artifact.read','browser.inspect',...(objectives.reel?['speech.synthesize','reel.create']:[])]:[]),
         ...(objectives?.capabilities?['system.capabilities']:[]),
         ...(objectives?.code?['repo.search','repo.grep','repo.read',...(objectives.architecture?['repo.graph']:[]),'repo.diagnose','repo.prepareWrite','tests.run','repo.gitStatus']:[]),
+        ...(objectives?.sourceDocument?['repo.read']:[]),
         ...(objectives?.research&&!objectives?.advertising?['web.research','browser.inspect']:[]),
         ...(objectives?.records?['repo.search','repo.read','platform.query']:[]),
         ...(objectives?.page?['page.create','browser.open','browser.inspect','browser.screenshot','media.analyze','artifact.read']:[]),
@@ -56,7 +57,10 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
             p.refresh={type:'boolean',const:true};p.maxFiles={type:'integer',const:5000};p.maxFileSizeBytes={type:'integer',const:800000};
             t.inputSchema.required=['refresh','maxFiles','maxFileSizeBytes'];t.inputSchema.additionalProperties=false;
         }
-        if(tool.name==='repo.read'&&!objectives.code)p.file={type:'string',enum:['app-registro.js','panel-admin.js','b2c-technician-profile.js','gestia-core/contracts/b2c-platform-contract.js']};
+        if(tool.name==='repo.read'&&objectives.sourceDocument){
+            p.file={type:'string',const:requestedSourceDocumentFile(instruction)};
+            t.inputSchema.required=[...new Set([...(t.inputSchema.required||[]),'file'])];
+        }else if(tool.name==='repo.read'&&!objectives.code)p.file={type:'string',enum:['app-registro.js','panel-admin.js','b2c-technician-profile.js','gestia-core/contracts/b2c-platform-contract.js']};
         if(tool.name==='platform.query'){
             p.collection={type:'string',const:'users'};p.mode={type:'string',const:'query'};
             t.inputSchema.required=[...new Set([...(t.inputSchema.required||[]),'mode'])];
@@ -331,13 +335,30 @@ export function prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives=
         return [];
     }
     if(!objectives.advertising){
+        if(objectives.sourceDocument){
+            const file=requestedSourceDocumentFile(instruction);
+            const grounded=sourceBoundDidacticPdfContent(instruction,receipts);
+            if(!grounded){
+                if(receipts.some(r=>r.name==='repo.read'&&r.args?.file===file))return [];
+                const reader=catalog.find(t=>t.name==='repo.read');
+                return reader?[reader]:[];
+            }
+        }
         if(objectives.research&&requiredDeliveryFormats(instruction).length){
             const verifiedSources=independentResearchProofs(receipts,instruction);
             if(verifiedSources.length<3)return prioritizeResearchDiscovery(grounded,receipts,instruction);
         }
         const office=prioritizeGeneralOfficeCatalog(grounded,receipts,instruction);
         if(office!==null&&!objectives.records&&(!objectives.research||independentResearchProofs(receipts,instruction).length>=3)){
-            if(!objectives.research)return office;
+            if(!objectives.research){
+                if(!objectives.sourceDocument)return office;
+                const bound=sourceBoundDidacticPdfContent(instruction,receipts);
+                if(!bound)return [];
+                return office.map(tool=>tool.name==='document.create'?{
+                    ...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
+                        content:{type:'string',const:bound}}}
+                }:tool);
+            }
             const bound=researchOfficeContent(receipts,instruction);
             if(!bound)return [];
             return office.map(tool=>{

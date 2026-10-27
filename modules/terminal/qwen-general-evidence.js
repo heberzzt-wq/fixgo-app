@@ -1,6 +1,6 @@
 import {mediaDeliveryGaps,verifyMediaDelivery} from './qwen-general-media.js';
 import {verifiedPosterCopy} from './qwen-poster-proof.js';
-import {requiredDeliveryFormats,unfulfilledDownloadFormats,unavailableMissionOperations} from './qwen-general-contract.js';
+import {requiredDeliveryFormats,unfulfilledDownloadFormats,unavailableMissionOperations,requestedSourceDocumentFile,sourceBoundDidacticPdfContent} from './qwen-general-contract.js';
 import '../../gestia-core/contracts/b2c-platform-contract.js';
 export const GENERAL_COUNT_FIELDS=['rol','role','tipo_cuenta','account_type','b2b_activo','sub_type','subtype'];
 // A code architecture survey requires the REAL repository graph, not six
@@ -139,7 +139,14 @@ export function generalObjectives(instruction){
     const requestedImageFormats=advertising?[...new Map([...s.matchAll(/\b(\d{2,4})\s*[x×]\s*(\d{2,4})\b/g)].map(m=>[m[1]+'x'+m[2],{width:Number(m[1]),height:Number(m[2])}])).values()]:[];
     const normalized=s.normalize('NFD').replace(/\p{M}/gu,'');
     const architecture=code&&/\b(?:arquitectura|grafo|dependencias?|arbol|arboles)\b/u.test(normalized)&&/\b(?:repositorio|repo|codigo|proyecto)\b/u.test(normalized);
-    return {code,architecture,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:/landing|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/.test(s),
+    const requestedFormats=requiredDeliveryFormats(s);
+    // A one-page PDF is a document, not a new website. Mixed page+PDF requests
+    // retain both goals only when web/HTML/landing is independently explicit.
+    const explicitWebPage=/\blanding\b|\bp[aá]gina\s+(?:web|html)\b|\bhtml\b/iu.test(s);
+    const pageRequested=/\blanding\b|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/iu.test(s)&&
+        (!requestedFormats.includes('pdf')||explicitWebPage);
+    const sourceDocument=Boolean(requestedSourceDocumentFile(instruction));
+    return {code,architecture,sourceDocument,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:pageRequested,
         records:!code&&generalRecordsRequested(instruction),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
         ...(requestedImageFormats.length?{requestedImageFormats}:{}),current:/actual|reciente|hoy|vigente/.test(s),unsupported:reel||advertising||/imagen/.test(s)||generalRestrictedActionRequested(s)};
 }
@@ -439,6 +446,23 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
                 check('isolated fix and before-after regression receipts',false,'ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED');
             else check('patch explicitly remains unapplied',!!preview&&preview.written===false,'CODE_PREVIEW_MUTATION_FORBIDDEN');
         }
+    }
+    if(objectives.sourceDocument){
+        const bound=sourceBoundDidacticPdfContent(instruction,receipts);
+        check('requested repository source read before educational PDF',!!bound,
+            'REPOSITORY_SOURCE_READ_BEFORE_PDF_REQUIRED');
+        const created=rows.find(r=>r.name==='document.create'&&r.args?.format==='pdf'&&r.args?.content===bound);
+        const proof=created?.observation?.pdfContentProof;
+        const sha=created?.observation?.sha256||created?.observation?.artifact?.sha256;
+        const model=/export\s+const\s+JARVIS_LOCAL_MODEL\s*=\s*['"]([^'"]+)['"]/u.exec(
+            rows.find(r=>r.name==='repo.read')?.observation?.verifiedRead?.content||'')?.[1];
+        const computedForce=/=\s*([\d.]+)\s*N\./u.exec(bound||'')?.[1];
+        check('one-page source-bound PDF with physically inspected didactic text',
+            Boolean(bound&&created&&proof?.verified===true&&proof?.pages===1&&
+                proof.sourceSha256===sha&&typeof proof.extractedText==='string'&&
+                model&&proof.extractedText.includes(model)&&
+                computedForce&&proof.extractedText.includes(computedForce+' N')),
+            'SOURCE_BOUND_SINGLE_PAGE_PDF_UNVERIFIED');
     }
     if(objectives.research&&!objectives.advertising){
         const sources=rows.filter(r=>r.name==='web.research').flatMap(r=>r.observation.sources||[]);

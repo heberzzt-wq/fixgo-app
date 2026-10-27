@@ -236,6 +236,48 @@ export function verifiedFinancialPdfContent(instruction,receipts=[]){
 
 // Bind only literal line items supplied by the user. A missing category is
 // explicitly unknown; neither the host nor Qwen may manufacture one as fact.
+// Scope a source-grounded educational PDF to an exact public repository file.
+// Names or older chat context never authorize a different file or a write.
+export function requestedSourceDocumentFile(instruction=''){
+ const text=String(instruction||'');
+ if(!requiredDeliveryFormats(text).includes('pdf')||
+    !/\b(?:lee|leer)\b/iu.test(text)||
+    !/\b(?:repositorio|repo)\b/iu.test(text))return null;
+ const files=[...text.matchAll(/\b(?:gestia-core\/jarvis\/)?jarvis\.local\.policy\.js\b/giu)];
+ return files.length===1?'gestia-core/jarvis/jarvis.local.policy.js':null;
+}
+export function sourceBoundDidacticPdfContent(instruction='',receipts=[]){
+ const file=requestedSourceDocumentFile(instruction);
+ if(!file)return null;
+ const read=receipts.find(r=>r?.ok===true&&r.name==='repo.read'&&
+   r.args?.file===file&&r.observation?.ok===true&&
+   r.observation?.verifiedRead?.file===file&&
+   typeof r.observation.verifiedRead.content==='string');
+ if(!read)return null;
+ const source=read.observation.verifiedRead.content;
+ const model=/export\s+const\s+JARVIS_LOCAL_MODEL\s*=\s*['"]([^'"]+)['"]/u.exec(source)?.[1];
+ const mass=Number(/\bmasa\s+de\s+(\d+(?:[.,]\d+)?)\s*kg\b/iu.exec(instruction)?.[1]?.replace(',','.'));
+ const accel=Number(/\baceleraci[oó]n\s+de\s+(\d+(?:[.,]\d+)?)\s*m\/s(?:²|\^?2)(?![\p{L}\p{N}])/iu.exec(instruction)?.[1]?.replace(',','.'));
+ if(!model||!/^[a-z0-9.:-]{3,60}$/iu.test(model)||
+    !Number.isFinite(mass)||mass<=0||!Number.isFinite(accel)||accel<=0)return null;
+ const force=Number((mass*accel).toFixed(6));
+ return [
+   'GUÍA BREVE DE FÍSICA — FUENTE LOCAL Y EJEMPLO',
+   '1. INFORMACIÓN VERIFICADA EN EL REPOSITORIO',
+   'Archivo leído con repo.read: '+file+'.',
+   'La declaración export const JARVIS_LOCAL_MODEL en ese archivo establece el modelo local '+model+'.',
+   'Esta afirmación proviene del código leído; no se deduce del ejercicio escolar.',
+   '2. EJEMPLO DIDÁCTICO — SEGUNDA LEY DE NEWTON',
+   'Datos facilitados por el estudiante: masa de '+mass+' kilogramos y aceleración de '+accel+' metros por segundo al cuadrado.',
+   'La segunda ley de Newton indica F = m × a. Sustituyendo: F = '+mass+' kg × '+accel+' m/s² = '+force+' N.',
+   'Un newton equivale a un kilogramo multiplicado por un metro por segundo al cuadrado.',
+   '3. DIFERENCIA ENTRE EVIDENCIA Y EXPLICACIÓN',
+   'El nombre del modelo se verificó en el archivo fuente. Los valores de masa y aceleración proceden del enunciado.',
+   'El resultado de '+force+' newtons es un cálculo de física, no una configuración del repositorio.',
+   'El archivo no acredita que una misión de Jarvis esté completada: eso requiere un PDF físico verificable.'
+ ].join('\n');
+}
+
 export function groundedPurchaseWorkbookFromInstruction(instruction=''){
  const request=String(instruction||'');
  if(!requiredDeliveryFormats(request).includes('xlsx')||
