@@ -6821,6 +6821,17 @@ JarvisToolRuntime.register({
             }
         }
 
+        let semanticFailure = null;
+        const searchDenied = result => result?.status === "BRIDGE_IDENTITY_INVALID" ||
+            result?.error === "BRIDGE_IDENTITY_INVALID" ||
+            [401, 403].includes(Number(result?.httpStatus)) ||
+            result?.blocked === true || result?.requiresApproval === true;
+        const failedSearch = result => ({
+            ...result, ok: false, success: false, executionOk: false,
+            status: result?.status && result.status !== "COMPLETED" ? result.status : "REPO_SEARCH_FAILED",
+            error: result?.error || "REPO_SEARCH_FAILED", query, tool: "repo.search"
+        });
+
         if (
             query &&
             typeof window?.JarvisLocalBridge?.requestJson === "function"
@@ -6873,8 +6884,11 @@ JarvisToolRuntime.register({
                         }
                     );
 
+                if (searchDenied(semanticResult)) return failedSearch(semanticResult);
+                semanticFailure = failedSearch(semanticResult);
                 if (
                     semanticResult?.ok === true &&
+                    semanticResult?.executionOk !== false &&
                     Array.isArray(
                         semanticResult?.candidates
                     )
@@ -6926,6 +6940,8 @@ JarvisToolRuntime.register({
                 }
             }
             catch(error) {
+                semanticFailure = failedSearch({status: error?.code, error: error?.message || String(error)});
+                if (searchDenied(semanticFailure)) return semanticFailure;
                 console.warn(
                     "[REPO_SEARCH_SEMANTIC_RETRIEVAL_FALLBACK]",
                     error?.message ||
@@ -7074,6 +7090,7 @@ JarvisToolRuntime.register({
                         source:
                             "jarvis_repo_search_bridge_v7"
                     });
+                if (searchDenied(bridgeResult)) return failedSearch(bridgeResult);
             }
             catch(error) {
                 bridgeError =
@@ -7396,6 +7413,15 @@ JarvisToolRuntime.register({
                 )
             ]
                 .slice(0, 40);
+
+        // An unavailable search is not an empty successful search. Cached index
+        // hints cannot certify a live request whose retrievals both failed.
+        const successfulLiveSearch = (bridgeResult?.ok === true && bridgeResult?.executionOk !== false) ||
+            exactFileSearches.some(item => item.result?.ok === true && item.result?.executionOk !== false) ||
+            sourceDefinitions.some(definition => definition.verified === true);
+        const retrievalFailure = bridgeResult && (bridgeResult.ok !== true || bridgeResult.executionOk === false)
+            ? bridgeResult : bridgeError ? {error: bridgeError} : semanticFailure;
+        if (!successfulLiveSearch && retrievalFailure) return failedSearch(retrievalFailure);
 
         return {
             ok: true,
