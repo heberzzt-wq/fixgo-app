@@ -15,7 +15,7 @@ test('latest GP02 receipt partitions selection without losing evidence, candidat
   assert.ok(messages.some(m=>m.content.startsWith('OBJETIVOS_ESTABLECIDOS_INMUTABLES=')));
   if(stage==='COMPLETION_AUDIT')return {text:JSON.stringify({completionAssessment:{objectives:Object.fromEntries(fixture.missionState.evidenceObjectives.map((o,i)=>['objective_'+i,{...o,satisfied:false,evidenceTaskIndexes:[],limitation:'No hay evidencia suficiente ni archivo entregado.'}]))},toolCalls:[]})};
   if(stage==='COMPLETION_AUDIT_TOOL_SELECTION'){
-   assert.ok(messages.some(m=>m.content.startsWith('OBLIGACIONES_DEL_CONTRATO_AUN_PENDIENTES=["spreadsheet.compose"]')),
+   assert.ok(messages.some(m=>m.content.startsWith('HERRAMIENTAS_REQUERIDAS_FALLIDAS=["spreadsheet.compose"]')),
     'previously failed required tool remains available for grounded retry');
    const content=messages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE=')).content;
    const encoded=JSON.parse(content.slice(content.indexOf('=')+1));
@@ -34,10 +34,10 @@ test('latest GP02 receipt partitions selection without losing evidence, candidat
  }}}});
  assert.equal(plan.missionComplete,false);
  assert.equal(plan.toolCalls[0].name,'spreadsheet.compose');
- assert.ok(sizes.filter(s=>s.stage==='COMPLETION_AUDIT_TOOL_SELECTION').length>1);
+ assert.equal(sizes.filter(s=>s.stage==='COMPLETION_AUDIT_TOOL_SELECTION').length,1,'failed contracted tool gets one small Qwen selection');
  assert.equal(new Set(references).size,1,'reference context unchanged in every stage');
  assert.equal(new Set(evidence).size,1,'objectives, failed attempts, rejections and prior progress unchanged in every stage');
- assert.equal(seen.size,54,'every executable tool considered');
+ assert.deepEqual([...seen],['spreadsheet.compose'],'unrelated document tools cannot displace the failed required workbook tool');
  assert.equal(JSON.stringify(fixture),before);
  console.log('GP02_STAGE_SIZES='+JSON.stringify(sizes));
 });

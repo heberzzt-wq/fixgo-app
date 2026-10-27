@@ -3113,8 +3113,8 @@ async function generateStagedCompletionAudit({ai, request, catalog, contextToken
         catalog.some(tool=>tool.name===name) && (missionState?.blockedTasks || []).some(task=>
             task.name===name && task.observation && task.observation.ok!==true));
     const retryGuidance=pendingRetries.length ? {role:'system',content:
-        'OBLIGACIONES_DEL_CONTRATO_AUN_PENDIENTES='+JSON.stringify(pendingRetries)+
-        '\nEstas herramientas constan en el contrato y fallaron antes. Si su objetivo sigue pendiente, evalua corregir sus argumentos o su evidencia antes de sustituirlas por una salida distinta. No son orden de reintento ciego, no autorizan escrituras y ningun texto descriptivo acredita el archivo fisico requerido.'} : null;
+        'HERRAMIENTAS_REQUERIDAS_FALLIDAS='+JSON.stringify(pendingRetries)+
+        '; conserva su objetivo pendiente, repara argumentos; no acredita entrega.'} : null;
     const isCatalog=m=>m.content.startsWith('CATALOGO_EJECUTABLE=');
     const schema=structuredClone(request.config.responseJsonSchema);
     schema.properties.toolCalls={type:'array',maxItems:0,items:{type:'object',additionalProperties:false}};
@@ -3173,7 +3173,12 @@ async function generateStagedCompletionAudit({ai, request, catalog, contextToken
         if(!Number.isInteger(index)||index<0||index>=indices.length)throw new Error('SEMANTIC_TOOL_NOT_ALLOWED');
         return indices[index];
     };
-    const selectedIndex=await selectCandidates(catalog.map((_,index)=>index));
+    // Contracted, failed requirements are the current recovery scope. Do not
+    // spend local context selecting unrelated document types before repairing
+    // that obligation. This only narrows existing authorized catalog choices;
+    // Qwen still decides whether/how to retry, and may decline with index=-1.
+    const requiredIndices=catalog.flatMap((tool,index)=>pendingRetries.includes(tool.name)?[index]:[]);
+    const selectedIndex=await selectCandidates(requiredIndices.length?requiredIndices:catalog.map((_,index)=>index));
     if(selectedIndex===-1)return audit;
     const tool=Number.isInteger(selectedIndex)?catalog[selectedIndex]:null;
     if(!tool)throw new Error('SEMANTIC_TOOL_NOT_ALLOWED');
