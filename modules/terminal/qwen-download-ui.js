@@ -62,7 +62,7 @@ export function appendMissionDownloadCard(host,{missionId,downloads=[],evidenceU
 export async function latestVerifiedRecord(){
  if(!globalThis.indexedDB)return null;
  return new Promise((resolve,reject)=>{
-  const req=indexedDB.open('jarvis-qwen-general-evidence',1);
+  const req=indexedDB.open('jarvis-qwen-general-evidence');
   req.onerror=()=>reject(Error('DOWNLOAD_EVIDENCE_STORE_UNAVAILABLE'));
   req.onsuccess=()=>{
    const db=req.result;
@@ -123,7 +123,7 @@ export function newestMissionEntry(previous,entry){
 export async function restoreLatestMissionFailureCard(host){
  if(!host||!globalThis.indexedDB)return null;
  const candidate=await new Promise((resolve,reject)=>{
-  const open=indexedDB.open('jarvis-qwen-general-evidence',1);
+  const open=indexedDB.open('jarvis-qwen-general-evidence');
   open.onerror=()=>reject(Error('FAILED_MISSION_STORE_UNAVAILABLE'));
   open.onsuccess=()=>{
    const db=open.result;

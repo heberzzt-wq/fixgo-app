@@ -44,7 +44,7 @@ export function planPlatformRecovery({system='',tool={},failure={},attempt=1,
      'REPO_CONTEXT_BUDGET_EXCEEDED','REPO_CONTEXT_OUTPUT_TOO_LARGE',
      'REPO_CONTEXT_SOURCE_TOO_LARGE','REPO_CONTEXT_PROCESS_FAILED',
      'REPO_CONTEXT_PROCESS_TIMEOUT'].includes(code)||
-     (op==='browser.inspect'&&code==='PUBLIC_HTML_ACCESS_DENIED')))
+     (op==='browser.inspect'&&['PUBLIC_HTML_ACCESS_DENIED','SOURCE_HTML_UNVERIFIED'].includes(code))))
   return {status:'RECOVERY_READ_REPLAN_REQUIRED',action:'SELECT_DIFFERENT_AUTHORIZED_READ',
    autoExecute:false,maxAttempts:2,requiresApproval:false,code,system:subsystem,
    originalFailurePreserved:true,independentAuthorizationRequired:true};

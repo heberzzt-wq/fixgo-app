@@ -14,7 +14,7 @@ export function resumedMissionId(text){
 export async function readSavedMission(missionId){
  if(!MISSION.test(missionId)||!globalThis.indexedDB)throw Error('QWEN_RESUME_LOCAL_STORE_REQUIRED');
  const record=await new Promise((resolve,reject)=>{
-  const open=indexedDB.open('jarvis-qwen-general-evidence',1);
+  const open=indexedDB.open('jarvis-qwen-general-evidence');
   open.onerror=()=>reject(Error('QWEN_RESUME_STORE_OPEN_FAILED'));
   open.onsuccess=()=>{
    const db=open.result,tx=db.transaction('missions','readonly'),req=tx.objectStore('missions').get(missionId);

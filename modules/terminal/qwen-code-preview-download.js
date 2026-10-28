@@ -90,7 +90,7 @@ export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge,curr
  const identity=auth.currentUser;
  if(identity.uid!==JARVIS_PRIVATE_RELAY.ownerUid||typeof identity.getIdToken!=='function')return null;
  const candidate=await new Promise((resolve,reject)=>{
-  const req=indexedDB.open('jarvis-qwen-general-evidence',1);
+  const req=indexedDB.open('jarvis-qwen-general-evidence');
   req.onerror=()=>reject(Error('CODE_PREVIEW_STORE_UNAVAILABLE'));
   req.onsuccess=()=>{
    const db=req.result;

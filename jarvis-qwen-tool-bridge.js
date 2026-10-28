@@ -261,6 +261,20 @@ export function createQwenAuthenticatedToolBridge({
             if(!observation || observation.ok!==true || observation.blocked===true ||
                 observation.executionOk===false || observation.requiresInput===true){
                 const missingSourceCode=publicHtmlSourceFailureCode(call.name,observation);
+                // A real browser inspection can return a failed DOM envelope
+                // without its nested HTTP error after platform composition.
+                // This is NOT verified content or proof of HTTP 404. Offer a
+                // different already-discovered source through the authorized
+                // read-only recovery planner; never retry the same URL.
+                const unverifiedDom=call.name==='browser.inspect' &&
+                    observation.status==='BROWSER_INSPECT_DOM_UNAVAILABLE' &&
+                    observation.error==null &&
+                    observation.ok===false && observation.executionOk===false;
+                if(unverifiedDom&&!missingSourceCode){
+                    return {ok:false,executionOk:false,status:'SOURCE_HTML_UNVERIFIED',
+                        error:{code:'SOURCE_HTML_UNVERIFIED'},url:call.args.url,
+                        sourceUnavailable:true,neverClaimedInspected:true};
+                }
                 if(missingSourceCode){
                     return {ok:false,executionOk:false,status:missingSourceCode,
                         error:{code:missingSourceCode},url:call.args.url,
