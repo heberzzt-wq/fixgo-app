@@ -8656,10 +8656,23 @@ export function createJarvisFsBridgeApp({
                 });
             }
             finally {
-                fs.rmSync(profileDir, {
-                    recursive: true,
-                    force: true
-                });
+                // Chrome can release profile files just after its process exits.
+                // An ENOTEMPTY/EPERM cleanup race must never overwrite a real
+                // browser inspection result or turn a source read into a 500.
+                // Only this isolated, freshly-created temporary profile is removed.
+                try {
+                    fs.rmSync(profileDir, {
+                        recursive: true,
+                        force: true,
+                        maxRetries: 6,
+                        retryDelay: 200
+                    });
+                } catch (cleanupError) {
+                    console.warn("[JARVIS_BROWSER_TEMP_CLEANUP_DEFERRED]", {
+                        code: String(cleanupError?.code || "UNKNOWN"),
+                        profile: path.basename(profileDir)
+                    });
+                }
             }
             const relativeOutput = outputFile
                 ? path.relative(path.resolve(root), outputFile).replace(/\\/g, "/")
