@@ -94,6 +94,19 @@ async function readRuntimeContract() {
 
 // Private beta relay. It uses the existing Firebase web session, not CLI
 // credentials. Only the authenticated owner can submit or read these records.
+// Exact authorized HTTPS hosts. A preview phone must never fall through to its
+// own localhost. This is routing only; Firebase owner auth and SHA remain gates.
+const PUBLIC_RELAY_HOSTS = new Set([
+    'fixgo-44e4d.web.app',
+    'fixgo-44e4d.firebaseapp.com',
+    'fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app'
+]);
+export function isJarvisPublicRelayOrigin({
+    hostname = globalThis.location?.hostname,
+    protocol = globalThis.location?.protocol
+} = {}) {
+    return protocol === 'https:' && PUBLIC_RELAY_HOSTS.has(String(hostname || '').toLowerCase());
+}
 const PRIVATE_RELAY_WORKSTATION_KEY = "jarvis.privateRelay.workstation.v1";
 const PRIVATE_RELAY_OWNER_DISABLED_KEY = "jarvis.privateRelay.ownerDisabled.v1";
 const SEMANTIC_TRANSPORT_SILENCE_MS = 45000;
@@ -554,7 +567,7 @@ function configureJarvisPrivateRelay(bridge) {
     };
     bridge.requestJson = async (route, payload = {}, options = {}) => {
         const contract = await readRuntimeContract();
-        const publicOrigin = ["fixgo-44e4d.web.app", "fixgo-44e4d.firebaseapp.com"].includes(globalThis.location?.hostname);
+        const publicOrigin = isJarvisPublicRelayOrigin();
         // A public HTTPS tab must NEVER fall through to the phone's localhost.
         // If the signed private relay is disabled, fail closed with a clear code.
         if(publicOrigin && contract.privateRelayEnabled!==true)

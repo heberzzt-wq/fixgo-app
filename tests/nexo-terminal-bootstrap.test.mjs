@@ -28,6 +28,19 @@ test("historical NEXO bootstrap is Jarvis-only and installs no alternate semanti
     assert.doesNotMatch(bootstrap, /resilienceVersion/);
 });
 
+test('only exact HTTPS production and approved preview hosts use the private relay', async()=>{
+ const {isJarvisPublicRelayOrigin}=await import('../modules/terminal/nexo-bootstrap.js');
+ const yes=['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com',
+   'fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app'];
+ for(const hostname of yes)
+   assert.equal(isJarvisPublicRelayOrigin({hostname,protocol:'https:'}),true,hostname);
+ for(const hostname of ['localhost','127.0.0.1','evil.web.app',
+   'fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app.attacker.test'])
+   assert.equal(isJarvisPublicRelayOrigin({hostname,protocol:'https:'}),false,hostname);
+ assert.equal(isJarvisPublicRelayOrigin({hostname:yes[2],protocol:'http:'}),false);
+ assert.match(bootstrap,/const publicOrigin = isJarvisPublicRelayOrigin\(\)/);
+});
+
 test("NEXO bootstrap remains inert outside the browser", () => {
     assert.match(bootstrap, /environment:\s*"non_browser"/);
     assert.match(bootstrap, /active:\s*false/);
