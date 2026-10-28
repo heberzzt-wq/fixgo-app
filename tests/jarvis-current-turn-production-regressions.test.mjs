@@ -6203,9 +6203,12 @@ test('a mismatched release cannot fall through to direct localhost from public T
     const source=readFileSync(new URL('../modules/terminal/nexo-bootstrap.js',import.meta.url),'utf8');
     const node=parse(source,{sourceType:'module',ecmaVersion:'latest'}).body.find(n=>
         n.type==='FunctionDeclaration'&&n.id.name==='configureJarvisPrivateRelay');
+    const {isJarvisPublicRelayOrigin}=await import('../modules/terminal/nexo-bootstrap.js');
+    assert.equal(isJarvisPublicRelayOrigin({hostname:'fixgo-44e4d.web.app',protocol:'https:'}),true);
     let directCalls=0;
     const configure=runInNewContext('('+source.slice(node.start,node.end)+')',{
-        globalThis:{location:{hostname:'fixgo-44e4d.web.app'}},
+        globalThis:{location:{hostname:'fixgo-44e4d.web.app',protocol:'https:'}},
+        isJarvisPublicRelayOrigin:()=>isJarvisPublicRelayOrigin({hostname:'fixgo-44e4d.web.app',protocol:'https:'}),
         setTimeout:()=>1,clearTimeout:()=>{},privateRelayWorkstationEnabled:()=>true,
         readRuntimeContract:async()=>({privateRelayEnabled:true}),
         shouldUseJarvisPrivateRelay:()=>{throw Error('BYPASS_CHECK_REACHED');}

@@ -41,3 +41,41 @@ test('desktop link handler parses and hidden button cannot leak into mobile layo
  assert.doesNotThrow(()=>parse(body,{ecmaVersion:'latest',sourceType:'script'}));
  assert.match(html,/#btn-relay-workstation\[hidden\] \{ display: none !important; \}/);
 });
+test('failed workstation relay shows persistent JAR code until a verified READY state',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const script=html.split('<script id="terminal-relay-workstation-control">')[1]?.split('</script>')[0];
+ let activate,tick;
+ const button={hidden:true,dataset:{},style:{},
+   addEventListener(type,callback){if(type==='click')activate=callback;},
+   setAttribute(name,value){this[name]=value;}};
+ const document={getElementById:name=>name==='btn-relay-workstation'?button:null,addEventListener(){}};
+ const window={JarvisLocalBridge:{
+   privateRelayState:{status:'NOT_CHECKED',connected:false},
+   enablePrivateRelay:async()=>{throw Error('JARVIS_RELAY_OWNER_REQUIRED');}
+ },addEventListener(){}};
+ runInNewContext(script,{location:{hostname:'127.0.0.1'},
+   navigator:{userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+   document,window,setInterval:callback=>{tick=callback;return 1;}});
+ assert.equal(typeof activate,'function');
+ await activate();
+ tick();
+ assert.match(button.title,/JAR-206/);
+ assert.match(button.title,/sesión|autorización/i);
+ assert.equal(button.dataset.relayIncidentCode,'JAR-206');
+ window.JarvisLocalBridge.privateRelayState={status:'RELEASE_MISMATCH',connected:false};
+ tick();
+ assert.equal(button.dataset.relayIncidentCode,'JAR-203');
+ window.JarvisLocalBridge.privateRelayState={status:'RECONNECTING',connected:false,
+   error:'JARVIS_RELAY_WORKSTATION_UNAVAILABLE'};
+ tick();
+ assert.equal(button.dataset.relayIncidentCode,'JAR-201');
+ window.JarvisLocalBridge.privateRelayState={status:'RECONNECTING',connected:false,
+   error:'SECRET_TOKEN SHOULD NEVER BE RENDERED'};
+ tick();
+ assert.equal(button.dataset.relayIncidentCode,'JAR-900');
+ assert.doesNotMatch(button.title,/SECRET_TOKEN/);
+ window.JarvisLocalBridge.privateRelayState={status:'READY',connected:true};
+ tick();
+ assert.match(button.title,/activo/);
+ assert.equal(button.dataset.relayIncidentCode,'');
+});

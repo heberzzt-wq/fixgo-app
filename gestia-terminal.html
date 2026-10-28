@@ -224,33 +224,57 @@
         if (!button) return;
         button.hidden = false;
         button.dataset.relayControl = 'desktop-only';
+        let lastLinkError = '';
+        // Only owner-facing fixed codes are displayed. Never render raw error
+        // text: an authentication/provider exception may contain private data.
+        function diagnoseLinkError(value) {
+            const raw = String(value || '').toUpperCase();
+            if (!raw) return null;
+            const cases = [
+                ['RELEASE_MISMATCH','JAR-203','Versiones distintas: actualiza la Terminal y revisa el SHA'],
+                ['JARVIS_RELAY_LEASE_HELD','JAR-202','Otra Terminal autorizada mantiene el enlace'],
+                ['JARVIS_RELAY_OWNER_REQUIRED','JAR-206','Sesión privada sin autorización: inicia sesión del propietario'],
+                ['JARVIS_RELAY_OWNER_TOKEN_REQUIRED','JAR-206','Sesión privada sin autorización: inicia sesión del propietario'],
+                ['JARVIS_RELAY_WORKSTATION_UNAVAILABLE','JAR-201','Laptop no enlazada: revisa la Terminal local'],
+                ['JARVIS_RELAY_LOCAL_HEALTH_REQUIRED','JAR-201','Laptop no enlazada: revisa la Terminal local'],
+                ['JARVIS_BRIDGE_NOT_READY','JAR-101','El Bridge no está listo: revisa puerto 3344']
+            ];
+            const match = cases.find(([signature]) => raw.includes(signature));
+            return match ? {code:match[1],action:match[2]} :
+                {code:'JAR-900',action:'Error de enlace no clasificado: consulta el diagnóstico'};
+        }
         function render() {
             const state = window.JarvisLocalBridge?.privateRelayState;
             const ready = ['READY','EXECUTING'].includes(state?.status);
+            if (ready) lastLinkError = '';
             const standby = state?.status === 'STANDBY';
+            const failure = state?.status === 'RELEASE_MISMATCH' ?
+                'JARVIS_RELAY_LOCAL_RELEASE_MISMATCH' : state?.error || lastLinkError;
+            const incident = ready ? null : diagnoseLinkError(failure);
             const label = ready ? 'Enlace privado móvil activo' :
+                incident ? incident.code + ' · ' + incident.action :
                 standby ? 'Enlace móvil atendido por otra Terminal autorizada' :
-                state?.status === 'RELEASE_MISMATCH' ? 'Versiones diferentes: actualiza la Terminal' :
                 'Enlace móvil no confirmado: pulsa para activarlo';
             button.title = label;
             button.setAttribute('aria-label', label);
             button.dataset.relayStatus = String(state?.status || 'NOT_CHECKED');
-            button.style.color = ready ? '#34d399' : '#fbbf24';
+            button.dataset.relayIncidentCode = incident?.code || '';
+            button.style.color = ready ? '#34d399' : incident ? '#f87171' : '#fbbf24';
         }
         button.addEventListener('click', async () => {
             button.disabled = true;
             button.title = 'Verificando enlace privado con autorización del propietario';
             try {
+                lastLinkError = '';
                 const bridge = window.JarvisLocalBridge;
                 if (typeof bridge?.enablePrivateRelay !== 'function')
                     throw new Error('JARVIS_BRIDGE_NOT_READY');
                 await bridge.enablePrivateRelay();
             } catch (error) {
-                button.title = 'Enlace no confirmado: ' + String(error?.message || 'UNAVAILABLE').slice(0, 85);
-                button.dataset.relayStatus = 'FAILED';
+                lastLinkError = String(error?.code || error?.message || 'UNAVAILABLE').slice(0, 120);
             } finally {
                 button.disabled = false;
-                if (window.JarvisLocalBridge?.privateRelayState?.connected) render();
+                render();
             }
         });
         window.addEventListener('focus', render);
