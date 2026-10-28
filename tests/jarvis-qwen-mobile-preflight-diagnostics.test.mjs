@@ -38,3 +38,12 @@ test('public mobile cannot turn itself into a localhost workstation when the own
  assert.match(guarded,/return client.requestJson\(route, payload/);
  assert.doesNotMatch(guarded,/return direct\(/);
 });
+
+test('startup bridge ensure checks the public loopback supervisor contract, not owner-token health',()=>{
+ const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ const ensure=pkg.scripts['bridge:ensure'];
+ assert.ok(ensure.includes("path:'/health'"));
+ assert.ok(!ensure.includes('/workstation/health'));
+ assert.ok(ensure.includes('json?.supervisor?.bridgeVersion'));
+ assert.ok(ensure.includes('json?.supervisor?.workerStarted'));
+});
