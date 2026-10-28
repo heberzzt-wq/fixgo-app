@@ -367,3 +367,59 @@ test('a fabricated or ungrounded singleton URL cannot bypass Qwen or authorizati
  assert.equal(result.status,'PARTIAL');
  assert.equal(result.reason,'MODEL_UNAVAILABLE');
 });
+
+test('three independently inspected sources remain reachable after distinct 404 and 403 failures',async()=>{
+ const {runQwenAuthorizedCycle}=await import('../jarvis-qwen-direct-cycle.js');
+ const dead='https://www.energy.gov/node/374803';
+ const star='https://www.energystar.gov/saveathome/heating-cooling/maintenance-checklist';
+ const blocked1='https://www.sciencedirect.com/science/article/pii/S0378778824012635';
+ const nadca='https://nadca.com/blog/groundbreaking-nadca-energy-study-published-hvac-cleaning-proven-boost-efficiency-and-airflow';
+ const blocked2='https://www.sciencedirect.com/science/article/pii/S0378778825016263';
+ const epa='https://www.epa.gov/indoor-air-quality-iaq/guide-air-cleaners-home';
+ const firstQuery='air conditioner filters official maintenance';
+ const secondQuery='air conditioner filters independent public institution education';
+ const search={name:'web.research',mutates:false,requiresApproval:false,inputSchema:{
+  type:'object',properties:{query:{type:'string'}},required:['query']}};
+ const inspect={name:'browser.inspect',mutates:false,requiresApproval:false,inputSchema:{
+  type:'object',properties:{url:{type:'string'}},required:['url']}};
+ const phases=[null,null,[star],[blocked1],[nadca],[blocked2],null,[epa]];
+ let modelCalls=0,authCalls=0;const physical=[];
+ const result=await runQwenAuthorizedCycle({
+  instruction:'Mantenimiento de filtros residenciales: tres fuentes independientes',
+  catalog:[search,inspect],stepLimit:12,maximumSteps:8,repairIncomplete:true,
+  catalogForEvidence:(_catalog,receipts)=>{
+   const i=receipts.length,choices=phases[i];
+   if(i===0||i===6){return [{...search,inputSchema:{
+    ...search.inputSchema,properties:{query:{type:'string',const:i===0?firstQuery:secondQuery}}} }];}
+   return [{...inspect,inputSchema:{...inspect.inputSchema,properties:{
+    url:{type:'string',enum:choices||[dead,star]}}}}];
+  },
+  selectNextAction:async()=>{
+   modelCalls++;
+   if(modelCalls===1)return {toolCall:{name:'web.research',args:{query:firstQuery}}};
+   if(modelCalls===2)return {toolCall:{name:'browser.inspect',args:{url:dead}}};
+   throw Error('LOCAL_QWEN_HTTP_400');
+  },
+  authorize:async()=>{authCalls++;return {ok:true};},
+  execute:async call=>{
+   physical.push(call);
+   if(call.name==='web.research')return {ok:true,sources:call.args.query===firstQuery?
+    [dead,star,blocked1,nadca,blocked2].map(url=>({url,title:'HVAC filter maintenance'})):
+    [{url:epa,title:'Home air cleaners EPA'}]};
+   if([dead,blocked1,blocked2].includes(call.args.url))return {ok:false,
+    status:call.args.url===dead?'HTTP_404':'PUBLIC_HTML_ACCESS_DENIED',
+    error:{code:call.args.url===dead?'HTTP_404':'PUBLIC_HTML_ACCESS_DENIED'}};
+   return {ok:true,status:'BROWSER_INSPECT_SOURCE_HTML_VERIFIED',
+    url:call.args.url,dom:'<html><title>Air Filters</title><main><p>Residential HVAC filter maintenance recommendations</p></main></html>'};
+  },
+  verifyCompletion:async()=>({ok:false,reason:'THREE_SOURCE_AUDIT_REQUIRED'})
+ });
+ assert.equal(modelCalls,2,'no repeated Qwen grammar request for grounded singleton reads or query');
+ assert.equal(physical.length,8);
+ assert.equal(authCalls,8,'every read is independently authorized');
+ assert.deepEqual(physical.filter(x=>x.name==='web.research').map(x=>x.args.query),[firstQuery,secondQuery]);
+ assert.deepEqual(result.receipts.filter(r=>r.name==='browser.inspect'&&r.ok).map(r=>r.args.url),[star,nadca,epa]);
+ assert.equal(result.receipts.filter(r=>r.name==='browser.inspect'&&!r.ok).length,3);
+ assert.equal(result.decisions.filter(d=>d.hostBound===true).length,6);
+ assert.notEqual(result.status,'SUCCESS','physical reads without independent quotations cannot certify completion');
+});

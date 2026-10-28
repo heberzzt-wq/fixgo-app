@@ -231,10 +231,24 @@ export async function runQwenAuthorizedCycle({
             !receipts.some(r=>r.name==='browser.inspect'&&r.args?.url===fallbackUrl)&&
             receipts.some(r=>r.ok===true&&r.name==='web.research'&&
                 r.observation?.sources?.some(s=>s.url===fallbackUrl));
+        // Once the inspected candidates are exhausted, the host can issue an
+        // explicitly contracted NEW search query constructed from the original
+        // mission and prior receipts. No source is credited by this scheduling
+        // step; it only returns more candidates for independent inspection.
+        const queryValue=fields?.query?.const;
+        const deterministicResearch=!!catalogForEvidence&&single?.name==='web.research'&&
+            single.mutates!==true&&single.requiresApproval!==true&&
+            typeof queryValue==='string'&&queryValue.length>5&&queryValue.length<=400&&
+            required.includes('query')&&required.length>0&&
+            required.every(k=>Object.hasOwn(fields,k)&&Object.hasOwn(fields[k]||{},'const'))&&
+            receipts.some(r=>r.name==='browser.inspect'&&r.ok===false)&&
+            !receipts.some(r=>r.name==='web.research'&&r.args?.query===queryValue);
         let decision;
         try{
             if(deterministic)decision={toolCall:{name:single.name,args:Object.fromEntries(required.map(k=>[k,structuredClone(fields[k].const)]))},hostBound:true};
             else if(deterministicSource)decision={toolCall:{name:'browser.inspect',args:{url:fallbackUrl}},hostBound:true};
+            else if(deterministicResearch)decision={toolCall:{name:'web.research',
+                args:Object.fromEntries(required.map(k=>[k,structuredClone(fields[k].const)]))},hostBound:true};
             else {modelDecisionCount+=1;decision=await selectNextAction({
                 instruction,repositoryMap,
                 tools:offered.map(tool=>{const schema=structuredClone(tool.inputSchema);
@@ -428,8 +442,13 @@ export async function runQwenAuthorizedCycle({
             // authorized read. Never repeat the failed call automatically.
             const readReplans=rejectedToolChoices.filter(item=>
                 item.reason==='FAILED_SOURCE_REQUIRES_ALTERNATIVE').length;
+            // Research may legitimately encounter several different dead or
+            // publisher-restricted pages. Keep repo/other tools at two recovery
+            // pivots, but allow up to eight DISTINCT browser source pivots.
+            // URLs are separately deduplicated and every read is reauthorized.
+            const readReplanLimit=tool.name==='browser.inspect'?8:2;
             if(repairIncomplete&&recoveryPlan.status==='RECOVERY_READ_REPLAN_REQUIRED'&&
-                readReplans<2){
+                readReplans<readReplanLimit){
                 rejectedToolChoices.push({name:tool.name,args:invocation.args,
                     reason:'FAILED_SOURCE_REQUIRES_ALTERNATIVE',allowed:offered.map(x=>x.name),
                     warning:'Read failed: locate a different valid source. The failed call is not evidence.'});
