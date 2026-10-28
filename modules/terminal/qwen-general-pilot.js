@@ -1,4 +1,5 @@
 import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter.js';
+import { diagnoseJarvisError } from '../../gestia-core/jarvis/jarvis.error-catalog.js';
 import {compactVerifiedEngineeringSource} from './qwen-engineering-source-excerpt.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
@@ -663,6 +664,7 @@ export async function runQwenGeneralPilot(options){
     const evidence=await persistEvidence(resultMissionId,result);
     const reason=generalFailureReason(result);
     const ok=result.status==='SUCCESS'&&evidence.ok;
+    const failureCode=ok?null:diagnoseJarvisError(reason);
     const failureSummary=!ok&&reason==='PUBLIC_HTML_ACCESS_DENIED'?
         'No pude reunir las tres fuentes requeridas porque uno o varios sitios externos rechazaron la lectura (HTTP 403). No se contó contenido inaccesible como evidencia. Se necesitan otras fuentes independientes.\nCausa técnica: '+reason:
         'Causa: '+reason;
@@ -677,6 +679,7 @@ export async function runQwenGeneralPilot(options){
         artifactPaths:producedMedia(result.receipts).map(a=>a.output),
         finalResponse:{ok,title:ok?'Misión general verificada':'Misión general no certificada',text:[
             ok?result.report:failureSummary,
+            ...(!ok?[`Código de falla: ${failureCode.code}`,`Significado: ${failureCode.title}`,`Qué revisar: ${failureCode.action}`]:[]),
             ...(objectives.code?['Informe Qwen generado: '+(result.metrics.finalReportFromQwen===true?'sí, sujeto a verificación':'no')]:[]),
             'Misión: '+resultMissionId+(continuationId?' (continuación de '+continuationId+')':''),
             'Llamadas registradas: '+result.receipts.length+'; exitosas: '+result.receipts.filter(r=>r.ok).length+'; inferencias: '+result.metrics.inferences,

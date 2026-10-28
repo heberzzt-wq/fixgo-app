@@ -1,4 +1,6 @@
 // Transport limits only. This module never classifies input or selects tools.
+import { diagnoseJarvisError } from './jarvis.error-catalog.js';
+
 export const SEMANTIC_MAX_BUDGET_MS = 600000;
 
 export function semanticPlanBudgetMs({ input = "", missionState, timeoutMs = 60000 } = {}) {
@@ -48,7 +50,7 @@ export function isSemanticTimeout(error = "") {
     return /TIMEOUT|TIMED_OUT|DEADLINE/i.test(String(error?.message || error));
 }
 
-export function semanticFailurePresentation(error = "") {
+function basicSemanticFailurePresentation(error = "") {
     const value = String(error);
     if (/JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/.test(value)) return {
         title: "La Terminal y el bridge no están en la misma versión",
@@ -90,6 +92,13 @@ export function semanticFailurePresentation(error = "") {
         title: "No se pudo completar el análisis",
         detail: "El núcleo local no devolvió un plan válido. La misión quedó detenida."
     };
+}
+
+export function semanticFailurePresentation(error = "") {
+    const presented=basicSemanticFailurePresentation(error);
+    const diagnostic=diagnoseJarvisError(error);
+    return {...presented,code:diagnostic.code,cause:diagnostic.cause,
+        action:diagnostic.action,technicalCode:diagnostic.technicalCode};
 }
 
 import {validateMobileRelayReadOperation} from '../../modules/terminal/jarvis-mobile-relay-policy.js';

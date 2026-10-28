@@ -3949,7 +3949,9 @@ if (
                     failurePresentation.title,
                     [
                         "La misión no se completó.",
+                        `Código de falla: ${failurePresentation.code || "JAR-900"}`,
                         failurePresentation.detail,
+                        `Qué revisar: ${failurePresentation.action || "Conserva el diagnóstico original."}`,
                         `Host actual: ${location.hostname}`,
                         `Detalle: ${semanticError}`,
                         "No se reporta SUCCESS ni se usa un cerebro alterno."
