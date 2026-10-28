@@ -502,6 +502,19 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
     };
 }
 
+// This is a client UX/device guard, NOT an authorization boundary. Firebase
+// owner auth, workstation health, Firestore lease and exact SHA remain mandatory.
+// Android localhost over ADB reverse must never claim the workstation lease.
+export function isJarvisLocalWorkstationBrowser({
+    hostname = globalThis.location?.hostname,
+    userAgent = globalThis.navigator?.userAgent
+} = {}) {
+    const host = String(hostname || '').toLowerCase();
+    const agent = String(userAgent || '');
+    return ['localhost', '127.0.0.1'].includes(host) &&
+        agent.length > 0 && !/(?:android|iphone|ipad|ipod|windows phone|mobile)/i.test(agent);
+}
+
 function privateRelayOwnerDisabled(){
     try{return globalThis.localStorage?.getItem(PRIVATE_RELAY_OWNER_DISABLED_KEY)==='true';}
     catch{return true;}
@@ -517,6 +530,8 @@ function configureJarvisPrivateRelay(bridge) {
     bridge.privateRelayState = { status: "NOT_CHECKED", connected: false };
     const progress = detail => globalThis.dispatchEvent?.(new CustomEvent("jarvis:semantic-progress", { detail }));
     bridge.enablePrivateRelay = async () => {
+        if (typeof window !== 'undefined' && !isJarvisLocalWorkstationBrowser())
+            throw new Error('JARVIS_RELAY_WORKSTATION_BROWSER_REQUIRED');
         if (broker) return bridge.privateRelayState;
         if (starting) return starting;
         starting = (async () => {
@@ -613,11 +628,12 @@ function configureJarvisPrivateRelay(bridge) {
             (peerOwnsLease ? console.info : console.warn)(peerOwnsLease ? "[JARVIS_PRIVATE_RELAY_PEER_ACTIVE]" : "[JARVIS_PRIVATE_RELAY_NOT_READY]", code);
             lastRelayError = code;
         }
-        if (!releaseMismatch && privateRelayWorkstationEnabled())
+        if (!releaseMismatch && privateRelayWorkstationEnabled() && (typeof window === 'undefined' || isJarvisLocalWorkstationBrowser()))
             autoRetry = setTimeout(resumeWorkstation, peerOwnsLease ? 30000 : 15000);
     });
-    if (privateRelayWorkstationEnabled()) autoRetry = setTimeout(resumeWorkstation, 0);
-    else if (['127.0.0.1','localhost'].includes(globalThis.location?.hostname) &&
+    if (privateRelayWorkstationEnabled() && (typeof window === 'undefined' || isJarvisLocalWorkstationBrowser()))
+        autoRetry = setTimeout(resumeWorkstation, 0);
+    else if (typeof window !== 'undefined' && isJarvisLocalWorkstationBrowser() &&
         globalThis.window && !privateRelayOwnerDisabled()) {
         // The owner explicitly requested local workstation bridging to mobile.
         // Owner auth, signed release matching and Firestore lease checks must

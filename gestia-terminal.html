@@ -46,6 +46,7 @@
             color: #c5d4e8; background: #17253a; transition: background .16s, border-color .16s; }
         .terminal-actions button:hover, .terminal-return:hover { background: #213653; border-color: #54749d; color: white; }
         .terminal-actions button { width: 44px; padding: 0; }
+        #btn-relay-workstation[hidden] { display: none !important; }
         .terminal-action-divider { width: 1px; height: 24px; background: #354860; margin: 0 4px; }
         .terminal-return { gap: 9px; padding: 0 16px; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
         #gestia-output { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px;
@@ -182,6 +183,7 @@
         </div>
         <nav class="terminal-actions" aria-label="Herramientas de la Terminal">
             <button type="button" id="btn-refresh-terminal" title="Actualizar Terminal sin cerrar la aplicación" aria-label="Actualizar Terminal"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
+            <button type="button" id="btn-relay-workstation" hidden title="Enlazar el móvil con Jarvis desde esta laptop" aria-label="Enlazar móvil con Jarvis"><i class="fa-solid fa-link" aria-hidden="true"></i></button>
             <button type="button" title="Historial de Módulos Creados" aria-label="Historial de módulos"><i class="fa-solid fa-database" aria-hidden="true"></i></button>
             <button type="button" title="Ajustes del Motor" aria-label="Ajustes del motor"><i class="fa-solid fa-microchip" aria-hidden="true"></i></button>
             <div class="terminal-action-divider" aria-hidden="true"></div>
@@ -209,6 +211,52 @@
             // Never represent reload as server-side cancellation or SUCCESS.
             window.location.reload();
         });
+    })();
+    </script>
+    <script id="terminal-relay-workstation-control">
+    (() => {
+        // Only the desktop loopback Terminal can offer to broker the owner relay.
+        // A phone connected through USB sees localhost too, but is never a workstation.
+        const host = location.hostname;
+        const isMobile = /(?:android|iphone|ipad|ipod|windows phone|mobile)/i.test(navigator.userAgent);
+        if (!['127.0.0.1','localhost'].includes(host) || isMobile) return;
+        const button = document.getElementById('btn-relay-workstation');
+        if (!button) return;
+        button.hidden = false;
+        button.dataset.relayControl = 'desktop-only';
+        function render() {
+            const state = window.JarvisLocalBridge?.privateRelayState;
+            const ready = ['READY','EXECUTING'].includes(state?.status);
+            const standby = state?.status === 'STANDBY';
+            const label = ready ? 'Enlace privado móvil activo' :
+                standby ? 'Enlace móvil atendido por otra Terminal autorizada' :
+                state?.status === 'RELEASE_MISMATCH' ? 'Versiones diferentes: actualiza la Terminal' :
+                'Enlace móvil no confirmado: pulsa para activarlo';
+            button.title = label;
+            button.setAttribute('aria-label', label);
+            button.dataset.relayStatus = String(state?.status || 'NOT_CHECKED');
+            button.style.color = ready ? '#34d399' : '#fbbf24';
+        }
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            button.title = 'Verificando enlace privado con autorización del propietario';
+            try {
+                const bridge = window.JarvisLocalBridge;
+                if (typeof bridge?.enablePrivateRelay !== 'function')
+                    throw new Error('JARVIS_BRIDGE_NOT_READY');
+                await bridge.enablePrivateRelay();
+            } catch (error) {
+                button.title = 'Enlace no confirmado: ' + String(error?.message || 'UNAVAILABLE').slice(0, 85);
+                button.dataset.relayStatus = 'FAILED';
+            } finally {
+                button.disabled = false;
+                if (window.JarvisLocalBridge?.privateRelayState?.connected) render();
+            }
+        });
+        window.addEventListener('focus', render);
+        document.addEventListener('visibilitychange', render);
+        setInterval(render, 15000);
+        render();
     })();
     </script>
     <main id="gestia-output" aria-label="Conversación con ADJUNTO">
