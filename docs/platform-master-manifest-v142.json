@@ -833,6 +833,29 @@
     "autonomyBoundary": "Investiga, ejecuta dentro de permisos, prueba y verifica; cambios de codigo con impacto, despliegues, dinero, cuentas y decisiones de alto riesgo bajo aprobacion del propietario.",
     "commercialBoundary": "El cliente contrata a Peninsula Tech por el trabajo, producto o servicio realizado; no compra ni opera el modelo Qwen ni el motor privado ADJUNTO.",
     "notClaimed": "Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA.",
+    "technicalSchoolRoadmap": {
+      "status": "IDEA_FUTURA_APLAZADA",
+      "priority": "DESPUES_DE_ESTABILIZAR_JARVIS",
+      "concept": "Escuela técnica dentro del ecosistema ADJUNTO / Península Tech, con formación práctica por oficios.",
+      "candidateCourses": [
+        "Electricidad residencial y seguridad eléctrica",
+        "Plomería e instalaciones hidrosanitarias",
+        "Aire acondicionado, refrigeración y mantenimiento",
+        "Mantenimiento preventivo de inmuebles",
+        "Otros oficios técnicos según demanda"
+      ],
+      "futureCapabilities": [
+        "Lecciones progresivas",
+        "Ejercicios guiados y evaluaciones",
+        "Material visual y prácticas supervisadas",
+        "Seguimiento de avance y constancias sujetas a requisitos legales"
+      ],
+      "safetyBoundary": "Formación no habilita por sí sola intervenciones eléctricas, trabajos con refrigerantes ni otros procedimientos peligrosos; requerir supervisión profesional y normas aplicables.",
+      "implementation": "NO_INICIADA",
+      "uiDemonstrated": false,
+      "certified": false,
+      "ownerDecision": "Registrar la idea en manifiesto y dejarla en espera; primero completar las misiones reales y robustecer Jarvis."
+    },
     "northStar": {
       "decisionDate": "2026-10-23",
       "ownerWords": "Ser el mejor sin meternos con otras plataformas o inteligencias artificiales: no copiar, no replicar productos existentes, sino construir algo unico, original y mejor en resultados verificables.",

@@ -302,6 +302,15 @@
 - **Autoridad:** Investiga, ejecuta dentro de permisos, prueba y verifica; cambios de codigo con impacto, despliegues, dinero, cuentas y decisiones de alto riesgo bajo aprobacion del propietario.
 - **Relación con el cliente:** El cliente contrata a Peninsula Tech por el trabajo, producto o servicio realizado; no compra ni opera el modelo Qwen ni el motor privado ADJUNTO.
 
+### Escuela técnica ADJUNTO — propuesta para etapa futura
+
+- **Estado:** `IDEA_FUTURA_APLAZADA`. Implementación NO iniciada; ninguna UI o certificado acreditado.
+- **Concepto:** Escuela técnica dentro del ecosistema ADJUNTO / Península Tech, con formación práctica por oficios.
+- **Cursos propuestos:** Electricidad residencial y seguridad eléctrica; Plomería e instalaciones hidrosanitarias; Aire acondicionado, refrigeración y mantenimiento; Mantenimiento preventivo de inmuebles; Otros oficios técnicos según demanda.
+- **Capacidades futuras:** Lecciones progresivas; Ejercicios guiados y evaluaciones; Material visual y prácticas supervisadas; Seguimiento de avance y constancias sujetas a requisitos legales.
+- **Prioridad:** Registrar la idea en manifiesto y dejarla en espera; primero completar las misiones reales y robustecer Jarvis.
+- **Seguridad:** Formación no habilita por sí sola intervenciones eléctricas, trabajos con refrigerantes ni otros procedimientos peligrosos; requerir supervisión profesional y normas aplicables.
+
 > **Alcance de esta decisión:** Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA.
 
 ## ESTRELLA POLAR - Meta irrenunciable de ADJUNTO

@@ -756,8 +756,19 @@ export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     }
     const inspect=catalog.find(t=>t.name==='browser.inspect');
     if(inspect&&options.length){
+        // After a physically failed source, offer exactly one NEW candidate.
+        // Prefer public institution hosts without claiming that their content
+        // is valid until a real browser.inspect receipt verifies the HTML.
+        const hasFailedSource=receipts.some(r=>r.name==='browser.inspect'&&r.ok===false);
+        if(hasFailedSource){
+            const priority=url=>{
+                const host=new URL(url).hostname.toLowerCase();
+                return /\.(?:gov|edu|int)$/.test(host)?0:/\.org$/.test(host)?1:2;
+            };
+            options.sort((a,b)=>priority(a)-priority(b));
+        }
         const next=structuredClone(inspect);
-        next.inputSchema.properties.url={type:'string',enum:options.slice(0,5)};
+        next.inputSchema.properties.url={type:'string',enum:options.slice(0,hasFailedSource?1:5)};
         return [next];
     }
     const search=catalog.find(t=>t.name==='web.research');

@@ -187,9 +187,12 @@ test('source selection excludes the exact failed 404 URL and keeps other indepen
  const prioritized=prioritizeResearchDiscovery(tools,[search,failed],instruction);
  assert.deepEqual(prioritized.map(x=>x.name),['browser.inspect']);
  const offered=prioritized[0].inputSchema.properties.url.enum;
- assert.ok(!offered.includes(missing));
- assert.ok(offered.includes(next));
- assert.ok(offered.includes(third));
+ assert.deepEqual(offered,[next],'after failure, offer the next independent public source only');
+ const blockedAgain={name:'browser.inspect',ok:false,args:{url:next},
+  observation:{ok:false,status:'PUBLIC_HTML_ACCESS_DENIED'}};
+ const later=prioritizeResearchDiscovery(tools,[search,failed,blockedAgain],instruction);
+ assert.deepEqual(later[0].inputSchema.properties.url.enum,[third],
+  'already failed URLs are never offered again; the remaining organization is available');
 });
 
 test('404 browser receipt continues to a different authorized public source without replaying the broken page',async()=>{

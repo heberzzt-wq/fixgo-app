@@ -73,8 +73,8 @@ export function verifiedNonMutatingPreviewEnvelope(envelope,call,sessionContext=
 // A real public HTML 404 is a missing source, not permission to fabricate a
 // page or retry an identical URL. Only the authenticated tool failure envelope
 // can supply this code; Qwen arguments and search snippets are not evidence.
-export function missingPublicHtmlSourceFailure(toolName, envelope) {
-    if (toolName !== 'browser.inspect' || envelope?.ok !== false) return false;
+export function publicHtmlSourceFailureCode(toolName, envelope) {
+    if (toolName !== 'browser.inspect' || envelope?.ok !== false) return null;
     const runtime = envelope?.error?.context?.runtimeResult;
     // Browser errors are wrapped by ToolsBridge.composeActuatorFailure into
     // a conversational presentation. The semantic guard marks execution as
@@ -96,8 +96,14 @@ export function missingPublicHtmlSourceFailure(toolName, envelope) {
         envelope?.runtimeResult?.error,
         envelope?.runtimeResult?.error?.message
     ].filter(value => typeof value === 'string');
-    return values.some(value => value === 'BROWSER_PUBLIC_HTML_HTTP_404' ||
-        value.includes('BROWSER_PUBLIC_HTML_HTTP_404'));
+    if(values.some(value => value.includes('BROWSER_PUBLIC_HTML_HTTP_404')))return 'HTTP_404';
+    // A public publisher's 403 is not a Firebase/owner 403. Do not retry
+    // that publisher or downgrade authorization; select another read-only URL.
+    if(values.some(value => value.includes('BROWSER_PUBLIC_HTML_HTTP_403')))return 'PUBLIC_HTML_ACCESS_DENIED';
+    return null;
+}
+export function missingPublicHtmlSourceFailure(toolName,envelope){
+    return publicHtmlSourceFailureCode(toolName,envelope)==='HTTP_404';
 }
 
 // Adapter for an opt-in, read-only pilot. It deliberately reuses the existing
@@ -254,9 +260,10 @@ export function createQwenAuthenticatedToolBridge({
             }
             if(!observation || observation.ok!==true || observation.blocked===true ||
                 observation.executionOk===false || observation.requiresInput===true){
-                if(missingPublicHtmlSourceFailure(call.name,observation)){
-                    return {ok:false,executionOk:false,status:'HTTP_404',
-                        error:{code:'HTTP_404'},url:call.args.url,
+                const missingSourceCode=publicHtmlSourceFailureCode(call.name,observation);
+                if(missingSourceCode){
+                    return {ok:false,executionOk:false,status:missingSourceCode,
+                        error:{code:missingSourceCode},url:call.args.url,
                         sourceUnavailable:true,neverClaimedInspected:true};
                 }
                 return {ok:false,executionOk:false,blocked:true,

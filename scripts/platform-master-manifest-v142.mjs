@@ -272,6 +272,16 @@ function renderPrivateProductStrategy(m){
  '- **Autoridad:** '+esc(p.autonomyBoundary),
  '- **Relación con el cliente:** '+esc(p.commercialBoundary),
  '',
+ ...(p.technicalSchoolRoadmap ? [
+    '### Escuela técnica ADJUNTO — propuesta para etapa futura','',
+    '- **Estado:** '+code(p.technicalSchoolRoadmap.status)+'. Implementación NO iniciada; ninguna UI o certificado acreditado.',
+    '- **Concepto:** '+esc(p.technicalSchoolRoadmap.concept),
+    '- **Cursos propuestos:** '+p.technicalSchoolRoadmap.candidateCourses.map(esc).join('; ')+'.',
+    '- **Capacidades futuras:** '+p.technicalSchoolRoadmap.futureCapabilities.map(esc).join('; ')+'.',
+    '- **Prioridad:** '+esc(p.technicalSchoolRoadmap.ownerDecision),
+    '- **Seguridad:** '+esc(p.technicalSchoolRoadmap.safetyBoundary),
+    ''
+ ] : []),
  '> **Alcance de esta decisión:** '+esc(p.notClaimed),
  ''
  ];
