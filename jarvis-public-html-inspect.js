@@ -1,5 +1,6 @@
 // Read-only source HTML recovery when Windows Chrome --dump-dom exits with no DOM.
-// Never browse private networks, follow redirects, execute scripts or claim a rendered DOM.
+// Follow only bounded, independently validated public HTTPS redirects; never browse
+// private networks, execute scripts, or claim a rendered DOM.
 import dns from 'node:dns/promises';
 import https from 'node:https';
 import net from 'node:net';
@@ -34,50 +35,73 @@ export function isPublicHtmlAddress(address){
 export async function inspectPublicHtmlSource(raw,{
  lookup=dns.lookup,request=https.request,timeoutMs=15000,maxBytes=800000
 }={}){
- const url=publicHtmlSourceUrl(raw);
- const resolved=await lookup(url.hostname,{all:true,verbatim:true});
- if(!Array.isArray(resolved)||!resolved.length||
-    resolved.some(row=>!row||!isPublicHtmlAddress(row.address)||![4,6].includes(row.family)))
-    throw Error('BROWSER_PUBLIC_HTML_DNS_PRIVATE_OR_EMPTY');
- const chosen=resolved.find(x=>x.family===4)||resolved[0];
- return await new Promise((resolve,reject)=>{
-  let ended=false;
-  const fail=e=>{if(ended)return;ended=true;reject(e instanceof Error?e:Error(String(e)));};
-  const opts={
-   method:'GET',headers:{'User-Agent':'Mozilla/5.0 JarvisV142-SafeHtmlInspection','Accept':'text/html'},
-   lookup(_host,options,callback){
-    if(typeof options==='function')callback=options;
-    if(options?.all===true)callback(null,[chosen]);
-    else callback(null,chosen.address,chosen.family);
-   }
-  };
-  const req=request(url,opts,res=>{
-   const code=Number(res.statusCode)||0;
-   if(code!==200){res.resume();fail(Error('BROWSER_PUBLIC_HTML_HTTP_'+code));return;}
-   const type=String(res.headers?.['content-type']||'').toLowerCase();
-   if(!type.includes('text/html')){res.resume();fail(Error('BROWSER_PUBLIC_HTML_CONTENT_TYPE'));return;}
-   if(Number(res.headers?.['content-length']||0)>maxBytes){res.destroy();fail(Error('BROWSER_PUBLIC_HTML_TOO_LARGE'));return;}
-   const chunks=[];let total=0;
-   res.on('data',chunk=>{
-    total+=chunk.length;
-    if(total>maxBytes){res.destroy();fail(Error('BROWSER_PUBLIC_HTML_TOO_LARGE'));return;}
-    chunks.push(chunk);
-   });
-   res.on('error',fail);
-   res.on('end',()=>{
-    if(ended)return;
-    const dom=Buffer.concat(chunks).toString('utf8');
-    if(!/<html(?:\s|>)/iu.test(dom)||!/<title(?:\s|>)/iu.test(dom)||
-       !/<(?:p|main|article)(?:\s|>)/iu.test(dom)){
-      fail(Error('BROWSER_PUBLIC_HTML_STRUCTURE_UNVERIFIED'));return;
+ // Every hop is separately HTTPS-validated, DNS-checked and pinned. Do not
+ // let Node silently follow redirects or reuse the previous host's DNS proof.
+ const deadline=Date.now()+Math.min(Math.max(Number(timeoutMs)||15000,1000),25000);
+ const visited=new Set(),redirectChain=[];
+ let url=publicHtmlSourceUrl(raw);
+ for(let hop=0;hop<=3;hop++){
+  if(visited.has(url.href))throw Error('BROWSER_PUBLIC_HTML_REDIRECT_LOOP');
+  visited.add(url.href);
+  const remaining=deadline-Date.now();
+  if(remaining<=0)throw Error('BROWSER_PUBLIC_HTML_TIMEOUT');
+  const resolved=await lookup(url.hostname,{all:true,verbatim:true});
+  if(!Array.isArray(resolved)||!resolved.length||
+     resolved.some(row=>!row||!isPublicHtmlAddress(row.address)||![4,6].includes(row.family)))
+     throw Error('BROWSER_PUBLIC_HTML_DNS_PRIVATE_OR_EMPTY');
+  const chosen=resolved.find(x=>x.family===4)||resolved[0];
+  const outcome=await new Promise((resolve,reject)=>{
+   let ended=false;
+   const fail=e=>{if(ended)return;ended=true;reject(e instanceof Error?e:Error(String(e)));};
+   const opts={
+    method:'GET',headers:{'User-Agent':'Mozilla/5.0 JarvisV142-SafeHtmlInspection','Accept':'text/html'},
+    lookup(_host,options,callback){
+     if(typeof options==='function')callback=options;
+     if(options?.all===true)callback(null,[chosen]);
+     else callback(null,chosen.address,chosen.family);
     }
-    ended=true;resolve({ok:true,status:'BROWSER_INSPECT_SOURCE_HTML_VERIFIED',
-      dom,sourceKind:'HTTPS_SOURCE_HTML_NOT_RENDERED_DOM',
-      engine:'node_https_public_source',sourceBytes:total,readOnly:true});
+   };
+   const req=request(url,opts,res=>{
+    const code=Number(res.statusCode)||0;
+    if([301,302,303,307,308].includes(code)){
+     res.resume();
+     if(!res.headers?.location){fail(Error('BROWSER_PUBLIC_HTML_REDIRECT_LOCATION_REQUIRED'));return;}
+     let next;
+     try{next=publicHtmlSourceUrl(new URL(String(res.headers.location),url).href);}
+     catch{fail(Error('BROWSER_PUBLIC_HTML_REDIRECT_UNSAFE'));return;}
+     ended=true;resolve({redirect:next});return;
+    }
+    if(code!==200){res.resume();fail(Error('BROWSER_PUBLIC_HTML_HTTP_'+code));return;}
+    const type=String(res.headers?.['content-type']||'').toLowerCase();
+    if(!type.includes('text/html')){res.resume();fail(Error('BROWSER_PUBLIC_HTML_CONTENT_TYPE'));return;}
+    if(Number(res.headers?.['content-length']||0)>maxBytes){res.destroy();fail(Error('BROWSER_PUBLIC_HTML_TOO_LARGE'));return;}
+    const chunks=[];let total=0;
+    res.on('data',chunk=>{
+     total+=chunk.length;
+     if(total>maxBytes){res.destroy();fail(Error('BROWSER_PUBLIC_HTML_TOO_LARGE'));return;}
+     chunks.push(chunk);
+    });
+    res.on('error',fail);
+    res.on('end',()=>{
+     if(ended)return;
+     const dom=Buffer.concat(chunks).toString('utf8');
+     if(!/<html(?:\s|>)/iu.test(dom)||!/<title(?:\s|>)/iu.test(dom)||
+        !/<(?:p|main|article)(?:\s|>)/iu.test(dom)){
+       fail(Error('BROWSER_PUBLIC_HTML_STRUCTURE_UNVERIFIED'));return;
+     }
+     ended=true;resolve({result:{ok:true,status:'BROWSER_INSPECT_SOURCE_HTML_VERIFIED',
+       dom,sourceKind:'HTTPS_SOURCE_HTML_NOT_RENDERED_DOM',
+       engine:'node_https_public_source',sourceBytes:total,readOnly:true}});
+    });
    });
+   req.on('error',fail);
+   req.setTimeout(Math.max(1,remaining),()=>req.destroy(Error('BROWSER_PUBLIC_HTML_TIMEOUT')));
+   req.end();
   });
-  req.on('error',fail);
-  req.setTimeout(Math.min(Math.max(timeoutMs,1000),25000),()=>req.destroy(Error('BROWSER_PUBLIC_HTML_TIMEOUT')));
-  req.end();
- });
+  if(!outcome.redirect)return {...outcome.result,sourceUrl:url.href,redirectChain};
+  if(hop>=3)throw Error('BROWSER_PUBLIC_HTML_REDIRECT_LIMIT');
+  redirectChain.push(url.href);
+  url=outcome.redirect;
+ }
+ throw Error('BROWSER_PUBLIC_HTML_REDIRECT_LIMIT');
 }
