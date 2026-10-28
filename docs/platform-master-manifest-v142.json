@@ -1,5 +1,26 @@
 {
   "schemaVersion": "platform-master-v142-1",
+  "deferredOwnerDecisions20261028": [
+    {
+      "id": "ICOM_IC_F4003_LAPTOP_MAINTENANCE",
+      "status": "PLANEADO_NO_IMPLEMENTADO",
+      "priorityGate": "DESPUES_DE_CERRAR_MISION_MOVIL_JARVIS",
+      "devices": ["Icom IC-F4003"],
+      "softwareCandidate": "Icom CS-F3000, verificar licencia y version exacta antes de instalar",
+      "cable": "Propietario reporta cable USB a conector lateral de auricular; confirmar modelo OPC y controlador del chip al conectarlo",
+      "work": "Identificar puerto COM, driver y compatibilidad Windows; lectura y respaldo por radio; auditar canales y parametros autorizados; realizar diagnostico no destructivo. Mediciones RF requieren instrumental externo.",
+      "safety": "Sin radios conectados ahora; no instalar software ni escribir programaciones ni cambiar frecuencias sin verificar modelo, permiso y copia original."
+    },
+    {
+      "id": "JARVIS_RAG_LOCAL_AFTER_MOBILE",
+      "status": "PLANEADO_NO_IMPLEMENTADO",
+      "priorityGate": "DESPUES_DE_CERTIFICAR_MISION_MOVIL_WEB_FIREBASE",
+      "description": "Integrar RAG local como recuperacion complementaria a Repomix y busqueda actual; no sustituir ni duplicar el cerebro Qwen3.5:9b.",
+      "scope": "Indexacion incremental de PDF, DOCX, XLSX, manuales y expedientes; busqueda hibrida lexica y semantica con embeddings locales; fragmentos con pagina, fuente, SHA y evidencia verificable; presupuesto de contexto para reducir saturacion.",
+      "safety": "Permisos por documento, sin exponer secretos, sin IA externa, sin afirmaciones de funcion completada ni deploy automatico.",
+      "acceptance": "Pruebas de recuperacion y citas fieles; indice autorizado y actualizado; pruebas de mision autenticada desde UI; no reintroducir atascos por contexto."
+    }
+  ],
   "snapshotDate": "2026-10-22",
   "repository": "heberzzt-wq/fixgo-app",
   "latestHandoff": {
