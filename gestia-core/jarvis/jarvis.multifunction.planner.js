@@ -2457,6 +2457,33 @@ export async function completeJarvisPlanningArguments({
         throw new Error("SEMANTIC_ARGUMENT_CONTEXT_REQUIRED");
     }
 
+    // Qwen chose repo.audit in the preceding plan. Its registered contract
+    // accepts NO arguments for the active checkout. Argument completion must
+    // not masquerade as another local-model inference: the local semantic
+    // transport requires its own real Qwen receipt for every planner call.
+    // This binds only the selected tool's optional parameters; it cannot
+    // select a tool, name another repository, grant access or certify success.
+    const optionalActiveAudit =
+        name === "repo.audit" &&
+        inputSchema?.type === "object" &&
+        inputSchema?.additionalProperties === false &&
+        (!Object.hasOwn(inputSchema, "required") ||
+            Array.isArray(inputSchema.required) && inputSchema.required.length === 0) &&
+        !Array.isArray(inputSchema.anyOf) &&
+        Object.keys(inputSchema.properties || {}).every(key => ["target", "refresh"].includes(key)) &&
+        !Object.keys(currentArgs || {}).length &&
+        !validationFeedback &&
+        /(?:repositorio|repo)\s+(?:activo|actual|local)\b/iu.test(originalInstruction) &&
+        !/(?:https?:\/\/|git@|[A-Z]:[\\/]|(?:otro|externo|distinto)\s+(?:repo|repositorio))/iu.test(originalInstruction);
+    if (optionalActiveAudit) {
+        return {
+            ok: true, status: "GROUNDED_ARGUMENTS_READY",
+            toolName: name, args: {},
+            provider: "registered-optional-schema-after-tool-selection",
+            model: null, sourceCount: sources.length
+        };
+    }
+
     const catalog = [{
         evidenceKinds: toolContract.evidenceKinds,
         requiresEvidence: toolContract.requiresEvidence,

@@ -5603,39 +5603,6 @@ async function runModelSemanticPlanner({
         ) {
             throw new Error("SEMANTIC_GROUNDED_TOOL_REQUIRED");
         }
-        // Qwen already chose repo.audit. Its registered schema explicitly
-        // permits {} to mean the active, authenticated repository; this is a
-        // host-owned default, not a guessed path, new tool choice or permission.
-        // Never apply it to a named/external target or another read operation.
-        const activeAuditTool = phaseCatalog[0];
-        const activeAuditSchema = phase === "GROUNDED_ARGUMENT_COMPLETION"
-            ? buildNativeInputSchema(activeAuditTool?.inputSchema) : null;
-        const activeAuditBriefing = String(instruction || "");
-        const activeAuditText = activeAuditBriefing.startsWith('INSTRUCCION_ORIGINAL=')
-            ? activeAuditBriefing.split(/\r?\n/, 1)[0].slice('INSTRUCCION_ORIGINAL='.length)
-            : activeAuditBriefing;
-        const activeAuditDefault =
-            phase === "GROUNDED_ARGUMENT_COMPLETION" &&
-            activeAuditTool?.name === "repo.audit" &&
-            activeAuditSchema?.additionalProperties === false &&
-            !Array.isArray(activeAuditSchema.anyOf) &&
-            (!Object.hasOwn(activeAuditSchema, 'required') ||
-                Array.isArray(activeAuditSchema.required) && activeAuditSchema.required.length === 0) &&
-            Object.keys(activeAuditSchema.properties || {}).every(key =>
-                ["target", "refresh"].includes(key)) &&
-            /(?:repositorio|repo)\s+(?:activo|actual|local)\b/iu.test(activeAuditText) &&
-            !/(?:https?:\/\/|git@|[A-Z]:[\\/]|(?:otro|externo|distinto)\s+(?:repo|repositorio))/iu.test(activeAuditText);
-        if (activeAuditDefault && hasRequiredToolArguments(activeAuditTool, {})) {
-            return requireExecutablePlan({
-                toolCalls: [{name:"repo.audit",args:{}}],
-                missionComplete:false,
-                provider:"host-schema-default-after-qwen-selection",
-                model,
-                catalogSize:phaseCatalog.length,
-                planKind:"GROUNDED_ARGUMENT_COMPLETION"
-            });
-        }
-
         const argumentSchema = phase === "GROUNDED_ARGUMENT_COMPLETION"
             ? buildNativeInputSchema(phaseCatalog[0].inputSchema, false) : null;
         const recordArgumentPhase = phase === "GROUNDED_ARGUMENT_COMPLETION" &&

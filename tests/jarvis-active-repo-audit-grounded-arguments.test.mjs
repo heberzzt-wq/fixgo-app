@@ -1,80 +1,63 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import planner from '../functions/jarvis-semantic-planner.js';
+import {completeJarvisPlanningArguments} from '../gestia-core/jarvis/jarvis.multifunction.planner.js';
 
-const activeAudit={name:'repo.audit',description:'Inventario estructural del repositorio activo autorizado',
- investigationReadOnly:true,mutates:false,requiresApproval:false,
- evidenceKinds:['repository_inventory'],inputSchema:{type:'object',
- properties:{target:{type:'string'},refresh:{type:'boolean'}},
- required:[],additionalProperties:false}};
+const instruction='Ejecuta repo.audit sobre el repositorio activo, únicamente en modo lectura. Entrega el total de archivos y las primeras diez rutas.';
+const schema={type:'object',additionalProperties:false,properties:{
+ target:{type:'string',default:'',description:'OMITIR para auditar el repositorio activo'},
+ refresh:{type:'boolean'}
+}};
 
-test('Qwen-selected active repo.audit uses its schema-defined empty arguments',async()=>{
+test('production handoff binds optional active repo audit arguments without a fake second Qwen inference',async()=>{
  let modelCalls=0;
- const result=await planner.runJarvisSemanticPlanner({
-  input:'Ejecuta repo.audit sobre el repositorio activo, únicamente en modo lectura. Entrega el total y diez rutas.',
-  catalog:[activeAudit],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION',
-    toolName:'repo.audit',completedTasks:[],blockedTasks:[]},
-  ai:{models:{generateContent:async()=>{modelCalls++;throw Error('UNNECESSARY_ARGUMENT_GENERATION');}}}
+ const actual=await completeJarvisPlanningArguments({
+  toolName:'repo.audit',instruction,operation:'inventariar el repositorio activo',inputSchema:schema,
+  semanticPlanner:async()=>{modelCalls++;throw Error('UNNECESSARY_MODEL_CALL');}
  });
- assert.deepEqual(result.toolCalls.map(t=>({name:t.name,args:t.args})),[{name:'repo.audit',args:{}}]);
- assert.equal(result.missionComplete,false);
+ assert.deepEqual(actual.args,{});
+ assert.equal(actual.status,'GROUNDED_ARGUMENTS_READY');
+ assert.equal(actual.model,null);
+ assert.equal(actual.provider,'registered-optional-schema-after-tool-selection');
  assert.equal(modelCalls,0);
- assert.equal(result.planKind,'GROUNDED_ARGUMENT_COMPLETION');
- assert.match(result.provider,/host-schema-default/);
 });
 
-test('named or external repository still requires semantic grounded arguments',async()=>{
- for(const input of [
-  'Ejecuta repo.audit sobre otro repositorio activo',
-  'Ejecuta repo.audit sobre repositorio activo https://example.org/other.git',
-  'Ejecuta repo.audit sobre repositorio activo C:\\\\temp\\\\other'
- ]) {
+test('external repository and nonoptional contracts still use the semantic grounded-argument provider',async()=>{
+ for(const variant of [
+  {toolName:'repo.audit',instruction:'Ejecuta repo.audit sobre el repositorio activo https://example.org/another',inputSchema:schema},
+  {toolName:'repo.audit',instruction:'Ejecuta repo.audit sobre otro repositorio activo',inputSchema:schema},
+  {toolName:'repo.audit',instruction,inputSchema:{...schema,required:['target']}},
+  {toolName:'repo.read',instruction,inputSchema:schema},
+  {toolName:'repo.audit',instruction,inputSchema:{...schema,properties:{target:{type:'string'},requiredSource:{type:'string'}}}}
+ ]){
   let calls=0;
-  const plan=await planner.runJarvisSemanticPlanner({input,catalog:[activeAudit],
-   missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION',completedTasks:[],blockedTasks:[]},
-   ai:{models:{generateContent:async()=>{
-    calls++;
-    return {text:JSON.stringify({toolCalls:[{name:'repo.audit',args:{target:'verified-other-repo'}}],missionComplete:false})};
-   }}}});
-  assert.equal(calls,1,input);
-  assert.equal(plan.toolCalls[0].args.target,'verified-other-repo');
- }
-});
-
-test('required arguments and different tools never inherit the active-repo shortcut',async()=>{
- for (const tool of [
-  {...activeAudit,inputSchema:{...activeAudit.inputSchema,required:['target']}},
-  {...activeAudit,name:'repo.write'}
- ]) {
-  let calls=0;
-  await planner.runJarvisSemanticPlanner({input:'Audita el repositorio activo',
-   catalog:[tool],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION'},
-   ai:{models:{generateContent:async()=>{calls++;
-    return {text:JSON.stringify({toolCalls:[{name:tool.name,args:{target:'verified-source'}}],missionComplete:false})};
-   }}}});
+  const actual=await completeJarvisPlanningArguments({...variant,operation:'verify requested repository target',
+   semanticPlanner:async()=>{calls++;return{toolCalls:[{name:variant.toolName,args:{target:'observed-other-repository'}}],missionComplete:false};}
+  });
   assert.equal(calls,1);
+  assert.equal(actual.args.target,'observed-other-repository');
  }
 });
 
-test('production repo.audit schema with omitted required passes the actual material-argument handoff',async()=>{
- const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
- const schema={type:'object',properties:{
-   target:{type:'string',default:'',description:'OMITIR para auditar repositorio activo'},
-   refresh:{type:'boolean'}
- },additionalProperties:false};
- let modelCalls=0;
- const result=await completeJarvisPlanningArguments({
-  toolName:'repo.audit',
-  instruction:'Ejecuta repo.audit sobre el repositorio activo, únicamente en modo lectura. Entrega total y diez rutas.',
-  operation:'inventariar repositorio activo completo',
-  inputSchema:schema,
-  semanticPlanner:async({input,catalog,missionState})=>planner.runJarvisSemanticPlanner({
-   input,catalog,missionState,ai:{models:{generateContent:async()=>{
-     modelCalls++;
-     throw Error('ARGUMENT_MODEL_SHOULD_NOT_BE_CALLED_FOR_OPTIONAL_REPO_AUDIT');
-   }}}
-  })
+test('even with active checkout, prior validation failure is not bypassed',async()=>{
+ let calls=0;
+ const result=await completeJarvisPlanningArguments({toolName:'repo.audit',instruction,inputSchema:schema,
+  validationFeedback:{status:'DENIED'},semanticPlanner:async()=>{
+   calls++;return{toolCalls:[{name:'repo.audit',args:{}}],missionComplete:false};
+  }
  });
+ assert.equal(calls,1);
  assert.deepEqual(result.args,{});
- assert.equal(modelCalls,0,'production schema must not cause extra Qwen argument calls');
+});
+
+test('grounded argument phase without model results cannot invent an authenticated local semantic receipt',async()=>{
+ const tool={name:'repo.audit',description:'Read-only audit',inputSchema:schema};
+ let calls=0;
+ const answer=await planner.runJarvisSemanticPlanner({input:instruction,catalog:[tool],
+  missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION'},
+  ai:{models:{generateContent:async()=>{calls++;return{text:JSON.stringify({toolCalls:[{name:'repo.audit',args:{}}],missionComplete:false})};}}}
+ });
+ assert.equal(calls,1);
+ assert.deepEqual(answer.toolCalls.map(x=>x.args),[{}]);
+ assert.notEqual(answer.provider,'host-schema-default-after-qwen-selection');
 });
