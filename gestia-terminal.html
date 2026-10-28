@@ -5931,8 +5931,12 @@ const summary =
         // Preserve the signed evidence JSON but render its sources as a readable report.
         const researchReport = (() => {
             if (typeof message !== "string" || !/^\s*\{/.test(message)) return null;
+            // The verified pilot appends mission counters after its JSON proof.
+            // Decode only the strict source object; keep the complete original
+            // message in the collapsible technical details without changing receipts.
+            const envelope = message.match(/^\s*(\{[^\r\n]+\})(?=\r?\n(?:Misión:|Llamadas registradas:|Tokens:|Evidencia local SHA-256:)|\s*$)/);
             let parsed;
-            try { parsed = JSON.parse(message); } catch { return null; }
+            try { parsed = JSON.parse(envelope ? envelope[1] : message); } catch { return null; }
             if (!parsed || Array.isArray(parsed) ||
                 Object.keys(parsed).length !== 1 ||
                 !Array.isArray(parsed.sources) ||

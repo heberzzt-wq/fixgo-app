@@ -52,3 +52,20 @@ test('Untrusted titles and quoted passages are escaped',()=>{
  assert.doesNotMatch(view.renderedMessage,/<script>/);
  assert.doesNotMatch(view.renderedMessage,/Fecha documentada:/);
 });
+test('Actual verified pilot message with counters renders sources, not raw JSON',()=>{
+ const message=JSON.stringify(sample)+'\nMisión: general-fb1fbf9f-8d71-4552-8fd1-5e802969cf78'+
+   '\nLlamadas registradas: 12; exitosas: 8; inferencias: 5'+
+   '\nTokens: 15556 entrada / 610 salida; duración: 95832 ms.'+
+   '\nEvidencia local SHA-256: 380d54488c5da57c02c8087ade067e1a01a8639526a8502cbafed9dd1d9eee5f';
+ const view=render(message,'Misión general verificada');
+ assert.equal(view.researchReport.length,3);
+ assert.match(view.renderedMessage,/Abrir fuente original/);
+ assert.match(view.renderedMessage,/Ver detalles técnicos/);
+ assert.match(view.renderedMessage,/Misión: general-fb1fbf9f/);
+ assert.doesNotMatch(view.renderedMessage,/^\{\\"sources/);
+});
+test('A non-evidence JSON envelope cannot hijack readable research presentation',()=>{
+ const msg=JSON.stringify({sources:[{url:'https://example.org',title:'x',quote:'y'}],admin:true})+
+   '\nMisión: general-sample';
+ assert.equal(render(msg).researchReport,null);
+});
