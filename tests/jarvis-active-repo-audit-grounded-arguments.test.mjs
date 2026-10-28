@@ -55,3 +55,26 @@ test('required arguments and different tools never inherit the active-repo short
   assert.equal(calls,1);
  }
 });
+
+test('production repo.audit schema with omitted required passes the actual material-argument handoff',async()=>{
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const schema={type:'object',properties:{
+   target:{type:'string',default:'',description:'OMITIR para auditar repositorio activo'},
+   refresh:{type:'boolean'}
+ },additionalProperties:false};
+ let modelCalls=0;
+ const result=await completeJarvisPlanningArguments({
+  toolName:'repo.audit',
+  instruction:'Ejecuta repo.audit sobre el repositorio activo, únicamente en modo lectura. Entrega total y diez rutas.',
+  operation:'inventariar repositorio activo completo',
+  inputSchema:schema,
+  semanticPlanner:async({input,catalog,missionState})=>planner.runJarvisSemanticPlanner({
+   input,catalog,missionState,ai:{models:{generateContent:async()=>{
+     modelCalls++;
+     throw Error('ARGUMENT_MODEL_SHOULD_NOT_BE_CALLED_FOR_OPTIONAL_REPO_AUDIT');
+   }}}
+  })
+ });
+ assert.deepEqual(result.args,{});
+ assert.equal(modelCalls,0,'production schema must not cause extra Qwen argument calls');
+});

@@ -5610,14 +5610,17 @@ async function runModelSemanticPlanner({
         const activeAuditTool = phaseCatalog[0];
         const activeAuditSchema = phase === "GROUNDED_ARGUMENT_COMPLETION"
             ? buildNativeInputSchema(activeAuditTool?.inputSchema) : null;
-        const activeAuditText = String(instruction || "");
+        const activeAuditBriefing = String(instruction || "");
+        const activeAuditText = activeAuditBriefing.startsWith('INSTRUCCION_ORIGINAL=')
+            ? activeAuditBriefing.split(/\r?\n/, 1)[0].slice('INSTRUCCION_ORIGINAL='.length)
+            : activeAuditBriefing;
         const activeAuditDefault =
             phase === "GROUNDED_ARGUMENT_COMPLETION" &&
             activeAuditTool?.name === "repo.audit" &&
             activeAuditSchema?.additionalProperties === false &&
             !Array.isArray(activeAuditSchema.anyOf) &&
-            Array.isArray(activeAuditSchema.required) &&
-            activeAuditSchema.required.length === 0 &&
+            (!Object.hasOwn(activeAuditSchema, 'required') ||
+                Array.isArray(activeAuditSchema.required) && activeAuditSchema.required.length === 0) &&
             Object.keys(activeAuditSchema.properties || {}).every(key =>
                 ["target", "refresh"].includes(key)) &&
             /(?:repositorio|repo)\s+(?:activo|actual|local)\b/iu.test(activeAuditText) &&
