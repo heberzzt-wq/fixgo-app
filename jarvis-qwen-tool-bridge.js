@@ -76,7 +76,17 @@ export function verifiedNonMutatingPreviewEnvelope(envelope,call,sessionContext=
 export function missingPublicHtmlSourceFailure(toolName, envelope) {
     if (toolName !== 'browser.inspect' || envelope?.ok !== false) return false;
     const runtime = envelope?.error?.context?.runtimeResult;
+    // Browser errors are wrapped by ToolsBridge.composeActuatorFailure into
+    // a conversational presentation. The semantic guard marks execution as
+    // failed, but the physical HTTP code is preserved in data.error.
+    const composed = envelope?.type === 'JARVIS_CONVERSATIONAL_RESPONSE' &&
+        envelope?.meta?.type === 'ACTUATOR_FAILURE_RESPONSE' &&
+        envelope?.data?.tool === 'browser.inspect' &&
+        envelope?.data?.ok === false &&
+        envelope?.data?.status === 'BROWSER_COMMAND_FAILED'
+            ? envelope.data : null;
     const values = [
+        composed?.error,
         envelope?.error,
         envelope?.error?.code,
         envelope?.error?.message,
