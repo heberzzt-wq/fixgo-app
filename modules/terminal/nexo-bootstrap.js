@@ -1,5 +1,5 @@
 import { readSemanticStream, semanticFailurePresentation, JARVIS_PRIVATE_RELAY, validateJarvisRelayRequest, jarvisRelayPresenceIsLive, relayTimestampMs } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
-import {validateMobileRelayReadOperation,mobileRelayNeedsFreshOwnerToken,boundedMobileRelayReadPayload} from './jarvis-mobile-relay-policy.js';
+import {validateMobileRelayReadOperation,mobileRelayNeedsFreshOwnerToken,boundedMobileRelayReadPayload,boundMobileRelayRepoAuditGraph} from './jarvis-mobile-relay-policy.js';
 /*
  * ======================================================================================
  * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
@@ -414,7 +414,8 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
                         noDeadline: true, requestId: ref.id } }).catch(() => {});
                 }
             });
-            result = { ...value, relay: { requestId: ref.id, workerId, transport: "FIRESTORE_PRIVATE", executionStarted: true } };
+            const transportValue = boundMobileRelayRepoAuditGraph(approved.route, localPayload, value, {maxBytes:policy.maxBytes});
+            result = { ...transportValue, relay: { requestId: ref.id, workerId, transport: "FIRESTORE_PRIVATE", executionStarted: true } };
             if (new TextEncoder().encode(JSON.stringify(result)).length > policy.maxBytes) throw new Error("JARVIS_RELAY_RESPONSE_TOO_LARGE");
         } catch (failure) { error = String(failure.code || failure.message || "JARVIS_RELAY_RESULT_UNCONFIRMED").slice(0, 240); result = null; }
         // A failed result delivery retries only this immutable receipt, never

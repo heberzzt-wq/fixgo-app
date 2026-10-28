@@ -91,6 +91,45 @@ export function boundedMobileRelayReadPayload(payload={}){
  return {file:requested,startLine:start,endLine:Math.max(start,Math.min(desiredEnd,start+119)),
    maxBytes:Math.min(18000,Number(payload.maxBytes??18000))};
 }
+// Response projection for a specific read-only inventory request. The full
+// AST graph stays on the workstation. The mobile repo.audit tool only consumes
+// summary, node PATHS and duplicateEndpoints; it never reads node bodies.
+// Any required evidence that cannot fit is explicitly failed, not certified.
+export function boundMobileRelayRepoAuditGraph(route,payload,value,{maxBytes=384*1024}={}){
+ if(route!=='/repo/graph'||payload?.source!=='repo_audit_live_graph_v8'||value?.ok!==true)
+   return value;
+ const paths=Object.keys(value.nodes||{}).slice(0,1000);
+ const duplicates=Array.isArray(value.duplicateEndpoints)?value.duplicateEndpoints:[];
+ const budget=Math.max(1024,Math.min(maxBytes,384*1024)-4096);
+ const encodedSize=x=>new TextEncoder().encode(JSON.stringify(x)).length;
+ const report={ok:true,status:value.status||'REPO_GRAPH_READY',summary:value.summary,
+   repositoryTarget:value.repositoryTarget,cache:value.cache,version:value.version,
+   nodes:{},duplicateEndpoints:[],
+   relayProjection:{kind:'REPO_AUDIT_PATHS_ONLY',originalNodeCount:Object.keys(value.nodes||{}).length,
+      requestedPathCount:paths.length,deliveredPathCount:0,
+      requestedDuplicateCount:duplicates.length,deliveredDuplicateCount:0,
+      complete:true}};
+ for(const file of paths){
+   report.nodes[file]={};
+   if(encodedSize(report)>budget){delete report.nodes[file];break;}
+   report.relayProjection.deliveredPathCount++;
+ }
+ for(const item of duplicates){
+   report.duplicateEndpoints.push(item);
+   if(encodedSize(report)>budget){report.duplicateEndpoints.pop();break;}
+   report.relayProjection.deliveredDuplicateCount++;
+ }
+ const complete=report.relayProjection.deliveredPathCount===paths.length &&
+   report.relayProjection.deliveredDuplicateCount===duplicates.length;
+ report.relayProjection.complete=complete;
+ if(!complete){
+   report.ok=false;
+   report.status='REPO_AUDIT_RELAY_EVIDENCE_PARTIAL';
+   report.error='REPO_AUDIT_RELAY_EVIDENCE_PARTIAL';
+ }
+ return report;
+}
+
 export function mobileRelayNeedsFreshOwnerToken(route,payload){
  return route==='/semantic/plan'&&payload?.missionState?.phase==='DIRECT_READ_ONLY_ACTION'||
   ['/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route);
