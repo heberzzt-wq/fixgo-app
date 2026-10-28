@@ -47,3 +47,56 @@ test('physical failed HVAC URLs lead to one different public institution candida
  assert.notEqual(another[0].inputSchema.properties.url.enum[0],dead);
  assert.notEqual(another[0].inputSchema.properties.url.enum[0],official);
 });
+
+test('multiple results from an HTTP-403 publisher are not retried on different paths',()=>{
+ const catalog=['web.research','browser.inspect'].map(name=>({name,
+  inputSchema:{type:'object',properties:name==='browser.inspect'?
+   {url:{type:'string'}}:{query:{type:'string'}},required:[name==='browser.inspect'?'url':'query']}}));
+ const source='https://www.blocked-publisher.gov/hvac-filter-maintenance';
+ const sameHost='https://blocked-publisher.gov/another-hvac-filter-guide';
+ const independent='https://independent-lab.edu/air-conditioning-filters';
+ const receipts=[
+  {name:'web.research',ok:true,args:{query:'HVAC filter maintenance'},
+   observation:{ok:true,sources:[
+    {url:source,title:'HVAC maintenance filters'},
+    {url:sameHost,title:'Another HVAC filter guide'},
+    {url:independent,title:'Air conditioning filters maintenance'}
+   ]}},
+  {name:'browser.inspect',ok:false,args:{url:source},
+   observation:{ok:false,status:'PUBLIC_HTML_ACCESS_DENIED',
+    error:{code:'PUBLIC_HTML_ACCESS_DENIED'}}}
+ ];
+ const tools=prioritizeResearchDiscovery(catalog,receipts,
+  'Investiga mantenimiento de filtros de aire acondicionado residencial');
+ assert.deepEqual(tools.map(t=>t.name),['browser.inspect']);
+ assert.deepEqual(tools[0].inputSchema.properties.url.enum,[independent]);
+ assert.equal(receipts.at(-1).ok,false,'Publisher denial must remain failed evidence');
+});
+test('owner permission denial is not mistaken for publisher-only HTML refusal',()=>{
+ const catalog=['web.research','browser.inspect'].map(name=>({name,
+  inputSchema:{type:'object',properties:{url:{type:'string'},query:{type:'string'}},required:[]}}));
+ const a='https://site.gov/hvac-filters-a',b='https://site.gov/hvac-filters-b';
+ const receipts=[{name:'web.research',ok:true,args:{query:'hvac'},observation:{ok:true,
+  sources:[{url:a,title:'HVAC filters'},{url:b,title:'HVAC maintenance'}]}},
+ {name:'browser.inspect',ok:false,args:{url:a},observation:{ok:false,status:'HTTP_403'}}];
+ const tools=prioritizeResearchDiscovery(catalog,receipts,
+  'Investiga mantenimiento de filtros de aire acondicionado residencial');
+ assert.deepEqual(tools[0].inputSchema.properties.url.enum,[b]);
+});
+
+test('a denied explicit source is not reseeded or queried with site restrictions',()=>{
+ const denied='https://www.publisher-hvac.org/air-conditioning-filter-guide';
+ const instruction='Investiga mantenimiento de filtros de aire acondicionado '+denied;
+ const catalog=['web.research','browser.inspect'].map(name=>({name,
+  inputSchema:{type:'object',properties:name==='web.research'?
+   {query:{type:'string'},seedUrl:{type:'string'},allowedDomain:{type:'string'},researchGoal:{type:'string'}}:
+   {url:{type:'string'}},required:[]}}));
+ const found={name:'web.research',ok:true,args:{query:'HVAC filter guidance'},observation:{ok:true,sources:[
+  {url:denied,title:'HVAC air filter guidance'}]}};
+ const deniedReceipt={name:'browser.inspect',ok:false,args:{url:denied},
+  observation:{ok:false,status:'PUBLIC_HTML_ACCESS_DENIED'}};
+ const next=prioritizeResearchDiscovery(catalog,[found,deniedReceipt],instruction);
+ assert.equal(next[0].name,'web.research');
+ assert.doesNotMatch(next[0].inputSchema.properties.query.const,/publisher-hvac/);
+ assert.equal(next[0].inputSchema.properties.seedUrl?.const,undefined);
+});

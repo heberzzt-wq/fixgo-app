@@ -663,6 +663,9 @@ export async function runQwenGeneralPilot(options){
     const evidence=await persistEvidence(resultMissionId,result);
     const reason=generalFailureReason(result);
     const ok=result.status==='SUCCESS'&&evidence.ok;
+    const failureSummary=!ok&&reason==='PUBLIC_HTML_ACCESS_DENIED'?
+        'No pude reunir las tres fuentes requeridas porque uno o varios sitios externos rechazaron la lectura (HTTP 403). No se contó contenido inaccesible como evidencia. Se necesitan otras fuentes independientes.\nCausa técnica: '+reason:
+        'Causa: '+reason;
     const artifactDownloads=[];
     for(const r of result.receipts.filter(r=>r.ok&&r.name==='artifact.read'&&policy.ownPath(r.observation.output))){
         const o=r.observation;try{const bytes=Uint8Array.from(atob(o.dataBase64),c=>c.charCodeAt(0));
@@ -673,7 +676,7 @@ export async function runQwenGeneralPilot(options){
     return {ok,artifactDownloads,blocked:!ok,status:ok?'VERIFIED_COMPLETE':'PARTIAL',reason,missionId:resultMissionId,resumedFrom:continuationId||null,metrics:result.metrics,evidence,
         artifactPaths:producedMedia(result.receipts).map(a=>a.output),
         finalResponse:{ok,title:ok?'Misión general verificada':'Misión general no certificada',text:[
-            ok?result.report:'Causa: '+reason,
+            ok?result.report:failureSummary,
             ...(objectives.code?['Informe Qwen generado: '+(result.metrics.finalReportFromQwen===true?'sí, sujeto a verificación':'no')]:[]),
             'Misión: '+resultMissionId+(continuationId?' (continuación de '+continuationId+')':''),
             'Llamadas registradas: '+result.receipts.length+'; exitosas: '+result.receipts.filter(r=>r.ok).length+'; inferencias: '+result.metrics.inferences,
@@ -724,6 +727,17 @@ export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     // Both successful and failed attempts occupy the exact URL. A missing
     // page is not evidence and must never be proposed again as the same read.
     const used=new Set(receipts.filter(r=>r.name==='browser.inspect').map(r=>r.args?.url));
+    // A publisher 403 is not permission to bypass its access controls.
+    // Avoid other results from the same host in this mission instead of
+    // wasting authorized calls on another path likely to be denied.
+    const hostOf=raw=>{
+        try{return new URL(raw).hostname.replace(/^www\./i,'').toLowerCase();}
+        catch{return null;}
+    };
+    const deniedHosts=new Set(receipts.filter(r=>r.name==='browser.inspect'&&r.ok===false&&
+        (r.observation?.status==='PUBLIC_HTML_ACCESS_DENIED'||
+         r.observation?.error?.code==='PUBLIC_HTML_ACCESS_DENIED'))
+        .map(r=>hostOf(r.args?.url)).filter(Boolean));
     const organization=raw=>{
         try{
             const host=new URL(raw).hostname.replace(/^www\./i,'').toLowerCase();
@@ -737,7 +751,8 @@ export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     for(const receipt of receipts.filter(r=>r.ok&&r.name==='web.research')){
         for(const source of receipt.observation?.sources||[]){
             const url=String(source?.url||''),org=organization(url);
-            if(!url.startsWith('https://')||!org||used.has(url)||credited.has(org)||offeredOrgs.has(org))continue;
+            if(!url.startsWith('https://')||!org||used.has(url)||deniedHosts.has(hostOf(url))||
+                credited.has(org)||offeredOrgs.has(org))continue;
             if(/\.pdf(?:[?#]|$)|wikipedia|\/login|\/productfinder|\/privacy|\/index(?:\.html)?$/i.test(url))continue;
             const hint=(String(source.title||'')+' '+url).toLowerCase();
             if(/\b(?:sign in|log in|privacy policy|terms of use|homepage|site map|user portal)\b/i.test(hint))continue;
@@ -784,7 +799,8 @@ export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     const nextSeed=exactSeeds.find(candidate=>{
         if(attemptedSeeds.has(candidate))return false;
         try{const u=new URL(candidate);return u.protocol==='https:'&&
-            u.hostname.includes('.')&&!used.has(candidate)&&!credited.has(organization(candidate));}
+            u.hostname.includes('.')&&!used.has(candidate)&&!deniedHosts.has(hostOf(candidate))&&
+            !credited.has(organization(candidate));}
         catch{return false;}
     });
     if(nextSeed){
@@ -802,7 +818,8 @@ export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     if(past.length>=24)return [];
     const normalized=q=>String(q||'').toLowerCase().replace(/\s+/g,' ').trim();
     const usedQueries=new Set(past.map(r=>normalized(r.args?.query)));
-    const requestedDomains=[...new Set([...String(instruction).matchAll(/\b(?:[a-z0-9-]+\.)+(?:gov|org|edu|com|mx|ca|int|net|uk)\b/gi)].map(m=>m[0].toLowerCase()))];
+    const requestedDomains=[...new Set([...String(instruction).matchAll(/\b(?:[a-z0-9-]+\.)+(?:gov|org|edu|com|mx|ca|int|net|uk)\b/gi)].map(m=>m[0].toLowerCase()))]
+        .filter(domain=>!deniedHosts.has(hostOf('https://'+domain)));
     const subject=/aire acondicionado|climatizaci[oó]n|hvac|air condition/i.test(instruction)
         ?'air conditioner maintenance filters cleaning energy efficiency'
         :researchTopic(instruction);
