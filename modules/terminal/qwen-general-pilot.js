@@ -454,16 +454,57 @@ export function generalFailureReason(result){
     const candidates=[result.certification?.reason,failed?.reason,inner?.code,typeof inner==='string'?inner:null,failed?.error?.message,failed?.error?.code,result.failureCode,failed?.status,result.reason];
     return candidates.find(x=>typeof x==='string'&&/^[A-Z0-9_:.-]{4,160}$/.test(x)&&!['FAILED','ERROR'].includes(x))||'GENERAL_MISSION_INCOMPLETE';
 }
-async function persistEvidence(missionId,result){
+// A v1 browser database may exist WITHOUT its missions store. In that case,
+// transaction('missions') throws inside onsuccess, leaving the old Promise
+// unresolved forever. Upgrade the schema and settle every failure path.
+export async function persistEvidence(missionId,result,{dbFactory=globalThis.indexedDB,timeoutMs=9000}={}){
     const serialized=JSON.stringify(result);
     const sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(serialized))),x=>x.toString(16).padStart(2,'0')).join('');
-    if(!globalThis.indexedDB)return {ok:false,reason:'LOCAL_EVIDENCE_STORE_UNAVAILABLE',sha256};
-    await new Promise((resolve,reject)=>{
-        const open=indexedDB.open('jarvis-qwen-general-evidence',1);
-        open.onupgradeneeded=()=>open.result.createObjectStore('missions',{keyPath:'missionId'});
-        open.onerror=()=>reject(open.error);
-        open.onsuccess=()=>{const db=open.result,tx=db.transaction('missions','readwrite');tx.objectStore('missions').put({missionId,sha256,record:result,createdAt:new Date().toISOString()});tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};};
-    });
+    if(!dbFactory)return {ok:false,reason:'LOCAL_EVIDENCE_STORE_UNAVAILABLE',sha256};
+    try{
+        await new Promise((resolve,reject)=>{
+            let open,db,settled=false;
+            const end=error=>{
+                if(settled)return;
+                settled=true;clearTimeout(timer);
+                try{db?.close();}catch{}
+                if(error)reject(error);else resolve();
+            };
+            const timer=setTimeout(()=>end(Error('LOCAL_EVIDENCE_STORE_TIMEOUT')),Math.max(250,Math.min(15000,Number(timeoutMs)||9000)));
+            try{open=dbFactory.open('jarvis-qwen-general-evidence',2);}
+            catch(error){end(error);return;}
+            open.onblocked=()=>end(Error('LOCAL_EVIDENCE_STORE_UPGRADE_BLOCKED'));
+            open.onerror=()=>end(open.error||Error('LOCAL_EVIDENCE_STORE_OPEN_FAILED'));
+            open.onupgradeneeded=()=>{
+                if(settled)return;
+                try{
+                    if(!open.result.objectStoreNames.contains('missions'))
+                        open.result.createObjectStore('missions',{keyPath:'missionId'});
+                }catch(error){
+                    try{open.transaction?.abort();}catch{}
+                    end(error);
+                }
+            };
+            open.onsuccess=()=>{
+                db=open.result;
+                if(settled){db.close();return;}
+                try{
+                    if(!db.objectStoreNames.contains('missions'))
+                        throw Error('LOCAL_EVIDENCE_STORE_SCHEMA_MISSING');
+                    const tx=db.transaction('missions','readwrite');
+                    tx.oncomplete=()=>end();
+                    tx.onerror=()=>end(tx.error||Error('LOCAL_EVIDENCE_STORE_WRITE_FAILED'));
+                    tx.onabort=()=>end(tx.error||Error('LOCAL_EVIDENCE_STORE_WRITE_ABORTED'));
+                    tx.objectStore('missions').put({missionId,sha256,record:JSON.parse(serialized),
+                        createdAt:new Date().toISOString()});
+                }catch(error){end(error);}
+            };
+        });
+    }catch(error){
+        const raw=String(error?.message||error?.name||'');
+        const reason=raw.startsWith('LOCAL_EVIDENCE_STORE_')?raw:'LOCAL_EVIDENCE_STORE_WRITE_FAILED';
+        return {ok:false,reason,sha256,missionId};
+    }
     return {ok:true,missionId,sha256,downloadUrl:URL.createObjectURL(new Blob([serialized],{type:'application/json'})),storage:'local-origin IndexedDB; no tokens retained'};
 }
 // Return only diagnostic codes, never tokens, URLs, or exception payloads.
