@@ -141,3 +141,100 @@ test('discovery pivots from a credited Carrier page toward a different requested
  assert.deepEqual(next2.map(t=>t.name),['browser.inspect']);
  assert.deepEqual(next2[0].inputSchema.properties.url.enum,['https://www.energy.gov/energysaver/air-conditioner-maintenance']);
 });
+
+test('a failed public HTML 404 becomes a bounded alternative-read receipt, never a successful source',async()=>{
+ const {createQwenAuthenticatedToolBridge,missingPublicHtmlSourceFailure}=await import('../jarvis-qwen-tool-bridge.js');
+ const {planPlatformRecovery}=await import('../jarvis-platform-self-healing.js');
+ const first='https://www.energystar.gov/obsolete-filter-advice';
+ const source={name:'browser.inspect',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url']},mutates:false,requiresApproval:false};
+ const failure={ok:false,status:'BROWSER_COMMAND_FAILED',
+     error:{code:'BROWSER_COMMAND_FAILED',message:'BROWSER_PUBLIC_HTML_HTTP_404'}};
+ assert.equal(missingPublicHtmlSourceFailure('browser.inspect',failure),true);
+ assert.equal(missingPublicHtmlSourceFailure('web.research',failure),false);
+ assert.equal(missingPublicHtmlSourceFailure('browser.inspect',{...failure,ok:true}),false);
+ const identity={ok:true,principalId:'owner-fixture',tenantId:'B2C',role:'ceo'};
+ const bridge=createQwenAuthenticatedToolBridge({
+  toolRuntime:{list:()=>[source]},
+  toolsBridge:{executeMany:async()=>[failure]},
+  sessionContext:{tenantId:'B2C'},
+  validateAuthenticatedContext:async()=>identity,
+  verifyObjectives:async()=>({ok:false}),
+  hostToolPolicy:{accept:()=>true,authorize:()=>({ok:true,approved:false})}
+ });
+ const receipt=await bridge.execute({name:'browser.inspect',args:{url:first}},
+   {authorization:identity,receipts:[]});
+ assert.equal(receipt.ok,false);
+ assert.equal(receipt.status,'HTTP_404');
+ assert.equal(receipt.error.code,'HTTP_404');
+ assert.equal(receipt.neverClaimedInspected,true);
+ const recovery=planPlatformRecovery({tool:source,system:'browser',failure:receipt});
+ assert.equal(recovery.status,'RECOVERY_READ_REPLAN_REQUIRED');
+ assert.equal(recovery.autoExecute,false);
+});
+test('source selection excludes the exact failed 404 URL and keeps other independent sources eligible',async()=>{
+ const {prioritizeResearchDiscovery}=await import('../modules/terminal/qwen-general-pilot.js');
+ const missing='https://www.energystar.gov/obsolete-filter-advice';
+ const next='https://www.epa.gov/indoor-air-quality-iaq/guide-air-cleaners-home';
+ const third='https://www.carrier.com/us/en/residential/hvac-resources/air-conditioners/ac-maintenance/';
+ const instruction='Investiga filtros de aire acondicionado residencial; usa tres fuentes independientes. No modifiques archivos.';
+ const tools=['web.research','browser.inspect'].map(mock);
+ const search={name:'web.research',ok:true,args:{query:'filters HVAC maintenance'},observation:{ok:true,sources:[
+  {url:missing,title:'Filter maintenance ENERGY STAR'},
+  {url:next,title:'Air filters and HVAC EPA'},
+  {url:third,title:'Air conditioner maintenance Carrier'}]}};
+ const failed={name:'browser.inspect',ok:false,args:{url:missing},
+  observation:{ok:false,status:'HTTP_404',error:{code:'HTTP_404'}}};
+ const prioritized=prioritizeResearchDiscovery(tools,[search,failed],instruction);
+ assert.deepEqual(prioritized.map(x=>x.name),['browser.inspect']);
+ const offered=prioritized[0].inputSchema.properties.url.enum;
+ assert.ok(!offered.includes(missing));
+ assert.ok(offered.includes(next));
+ assert.ok(offered.includes(third));
+});
+
+test('404 browser receipt continues to a different authorized public source without replaying the broken page',async()=>{
+ const {createQwenAuthenticatedToolBridge}=await import('../jarvis-qwen-tool-bridge.js');
+ const {runQwenAuthorizedCycle}=await import('../jarvis-qwen-direct-cycle.js');
+ const {prioritizeResearchDiscovery}=await import('../modules/terminal/qwen-general-pilot.js');
+ const broken='https://www.energystar.gov/old-maintenance-guide';
+ const alternate='https://www.epa.gov/indoor-air-quality-iaq/guide-air-cleaners-home';
+ const catalog=['web.research','browser.inspect'].map(name=>({
+  name,mutates:false,requiresApproval:false,inputSchema:{type:'object',
+   properties:name==='web.research'?{query:{type:'string'}}:{url:{type:'string'}},
+   required:[name==='web.research'?'query':'url']}
+ }));
+ const executed=[];
+ const identity={ok:true,principalId:'owner-fixture',tenantId:'B2C',role:'ceo'};
+ const adapter=createQwenAuthenticatedToolBridge({
+  toolRuntime:{list:()=>catalog},sessionContext:{tenantId:'B2C'},
+  validateAuthenticatedContext:async()=>identity,verifyObjectives:async()=>({ok:false,reason:'THREE_SOURCES_REQUIRED'}),
+  hostToolPolicy:{accept:()=>true,authorize:()=>({ok:true,approved:false})},
+  toolsBridge:{executeMany:async([call])=>{
+   executed.push(call);
+   if(call.name==='web.research')return [{ok:true,sources:[
+    {url:broken,title:'Air filter maintenance'},
+    {url:alternate,title:'Air cleaners HVAC maintenance'}]}];
+   if(call.args.url===broken)return [{ok:false,status:'BROWSER_COMMAND_FAILED',
+    error:{code:'BROWSER_COMMAND_FAILED',message:'BROWSER_PUBLIC_HTML_HTTP_404'}}];
+   return [{ok:true,url:alternate,dom:'<html><title>Air Cleaners</title><main><p>Filter maintenance and airflow recommendations for household cooling equipment.</p></main></html>'}];
+  }}
+ });
+ const instruction='Investigación de filtros de aire acondicionado con tres fuentes independientes';
+ const result=await runQwenAuthorizedCycle({
+  instruction,catalog:adapter.catalog,...adapter,maximumSteps:4,repairIncomplete:true,
+  catalogForEvidence:(available,rs)=>prioritizeResearchDiscovery(available,rs,instruction),
+  selectNextAction:async({tools})=>{
+   const next=tools[0];
+   if(next?.name==='web.research')return {toolCall:{name:'web.research',
+    args:{query:next.inputSchema.properties.query.const}}};
+   if(next?.name==='browser.inspect')return {toolCall:{name:'browser.inspect',
+    args:{url:next.inputSchema.properties.url.enum[0]}}};
+   return {finish:true,report:'Insufficient independent sources'};
+  }
+ });
+ assert.equal(executed.filter(x=>x.name==='browser.inspect'&&x.args.url===broken).length,1);
+ assert.equal(executed.filter(x=>x.name==='browser.inspect'&&x.args.url===alternate).length,1);
+ assert.equal(result.receipts.some(x=>x.name==='browser.inspect'&&x.args.url===broken&&x.ok===false&&x.observation.status==='HTTP_404'),true);
+ assert.equal(result.receipts.some(x=>x.name==='browser.inspect'&&x.args.url===alternate&&x.ok===true),true);
+ assert.equal(result.status,'PARTIAL','one source never falsely certifies a three-source mission');
+});

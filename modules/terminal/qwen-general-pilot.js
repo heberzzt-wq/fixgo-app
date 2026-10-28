@@ -680,7 +680,9 @@ export function generalPilotSourceSignature(){
 export function prioritizeResearchDiscovery(catalog,receipts,instruction=''){
     const valid=independentResearchProofs(receipts,instruction);
     if(valid.length>=3)return null;
-    const used=new Set(receipts.filter(r=>r.ok&&r.name==='browser.inspect').map(r=>r.args?.url));
+    // Both successful and failed attempts occupy the exact URL. A missing
+    // page is not evidence and must never be proposed again as the same read.
+    const used=new Set(receipts.filter(r=>r.name==='browser.inspect').map(r=>r.args?.url));
     const organization=raw=>{
         try{
             const host=new URL(raw).hostname.replace(/^www\./i,'').toLowerCase();

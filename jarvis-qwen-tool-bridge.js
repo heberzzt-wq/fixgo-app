@@ -70,6 +70,26 @@ export function verifiedNonMutatingPreviewEnvelope(envelope,call,sessionContext=
     objectiveSatisfied:false,requiresApproval:true,requiresHumanApproval:true,
     written:false,verified:false,preparedPreviewOnly:true};
 }
+// A real public HTML 404 is a missing source, not permission to fabricate a
+// page or retry an identical URL. Only the authenticated tool failure envelope
+// can supply this code; Qwen arguments and search snippets are not evidence.
+export function missingPublicHtmlSourceFailure(toolName, envelope) {
+    if (toolName !== 'browser.inspect' || envelope?.ok !== false) return false;
+    const runtime = envelope?.error?.context?.runtimeResult;
+    const values = [
+        envelope?.error,
+        envelope?.error?.code,
+        envelope?.error?.message,
+        runtime?.error,
+        runtime?.error?.code,
+        runtime?.error?.message,
+        envelope?.runtimeResult?.error,
+        envelope?.runtimeResult?.error?.message
+    ].filter(value => typeof value === 'string');
+    return values.some(value => value === 'BROWSER_PUBLIC_HTML_HTTP_404' ||
+        value.includes('BROWSER_PUBLIC_HTML_HTTP_404'));
+}
+
 // Adapter for an opt-in, read-only pilot. It deliberately reuses the existing
 // ToolsBridge executor and requires explicit trusted browser-session validation.
 // No standalone Firebase, admin SDK, anonymous account, service key or
@@ -224,6 +244,11 @@ export function createQwenAuthenticatedToolBridge({
             }
             if(!observation || observation.ok!==true || observation.blocked===true ||
                 observation.executionOk===false || observation.requiresInput===true){
+                if(missingPublicHtmlSourceFailure(call.name,observation)){
+                    return {ok:false,executionOk:false,status:'HTTP_404',
+                        error:{code:'HTTP_404'},url:call.args.url,
+                        sourceUnavailable:true,neverClaimedInspected:true};
+                }
                 return {ok:false,executionOk:false,blocked:true,
                     status:String(observation?.status||'READ_TOOL_REJECTED'),
                     error:observation?.error||null};
