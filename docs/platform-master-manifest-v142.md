@@ -297,6 +297,11 @@
 - **Marca:** ADJUNTO. Jarvis solo como apodo interno; marca comercial propuesta ADJUNTO, sujeta a revision legal.
 - **Modelo comercial:** Peninsula Tech vende resultados: publicidad, programacion, contenidos, servicios empresariales y operaciones B2C/B2B. No vende suscripciones ni acceso publico general al asistente IA.
 - **Infraestructura:** Cerebro unico Qwen3.5:9b alojado localmente en entorno privado autorizado; sin fallback cognitivo a otras APIs de IA.
+- **Optimización futura no implementada:** DeepSpeed ZeRO-Inference / offload por capas — `PLANEADO_NO_IMPLEMENTADO`.
+- **Prioridad de evaluación:** `DESPUES_DE_CERRAR_ENLACE_MOVIL_Y_30_MISIONES_E2E_VERIFICADAS`. Evaluar si la gestion de pesos por capas entre RAM/NVMe y GPU mejora el uso de modelos locales en el hardware disponible.
+- **Límites técnicos:** Mantener Qwen3.5:9b como unico cerebro y Ollama como motor oficial hasta que exista un benchmark aislado aprobado; DeepSpeed no es otro modelo ni sustituye el Bridge, Firebase ni la autorrecuperacion.
+- **Pruebas exigidas:** Medir latencia inicial, tokens/segundo, RAM, VRAM, exactitud, consumo y cierre de misiones contra el Qwen/Ollama actual en hardware identico, sin alterar v142-official operativa.
+- **Autorización:** No instalar, cambiar runtime, publicar o desplegar sin resultado medible y autorizacion separada.
 - **Conectores:** Permitir conectores/servicios de red autorizados para operar correo, GitHub, plataformas sociales, Firebase y clientes sin exponer el LLM como servicio publico.
 - **Alcance previsto:** ADJUNTO coordina investigacion, programacion, diseno, campanas, soporte documental, operaciones, mantenimiento y desarrollo experimental de nuevas herramientas/IA.
 - **Autoridad:** Investiga, ejecuta dentro de permisos, prueba y verifica; cambios de codigo con impacto, despliegues, dinero, cuentas y decisiones de alto riesgo bajo aprobacion del propietario.

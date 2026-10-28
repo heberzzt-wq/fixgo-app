@@ -267,6 +267,13 @@ function renderPrivateProductStrategy(m){
  '- **Marca:** '+esc(p.brand)+'. '+esc(p.naming)+'.',
  '- **Modelo comercial:** '+esc(p.businessModel),
  '- **Infraestructura:** '+esc(p.deployment),
+ ...(p.futureInferenceOptimization ? [
+   '- **Optimización futura no implementada:** '+esc(p.futureInferenceOptimization.name)+' — '+code(p.futureInferenceOptimization.status)+'.',
+   '- **Prioridad de evaluación:** '+code(p.futureInferenceOptimization.priorityGate)+'. '+esc(p.futureInferenceOptimization.objective),
+   '- **Límites técnicos:** '+esc(p.futureInferenceOptimization.constraint),
+   '- **Pruebas exigidas:** '+esc(p.futureInferenceOptimization.benchmark),
+   '- **Autorización:** '+esc(p.futureInferenceOptimization.approval)
+ ] : []),
  '- **Conectores:** '+esc(p.integrationBoundary),
  '- **Alcance previsto:** '+esc(p.ambition),
  '- **Autoridad:** '+esc(p.autonomyBoundary),

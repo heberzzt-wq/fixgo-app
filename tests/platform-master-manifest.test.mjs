@@ -147,6 +147,19 @@ test('owner strategy keeps ADJUNTO internal-only and never confuses vision with 
  assert.equal(validateManifest(bad).ok,false);
 });
 
+test('DeepSpeed remains a deferred benchmark, not a replacement brain or current runtime',()=>{
+ const candidate=data.productStrategy.futureInferenceOptimization;
+ assert.equal(candidate.status,'PLANEADO_NO_IMPLEMENTADO');
+ assert.match(candidate.name,/DeepSpeed/);
+ assert.match(candidate.priorityGate,/MISIONES_E2E_VERIFICADAS/);
+ assert.match(candidate.constraint,/Qwen3\.5:9b/);
+ assert.match(candidate.constraint,/Ollama/);
+ assert.match(candidate.approval,/No instalar/);
+ const report=renderManifest(data);
+ assert.match(report,/DeepSpeed ZeRO-Inference/);
+ assert.match(report,/Optimización futura no implementada/);
+});
+
 test('11 value gates need physical evidence and never automatically reprice ADJUNTO',()=>{
  const v=data.valueReadiness;
  assert.equal(v.gates.length,11);
