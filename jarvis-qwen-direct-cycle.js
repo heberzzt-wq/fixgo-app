@@ -408,7 +408,8 @@ export async function runQwenAuthorizedCycle({
             tool,failure:observation,attempt:1});
         if(repairIncomplete&&recoveryPlan.autoExecute===true){
             onProgress({phase:'TOOL_RETRY',iteration,name:tool.name,state:'retrying',
-                executionId:'qwen-'+iteration,reason:recoveryPlan.code,attempt:2,maxAttempts:2});
+                executionId:'qwen-'+iteration,reason:recoveryPlan.code,
+                incidentCode:recoveryPlan.incidentCode,attempt:2,maxAttempts:2});
             const retry=await runAuthenticatedReadRecovery({
                 plan:recoveryPlan,tool,call:invocation,execute,authorize,signal,
                 instruction,receipts
@@ -424,9 +425,17 @@ export async function runQwenAuthorizedCycle({
             const second=retry.observation;
             observation={...second,recovery:{attempts:retry.attempts,
                 transientError:recoveryPlan.code,
+                incidentCode:recoveryPlan.incidentCode,
                 previousObservationStatus:observation?.status||null,
                 hostAuthorizedRetry:true,firstExecutionSucceeded:false,
                 finalExecutionSucceeded:second?.ok===true}};
+        }
+        // Preserve a human-facing incident identifier on failed physical
+        // receipts. It is diagnostic data, never proof that recovery succeeded.
+        if(observation?.ok!==true && observation && typeof observation==='object'){
+            observation={...observation,incident:{code:recoveryPlan.incidentCode,
+                disposition:recoveryPlan.recoveryDisposition,
+                action:recoveryPlan.incidentAction}};
         }
         const successful=observation?.ok===true && observation.executionOk!==false &&
             observation.blocked!==true && observation.requiresInput!==true &&

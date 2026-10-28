@@ -1,7 +1,8 @@
 // V142 host-owned, cross-platform self-healing contract.
+import {diagnoseJarvisError} from './gestia-core/jarvis/jarvis.error-catalog.js';
 // Pure planner: an AI claim, tool result or repair history CANNOT grant authority.
 // Automatic actions require independently authenticated adapters and receipts.
-export const JARVIS_PLATFORM_SELF_HEALING_VERSION='1.0.0-bounded-platform-recovery';
+export const JARVIS_PLATFORM_SELF_HEALING_VERSION='1.1.0-coded-platform-recovery';
 const READS=new Set(['repo.read','repo.grep','repo.search','browser.inspect','web.research',
   'artifact.read','system.capabilities','repo.context']);
 const TRANSIENT=new Set(['NETWORK_TRANSIENT','REMOTE_FETCH_FAILED','ETIMEDOUT','ECONNRESET',
@@ -24,7 +25,7 @@ function noAuthority(){return {autoExecute:false,maxAttempts:0,requiresApproval:
  * documents, connectors, tools, repository, finance and tenant operations.
  * Outcomes are PLANS, not executed changes.
  */
-export function planPlatformRecovery({system='',tool={},failure={},attempt=1,
+function planPlatformRecoveryCore({system='',tool={},failure={},attempt=1,
   output='',format='',operation=''}={}){
  const subsystem=String(system||'').toLowerCase();
  const op=tool?.name||operation,code=codeOf(failure);
@@ -75,6 +76,22 @@ export function planPlatformRecovery({system='',tool={},failure={},attempt=1,
    return {status:'RECOVERY_RECONNECT_ACCOUNT_REQUIRED',action:'REQUEST_FRESH_OWNER_OAUTH',
     autoExecute:false,maxAttempts:0,requiresApproval:true,system:subsystem,code};
  return {...FAIL_SAFE,system:subsystem,code};
+}
+
+// The JAR code describes a real failure; the existing host recovery policy
+// remains the sole authority for whether any action may run. A JAR number
+// is NEVER permission to mutate, bypass authentication or replay a mission.
+export function planPlatformRecovery(input={}){
+ const decision=planPlatformRecoveryCore(input);
+ const incident=diagnoseJarvisError(input.failure);
+ return {...decision,
+   incidentCode:incident.code,
+   incidentTitle:incident.title,
+   incidentAction:incident.action,
+   recoveryDisposition:decision.autoExecute===true?'BOUNDED_AUTHORIZED_READ_RETRY':
+     decision.status==='RECOVERY_READ_REPLAN_REQUIRED'?'ALTERNATIVE_SOURCE_REQUIRED':
+     decision.status==='RECOVERY_SECURITY_BLOCKED'?'SECURITY_HOLD':
+     'OPERATOR_REVIEW_REQUIRED'};
 }
 
 export async function runAuthenticatedReadRecovery({plan,call,tool,execute,authorize,signal,

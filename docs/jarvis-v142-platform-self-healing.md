@@ -35,3 +35,16 @@ Implementar adaptadores autenticados de estado y reinicio local, reparación
 de archivos con nueva versión y prueba de contenido, y OAuth del propietario.
 Toda reparación debe dejar recibos de antes/error/acción/después con el alcance,
 un límite de reintentos y una vía clara de cancelación.
+
+## Integración de códigos JAR (octubre 2026)
+
+- El catálogo de fallas estable está en `gestia-core/jarvis/jarvis.error-catalog.js`.
+- `planPlatformRecovery` ahora conserva la decisión de seguridad del host y adjunta `incidentCode`, `incidentTitle`, `incidentAction` y `recoveryDisposition`.
+- El ciclo de lectura autorizado conserva el código en recibos de error, registra el código de la recuperación reautorizada y no convierte un intento fallido en `SUCCESS`.
+- `BOUNDED_AUTHORIZED_READ_RETRY`: permitido solo para lectura transitoria, hasta dos ejecuciones en total y con reautorización independiente.
+- `ALTERNATIVE_SOURCE_REQUIRED`: el origen no existe o el sitio denegó lectura; se necesita una fuente distinta sin eludir permisos.
+- `SECURITY_HOLD`: se detiene ante permisos insuficientes o mutaciones sin autoridad.
+- `OPERATOR_REVIEW_REQUIRED`: problemas de enlace, credenciales, servicios, tamaños excesivos y demás fallas sin adaptador autocorrector certificado.
+- **No implementado aún:** reparación automática de código y parches, reinicio real de servicios desde el catálogo JAR, toma automática de un lease de Firebase, recuperación de OAuth, solución de misiones complejas sin evidencia y aprendizaje persistente aprobado por pruebas posteriores.
+- Los códigos son un índice de diagnóstico, NO instrucciones para el modelo. La selección de herramientas sigue en Qwen y la autorización en el host.
+- La verificación física de la nueva integración debe demostrar recibos de error/acción/después y no solo pruebas unitarias.
