@@ -5928,8 +5928,49 @@ const summary =
             return sanitizer.innerHTML;
         };
 
-        const safeTitle = escapeHTML(String(title || "Jarvis"));
+        // Preserve the signed evidence JSON but render its sources as a readable report.
+        const researchReport = (() => {
+            if (typeof message !== "string" || !/^\s*\{/.test(message)) return null;
+            let parsed;
+            try { parsed = JSON.parse(message); } catch { return null; }
+            if (!parsed || Array.isArray(parsed) ||
+                Object.keys(parsed).length !== 1 ||
+                !Array.isArray(parsed.sources) ||
+                parsed.sources.length < 1 || parsed.sources.length > 20) return null;
+            const rows = [];
+            for (const source of parsed.sources) {
+                if (!source || typeof source !== "object" ||
+                    typeof source.url !== "string" ||
+                    typeof source.title !== "string" ||
+                    typeof source.quote !== "string" ||
+                    !source.title.trim() || !source.quote.trim()) return null;
+                let url;
+                try { url = new URL(source.url); } catch { return null; }
+                if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return null;
+                rows.push({ url: url.href, title: source.title, quote: source.quote,
+                    date: /^20\d{2}-\d{2}-\d{2}$/.test(String(source.date || "")) ? source.date : null });
+            }
+            return rows;
+        })();
+        const safeTitle = escapeHTML(String(researchReport ? "Fuentes de la investigación" : title || "Jarvis"));
         const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
+        const researchItems = researchReport?.map((source, index) =>
+            '<li class="mb-4 break-words">' +
+            '<p class="font-semibold text-white">' + (index + 1) + '. ' + escapeHTML(source.title) + '</p>' +
+            (source.date ? '<p class="text-xs text-slate-400">Fecha documentada: ' + escapeHTML(source.date) + '</p>' : '') +
+            '<a class="text-sky-300 underline break-all" target="_blank" rel="noopener noreferrer" href="' +
+                escapeHTML(source.url) + '">Abrir fuente original</a>' +
+            '<p class="mt-1 text-slate-300"><strong>Fragmento citado:</strong> “' + escapeHTML(source.quote) + '”</p>' +
+            '</li>'
+        ).join('');
+        const renderedMessage = researchReport ?
+            '<div data-jarvis-research-report="true" class="space-y-3 font-sans">' +
+            '<p class="text-slate-200">Jarvis encontró ' + researchReport.length + ' fuentes verificadas. Estos son sus enlaces y los textos citados:</p>' +
+            '<ol class="space-y-3">' + researchItems + '</ol>' +
+            '<p class="text-xs text-slate-400">Las citas documentan las fuentes. El informe no incluye todavía una interpretación técnica elaborada.</p>' +
+            '<details class="text-xs text-slate-400"><summary class="cursor-pointer">Ver detalles técnicos (JSON)</summary>' +
+            '<pre class="whitespace-pre-wrap break-all mt-2">' + escapeHTML(String(message)) + '</pre></details></div>'
+            : safeMessage;
 
         const responseHtml = `
             <div data-jarvis-response-card="true" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
@@ -5938,8 +5979,8 @@ const summary =
                 </div>
                 <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
                     <h3 class="font-semibold text-white mb-3 text-lg">${safeTitle}</h3>
-                    <div class="text-slate-300 text-sm leading-relaxed font-mono">
-                        ${safeMessage}
+                    <div class="text-slate-300 text-sm leading-relaxed ${researchReport ? "font-sans" : "font-mono"}">
+                        ${renderedMessage}
                     </div>
                 </div>
             </div>
