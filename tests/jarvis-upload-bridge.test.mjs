@@ -199,7 +199,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:ensure"], /3344/);
     assert.match(pkg.scripts["bridge:ensure"], /detached:true/);
     assert.match(pkg.scripts["bridge:doctor"], /workstation\/doctor/);
-    assert.match(pkg.scripts["bridge:ensure"], /workstation\/health/);
+    assert.match(pkg.scripts["bridge:ensure"], /path:'\/health'/);
+    assert.doesNotMatch(pkg.scripts["bridge:ensure"], /workstation\/health/);
+    assert.match(pkg.scripts["bridge:ensure"], /supervisor\?\.workerStarted/);
     assert.match(pkg.scripts["bridge:ensure"], /workerStarted/);
     assert.match(pkg.scripts["bridge:ensure"], /2\.0\.0-singleton-exact-sync/);
     assert.match(pkg.scripts["bridge:ensure"], /bridge:supervise/);
