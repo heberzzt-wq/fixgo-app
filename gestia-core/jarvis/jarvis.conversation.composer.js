@@ -1064,6 +1064,12 @@ function observedRepositoryProgress(evidenceItems) {
         const observation = item?.observation || item?.response || item?.data || {};
         if (observation.ok !== true || observation.executionOk === false || observation.blocked === true || observation.requiresInput === true) continue;
         const tool = item.name || item.tool;
+        if (tool === "repo.audit" && observation.inventoryEvidence?.source === "LIVE_REPOSITORY_INVENTORY") {
+            const inventory = observation.inventoryEvidence;
+            const count = Number(inventory.counts?.filesScanned);
+            if (Number.isInteger(count) && count > 0)
+                facts.push("Inventario estructural observado: " + count + " archivos. El recuento por sí solo no certifica el cierre de la misión.");
+        }
         if (tool === "repo.gitHistory") {
             for (const commit of (Array.isArray(observation.gitEvidence?.commits) ? observation.gitEvidence.commits : []).slice(0, 8)) {
                 if (typeof commit.sha === "string" && commit.sha.length === 40 &&
@@ -1359,6 +1365,8 @@ export async function composeEvidenceGroundedConversation({
             status: "CONVERSATIONAL_EVIDENCE_INSUFFICIENT",
             text: ["No hay evidencia suficiente para completar lo solicitado.",
                 ...(missionOutcomeObservation?.reason ? [`Motivo final: ${missionOutcomeObservation.reason}.`] : []),
+                ...(missionOutcomeObservation?.reason === "PLANNER_UNAVAILABLE" && missionOutcomeObservation.plannerFailureCode ?
+                    [`Diagnóstico técnico del planificador: ${missionOutcomeObservation.plannerFailureCode}.`] : []),
                 ...observedRepositoryProgress(evidenceItems),
                 ...(attemptedOperations.some(item => item.error)
                     ? [...new Set(attemptedOperations.filter(item => item.error).map(item => item.tool + " — " + item.error + (item.requestedFile ? "; archivo: " + item.requestedFile : "")))]

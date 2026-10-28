@@ -6605,6 +6605,16 @@ if (
                             objectiveSatisfied: missionResult.status === "COMPLETED",
                             status: missionResult.status,
                             reason: missionResult.reason,
+                            // Keep only the bounded technical error code from the
+                            // actual failed planner receipt, never prompts or tokens.
+                            plannerFailureCode: missionResult.reason === "PLANNER_UNAVAILABLE"
+                                ? (() => {
+                                    const failed = [...(missionResult.errors || [])].reverse().find(item => item.tool === "semantic.planner");
+                                    const code = String(failed?.status || "").trim().split(" ")[0].split(":")[0].split("\n")[0].slice(0, 160);
+                                    return code.length >= 4 && [...code].every(character =>
+                                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-".includes(character)) ? code : "PLANNER_FAILURE_UNCLASSIFIED";
+                                })()
+                                : null,
                             completionAssessment: missionResult.completionAssessment || null,
                             blocked: missionResult.blockedTasks.length > 0,
                             verifiedArtifactDelivery
