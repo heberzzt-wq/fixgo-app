@@ -859,3 +859,38 @@ test('relay worker refuses to register when local bridge head differs from the p
         /JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/
     );
 });
+
+test('workstation relay restores signed heartbeat on tab wake and unhooks all wake listeners on stop', async () => {
+    const fake=relayFakeSdk(), globalListeners=new Map(), docListeners=new Map();
+    const before={document:globalThis.document, add:globalThis.addEventListener, remove:globalThis.removeEventListener};
+    const doc={visibilityState:'hidden',addEventListener:(name,fn)=>docListeners.set(name,fn),removeEventListener:(name,fn)=>{if(docListeners.get(name)===fn)docListeners.delete(name);}};
+    globalThis.document=doc;
+    globalThis.addEventListener=(name,fn)=>globalListeners.set(name,fn);
+    globalThis.removeEventListener=(name,fn)=>{if(globalListeners.get(name)===fn)globalListeners.delete(name);};
+    const auth={currentUser:{uid:JARVIS_PRIVATE_RELAY.ownerUid,async getIdToken(){return 'ephemeral-fixture-token';}},async authStateReady(){}};
+    let worker;
+    try{
+        worker=await startJarvisBrowserRelay({auth,db:{},sdk:fake.sdk,contract:{releaseId:'wake-test'},
+            requestLocal:async(route)=>{
+                assert.equal(route,'/workstation/health');
+                return {ok:true,status:'JARVIS_WORKSTATION_LIVE',runtime:{bridgeStarted:true,loadedHead:'wake-head'}};
+            },uuid:()=>relayId});
+        const leases=()=>fake.writes.filter(entry=>entry.path===`jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}`&&entry.data.online===true).length;
+        assert.equal(leases(),1);
+        docListeners.get('visibilitychange')();await sleep(10);
+        assert.equal(leases(),1,'hidden Chrome tab must not reassert the lease');
+        doc.visibilityState='visible';docListeners.get('visibilitychange')();await sleep(20);
+        assert.equal(leases(),2,'foreground return refreshes the signed lease immediately');
+        globalListeners.get('online')();await sleep(20);
+        assert.equal(leases(),3,'reconnected browser refreshes the lease');
+        assert.equal(fake.docs.get(`jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}`).workerId,relayId);
+        assert.equal(globalListeners.has('focus'),true);
+    }finally{
+        await worker?.stop();
+        if(before.document===undefined)delete globalThis.document;else globalThis.document=before.document;
+        if(before.add===undefined)delete globalThis.addEventListener;else globalThis.addEventListener=before.add;
+        if(before.remove===undefined)delete globalThis.removeEventListener;else globalThis.removeEventListener=before.remove;
+    }
+    assert.equal(docListeners.size,0);
+    assert.equal(globalListeners.size,0);
+});

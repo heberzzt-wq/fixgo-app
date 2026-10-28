@@ -465,7 +465,7 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
     }
     attach();
     let maintaining = false, lastCleanup = 0;
-    timer = setInterval(async () => {
+    const maintain = async () => {
         if (maintaining || stopped) return;
         maintaining = true;
         try {
@@ -477,10 +477,24 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
             }
         } catch (error) { onState({ status: "RECONNECTING", workerId, error: error.code || error.message }); }
         finally { maintaining = false; }
-    }, policy.heartbeatMs);
+    };
+    // Chrome may throttle a background tab. Restore the signed owner lease
+    // promptly on foreground / connectivity return, never by replaying work.
+    const wake = () => {
+        if (!stopped && globalThis.document?.visibilityState !== 'hidden') void maintain();
+    };
+    globalThis.document?.addEventListener?.('visibilitychange', wake);
+    globalThis.addEventListener?.('focus', wake);
+    globalThis.addEventListener?.('pageshow', wake);
+    globalThis.addEventListener?.('online', wake);
+    timer = setInterval(() => void maintain(), policy.heartbeatMs);
     return { workerId,
         async stop() {
             stopped = true; clearInterval(timer); unsubscribe?.();
+            globalThis.document?.removeEventListener?.('visibilitychange', wake);
+            globalThis.removeEventListener?.('focus', wake);
+            globalThis.removeEventListener?.('pageshow', wake);
+            globalThis.removeEventListener?.('online', wake);
             try { await sdk.runTransaction(db, async tx => { const value = (await tx.get(parent)).data();
                 if (value?.workerId === workerId) tx.update(parent, { online: false, heartbeatAt: sdk.serverTimestamp() }); }); } catch {}
             onState({ status: "STOPPED", workerId });
