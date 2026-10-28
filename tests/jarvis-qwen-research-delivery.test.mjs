@@ -241,3 +241,23 @@ test('404 browser receipt continues to a different authorized public source with
  assert.equal(result.receipts.some(x=>x.name==='browser.inspect'&&x.args.url===alternate&&x.ok===true),true);
  assert.equal(result.status,'PARTIAL','one source never falsely certifies a three-source mission');
 });
+
+test('HVAC source verifier uses the original topic-bound quote window on every independently inspected host',async()=>{
+ const {researchSourceProofs,independentResearchProofs,verifyGeneralMission}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='Investiga el mantenimiento de filtros de aire acondicionado residencial. Busca tres fuentes independientes, inspecciona sus páginas y entrega sus URLs y citas verificadas. No modifiques archivos.';
+ const urls=['energy-alpha.org','hvac-beta.edu','filters-gamma.net'].map(host=>'https://'+host+'/residential-hvac');
+ const quote='Regular HVAC filter maintenance helps prevent restricted airflow in residential air conditioning systems and supports an appropriate cleaning schedule.';
+ const filler=Array.from({length:10},(_,n)=>'<p>Categoria '+n+' presenta productos innovadores para hogares y oficinas con un gran equipo de especialistas disponibles para consultas y asesorias comerciales en todo el territorio.</p>').join('');
+ const receipts=[{ok:true,name:'web.research',args:{query:'air conditioner filters maintenance'},observation:{ok:true,sources:urls.map(url=>({url,title:'HVAC air filter maintenance'}))}},
+ ...urls.map((url,i)=>({name:'browser.inspect',ok:true,args:{url},observation:{ok:true,url,
+ dom:'<html><title>HVAC filter maintenance '+i+'</title><main>'+(i===2?filler:'')+'<p>'+quote+'</p></main></html>'}}))];
+ const generic=researchSourceProofs(receipts);
+ const topicBound=independentResearchProofs(receipts,instruction);
+ assert.equal(topicBound.length,3);
+ assert.ok(generic[2].quotes.every(q=>q!==quote),'generic first-eight window drops a real later quote');
+ const proposedReport=JSON.stringify({sources:topicBound.map(p=>({url:p.url,title:p.title,date:null,quote:p.quotes[0]}))});
+ const accepted=await verifyGeneralMission({instruction,receipts,proposedReport});
+ assert.equal(accepted.ok,true,'the independent report must use the same topic-bound quotes as the Qwen schema');
+ const forged=proposedReport.replace('restricted airflow','invented electricity savings');
+ assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:forged})).ok,false);
+});

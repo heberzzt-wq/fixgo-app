@@ -493,8 +493,11 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         // Verify against the same topic-filtered quoted excerpts that the
         // independently grounded report may cite. Generic top-N snippets
         // can omit a valid WCAG passage that appears after site boilerplate.
-        const topicBound=boundReport||/\bwcag\b|accesibilidad web|formularios moviles/iu.test(instruction);
-        const proofs=researchSourceProofs(receipts,topicBound?instruction:'');
+        // The model's report schema is built from original-instruction
+        // topic-bound quotes. The verifier MUST inspect that same bounded
+        // window, not a generic first-eight excerpt window which can drop
+        // a later, physically verified source passage.
+        const proofs=researchSourceProofs(receipts,instruction);
         check('bounded evidence report',!!table&&Object.keys(table).length===1&&new Set(evidenceRows.map(r=>r?.url)).size>=3&&evidenceRows.every(r=>Object.keys(r).every(k=>['url','title','date','quote'].includes(k))),'UNSUPPORTED_REPORT_ASSERTIONS');
         if(objectives.current)check('dated current assertions',evidenceRows.some(s=>s.date!==null)&&evidenceRows.every(s=>{if(s.date===null)return true;const date=Date.parse(s.date);return typeof s.date==='string'&&/^20\d{2}[-/]\d{2}[-/]\d{2}$/.test(s.date)&&String(observed.get(s.url)||'').includes(s.date)&&Number.isFinite(date)&&date<=Date.now()+86400000&&Date.now()-date<=366*86400000;}),'SOURCE_DATES_AND_REPORT_BINDING_REQUIRED');
 
