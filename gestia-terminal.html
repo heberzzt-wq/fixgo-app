@@ -1561,18 +1561,36 @@ window.unlockJarvisVoice = function() {
     let lastJarvisEnd = 0; 
     let isProcessing = false;
     let localMissionAbortController = null;
+    let missionCancelRecoveryTimer = null;
     const stopMissionButton = document.getElementById('btn-stop-mission');
     // A cancel click interrupts the current authenticated Qwen fetch; it
     // cannot authorize writes or claim that a mission was completed.
     if(stopMissionButton&&!stopMissionButton.dataset.jarvisStopBound){
         stopMissionButton.dataset.jarvisStopBound='true';
         stopMissionButton.addEventListener('click',()=>{
-            if(!isProcessing||!localMissionAbortController||
-                localMissionAbortController.signal.aborted)return;
-            localMissionAbortController.abort('USER_REQUESTED_STOP');
+            if(!isProcessing||!localMissionAbortController)return;
+            if(localMissionAbortController.signal.aborted){
+                // The remote worker may have completed, but a silent relay can
+                // leave the browser promise unresolved. Reload is an explicit
+                // owner action, NEVER proof that the remote mission stopped.
+                if(stopMissionButton.dataset.cancelRecoveryReady==='true')
+                    window.location.reload();
+                return;
+            }
+            const cancellingController=localMissionAbortController;
+            cancellingController.abort('USER_REQUESTED_STOP');
             window.dispatchEvent(new CustomEvent('jarvis:mission-cancel-requested', {detail:{reason:'USER_REQUESTED_STOP'}}));
             stopMissionButton.disabled=true;
             stopMissionButton.textContent='Deteniendo...';
+            clearTimeout(missionCancelRecoveryTimer);
+            missionCancelRecoveryTimer=setTimeout(()=>{
+                if(!isProcessing||localMissionAbortController!==cancellingController||
+                   !cancellingController.signal.aborted)return;
+                stopMissionButton.dataset.cancelRecoveryReady='true';
+                stopMissionButton.textContent='Recargar Terminal';
+                stopMissionButton.title='Sin confirmación de cancelación. Recarga para liberar la interfaz; no acredita detener una ejecución remota.';
+                stopMissionButton.disabled=false;
+            },8000);
         });
     }
     // Reload or navigation must abandon the active fetch, never silently leave
@@ -1802,7 +1820,11 @@ window.unlockJarvisVoice = function() {
                 (!new URLSearchParams(location.search).get('qwenPilot')||
                  new URLSearchParams(location.search).get('qwenPilot')==='general-v1');
             localMissionAbortController=new AbortController();
+            clearTimeout(missionCancelRecoveryTimer);
+            missionCancelRecoveryTimer=null;
             if(stopMissionButton){
+                delete stopMissionButton.dataset.cancelRecoveryReady;
+                stopMissionButton.title='Cancelar petición a Qwen local';
                 stopMissionButton.hidden=false;
                 stopMissionButton.disabled=false;
                 stopMissionButton.textContent='Detener';
@@ -5630,8 +5652,12 @@ const summary =
                 if (typeof window.endTrace === "function") window.endTrace();
 
                 // Release the abort controller only after the active request returned.
+                clearTimeout(missionCancelRecoveryTimer);
+                missionCancelRecoveryTimer=null;
                 localMissionAbortController=null;
                 if(stopMissionButton){
+                    delete stopMissionButton.dataset.cancelRecoveryReady;
+                    stopMissionButton.title='Cancelar petición a Qwen local';
                     stopMissionButton.hidden=true;
                     stopMissionButton.disabled=true;
                     stopMissionButton.textContent='Detener';
