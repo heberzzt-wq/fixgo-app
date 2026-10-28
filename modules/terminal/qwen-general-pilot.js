@@ -466,6 +466,16 @@ async function persistEvidence(missionId,result){
     });
     return {ok:true,missionId,sha256,downloadUrl:URL.createObjectURL(new Blob([serialized],{type:'application/json'})),storage:'local-origin IndexedDB; no tokens retained'};
 }
+// Return only diagnostic codes, never tokens, URLs, or exception payloads.
+export function generalPilotPreflightTransportReason(error){
+    const raw=String(error?.code||error?.message||'');
+    const code=raw.match(/(?:^|[^A-Z])((?:JARVIS|QWEN|BRIDGE)_[A-Z0-9_]{3,100})(?=[^A-Z0-9_]|$)/)?.[1];
+    if(code)return code;
+    if(/permission-denied|insufficient permissions/i.test(raw))return 'JARVIS_RELAY_PERMISSION_DENIED';
+    if(/unauthenticated|user-token-expired|requires-recent-login/i.test(raw))return 'JARVIS_RELAY_AUTH_REQUIRED';
+    if(/failed to fetch|network|fetch failed|timeout|offline|unavailable/i.test(raw))return 'JARVIS_RELAY_NETWORK_UNAVAILABLE';
+    return 'JARVIS_RELAY_PREFLIGHT_UNKNOWN';
+}
 export async function runQwenGeneralPilot(options){
     const continuationId=resumedMissionId(options.instruction);
     const originalId=continuationId?.startsWith('resume-')?originalResumedMissionId(options.instruction):null;
@@ -479,7 +489,13 @@ export async function runQwenGeneralPilot(options){
     const pilotVersion={clientFingerprint,clientStartedAt:globalThis.performance?.timeOrigin||Date.now()};
     let gate;
     try{gate=await options.bridge.requestJson('/qwen-pilot/preflight',pilotVersion,{});}
-    catch{throw Error('QWEN_PILOT_PREFLIGHT_FAILED');}
+    catch(error){
+        // The mobile relay, Firebase session, and localhost transport can fail
+        // independently. Never mask their safe, actionable failure codes.
+        const reason=generalPilotPreflightTransportReason(error);
+        console.warn('[QWEN_PILOT_PREFLIGHT_TRANSPORT_BLOCKED]',reason);
+        throw Error('QWEN_PILOT_PREFLIGHT_FAILED:'+reason);
+    }
     if(gate?.ok!==true||gate.clientFingerprint!==clientFingerprint)
         throw Error(gate?.reason||'QWEN_PILOT_VERSION_MISMATCH');
     const saved=continuationId?await readSavedMission(continuationId):null;

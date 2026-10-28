@@ -558,6 +558,13 @@ function configureJarvisPrivateRelay(bridge) {
         } catch (error) {
             const code = String(error?.code || error?.message || "");
             if (code !== "JARVIS_RELAY_WORKSTATION_UNAVAILABLE") throw error;
+            // A public mobile session is never a workstation. Retrying its
+            // Firestore presence once is safe; attempting to acquire the local
+            // bridge lease on the phone would call the phone's own localhost.
+            if (publicOrigin) {
+                await new Promise(resolve => setTimeout(resolve, 250));
+                return client.requestJson(route, payload, { ...options, contract });
+            }
             // The prior lease can disappear between STANDBY detection and the
             // first request. WORKSTATION_UNAVAILABLE happens before the relay
             // request is created, so taking the lease here cannot replay work.
