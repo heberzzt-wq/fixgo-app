@@ -2316,6 +2316,22 @@ export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, comp
     // This capability owns its grounded semantic completion. Running the generic
     // completion first both duplicates inference and pre-fills unverified claims.
     if (tool.semanticArgumentCompletion === true) return false;
+    // repo.audit's empty argument object is an executable, model-selected
+    // inventory of the CURRENT authorized checkout. Do not send a deferred
+    // read-only audit back through Qwen solely to manufacture optional args:
+    // it duplicates inference and can produce an unreceipted plan. The tool
+    // still validates repository scope, authorization and physical evidence.
+    const schema = tool.inputSchema || {};
+    if (call.name === "repo.audit" && tool.name === call.name &&
+        tool.investigationReadOnly === true && tool.mutates === false &&
+        tool.requiresApproval !== true && tool.userArtifact !== true &&
+        !tool.semanticArgumentCompletion && !tool.requiresEvidence?.length &&
+        schema.type === "object" && schema.additionalProperties === false &&
+        !Array.isArray(schema.anyOf) &&
+        (!Object.hasOwn(schema, "required") || Array.isArray(schema.required) && schema.required.length === 0) &&
+        Object.keys(schema.properties || {}).every(key => ["target", "refresh"].includes(key)) &&
+        Object.keys(call.args || {}).length === 0 &&
+        hasRequiredToolArguments(tool, call.args || {})) return false;
     if (call.deferred === true) return true;
     // Complete read-only investigation calls already came from the semantic planner.
     // Evidence does not authorize reauthoring their destinations or filters.
@@ -2455,33 +2471,6 @@ export async function completeJarvisPlanningArguments({
     const sources = boundedEvidenceSources(validSources);
     if (!name || !originalInstruction) {
         throw new Error("SEMANTIC_ARGUMENT_CONTEXT_REQUIRED");
-    }
-
-    // Qwen chose repo.audit in the preceding plan. Its registered contract
-    // accepts NO arguments for the active checkout. Argument completion must
-    // not masquerade as another local-model inference: the local semantic
-    // transport requires its own real Qwen receipt for every planner call.
-    // This binds only the selected tool's optional parameters; it cannot
-    // select a tool, name another repository, grant access or certify success.
-    const optionalActiveAudit =
-        name === "repo.audit" &&
-        inputSchema?.type === "object" &&
-        inputSchema?.additionalProperties === false &&
-        (!Object.hasOwn(inputSchema, "required") ||
-            Array.isArray(inputSchema.required) && inputSchema.required.length === 0) &&
-        !Array.isArray(inputSchema.anyOf) &&
-        Object.keys(inputSchema.properties || {}).every(key => ["target", "refresh"].includes(key)) &&
-        !Object.keys(currentArgs || {}).length &&
-        !validationFeedback &&
-        /(?:repositorio|repo)\s+(?:activo|actual|local)\b/iu.test(originalInstruction) &&
-        !/(?:https?:\/\/|git@|[A-Z]:[\\/]|(?:otro|externo|distinto)\s+(?:repo|repositorio))/iu.test(originalInstruction);
-    if (optionalActiveAudit) {
-        return {
-            ok: true, status: "GROUNDED_ARGUMENTS_READY",
-            toolName: name, args: {},
-            provider: "registered-optional-schema-after-tool-selection",
-            model: null, sourceCount: sources.length
-        };
     }
 
     const catalog = [{

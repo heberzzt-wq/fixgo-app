@@ -1,63 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import planner from '../functions/jarvis-semantic-planner.js';
-import {completeJarvisPlanningArguments} from '../gestia-core/jarvis/jarvis.multifunction.planner.js';
+import {shouldCompleteJarvisPlanningArguments} from '../gestia-core/jarvis/jarvis.multifunction.planner.js';
 
-const instruction='Ejecuta repo.audit sobre el repositorio activo, únicamente en modo lectura. Entrega el total de archivos y las primeras diez rutas.';
 const schema={type:'object',additionalProperties:false,properties:{
- target:{type:'string',default:'',description:'OMITIR para auditar el repositorio activo'},
+ target:{type:'string',default:'',description:'OMITIR para el repositorio activo'},
  refresh:{type:'boolean'}
 }};
+const tool={name:'repo.audit',investigationReadOnly:true,mutates:false,requiresApproval:false,
+ evidenceKinds:['repository_inventory'],inputSchema:schema};
+const selected={name:'repo.audit',args:{},deferred:true,reason:'Inventario del repositorio activo'};
 
-test('production handoff binds optional active repo audit arguments without a fake second Qwen inference',async()=>{
- let modelCalls=0;
- const actual=await completeJarvisPlanningArguments({
-  toolName:'repo.audit',instruction,operation:'inventariar el repositorio activo',inputSchema:schema,
-  semanticPlanner:async()=>{modelCalls++;throw Error('UNNECESSARY_MODEL_CALL');}
- });
- assert.deepEqual(actual.args,{});
- assert.equal(actual.status,'GROUNDED_ARGUMENTS_READY');
- assert.equal(actual.model,null);
- assert.equal(actual.provider,'registered-optional-schema-after-tool-selection');
- assert.equal(modelCalls,0);
+test('deferred Qwen-selected repo.audit with no required args does not call second semantic planner',()=>{
+ assert.equal(shouldCompleteJarvisPlanningArguments(selected,tool,[]),false);
+ assert.equal(shouldCompleteJarvisPlanningArguments({...selected,deferred:false},tool,[]),false);
+ assert.equal(shouldCompleteJarvisPlanningArguments(selected,{...tool,inputSchema:{...schema,required:[]}},[]),false);
 });
 
-test('external repository and nonoptional contracts still use the semantic grounded-argument provider',async()=>{
- for(const variant of [
-  {toolName:'repo.audit',instruction:'Ejecuta repo.audit sobre el repositorio activo https://example.org/another',inputSchema:schema},
-  {toolName:'repo.audit',instruction:'Ejecuta repo.audit sobre otro repositorio activo',inputSchema:schema},
-  {toolName:'repo.audit',instruction,inputSchema:{...schema,required:['target']}},
-  {toolName:'repo.read',instruction,inputSchema:schema},
-  {toolName:'repo.audit',instruction,inputSchema:{...schema,properties:{target:{type:'string'},requiredSource:{type:'string'}}}}
- ]){
-  let calls=0;
-  const actual=await completeJarvisPlanningArguments({...variant,operation:'verify requested repository target',
-   semanticPlanner:async()=>{calls++;return{toolCalls:[{name:variant.toolName,args:{target:'observed-other-repository'}}],missionComplete:false};}
-  });
-  assert.equal(calls,1);
-  assert.equal(actual.args.target,'observed-other-repository');
+test('different or unsafe tools retain normal second-stage argument validation',()=>{
+ const cases=[
+  [selected,{...tool,inputSchema:{...schema,required:['target']}}],
+  [selected,{...tool,mutates:true}],
+  [selected,{...tool,requiresApproval:true}],
+  [selected,{...tool,userArtifact:true}],
+  [selected,{...tool,investigationReadOnly:false}],
+  [selected,{...tool,inputSchema:{...schema,properties:{target:{type:'string'},another:{type:'string'}}}}],
+  [selected,{...tool,inputSchema:{...schema,anyOf:[{properties:{target:{type:'string'}},required:['target']} ]}}],
+  [{...selected,name:'repo.read'},{...tool,name:'repo.read'}],
+  [{...selected,args:{target:'externally-named-repo'}},tool]
+ ];
+ for(const [call,registered] of cases){
+  assert.equal(shouldCompleteJarvisPlanningArguments(call,registered,[]),true,
+   JSON.stringify({call,registered}));
  }
 });
 
-test('even with active checkout, prior validation failure is not bypassed',async()=>{
+test('the planner must not label a host shortcut as an authenticated Qwen inference',async()=>{
  let calls=0;
- const result=await completeJarvisPlanningArguments({toolName:'repo.audit',instruction,inputSchema:schema,
-  validationFeedback:{status:'DENIED'},semanticPlanner:async()=>{
-   calls++;return{toolCalls:[{name:'repo.audit',args:{}}],missionComplete:false};
-  }
+ const out=await planner.runJarvisSemanticPlanner({
+  input:'Ejecuta repo.audit sobre el repositorio activo, únicamente en modo lectura.',
+  catalog:[tool],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION'},
+  ai:{models:{generateContent:async()=>{calls++;return{text:JSON.stringify({
+   toolCalls:[{name:'repo.audit',args:{}}],missionComplete:false
+  })};}}}
  });
  assert.equal(calls,1);
- assert.deepEqual(result.args,{});
+ assert.deepEqual(out.toolCalls.map(x=>x.args),[{}]);
+ assert.notEqual(out.provider,'host-schema-default-after-qwen-selection');
 });
 
-test('grounded argument phase without model results cannot invent an authenticated local semantic receipt',async()=>{
- const tool={name:'repo.audit',description:'Read-only audit',inputSchema:schema};
- let calls=0;
- const answer=await planner.runJarvisSemanticPlanner({input:instruction,catalog:[tool],
-  missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION'},
-  ai:{models:{generateContent:async()=>{calls++;return{text:JSON.stringify({toolCalls:[{name:'repo.audit',args:{}}],missionComplete:false})};}}}
- });
- assert.equal(calls,1);
- assert.deepEqual(answer.toolCalls.map(x=>x.args),[{}]);
- assert.notEqual(answer.provider,'host-schema-default-after-qwen-selection');
+test('native production audit schema is optional, and selected empty arguments remain executable',()=>{
+ assert.equal(schema.required,undefined);
+ assert.equal(schema.additionalProperties,false);
+ assert.deepEqual(Object.keys(schema.properties).sort(),['refresh','target']);
+ assert.equal(shouldCompleteJarvisPlanningArguments(selected,tool,[{name:'repo.search',observation:{ok:true}}]),false);
 });
