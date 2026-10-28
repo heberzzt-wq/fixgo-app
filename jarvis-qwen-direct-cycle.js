@@ -216,9 +216,25 @@ export async function runQwenAuthorizedCycle({
         const deterministic=!!catalogForEvidence&&single&&
             ['document.create','artifact.read','media.library'].includes(single.name)&&
             required.length>0&&required.every(k=>Object.hasOwn(fields,k)&&Object.hasOwn(fields[k]||{},'const'));
+        // A bounded recovery read does not need another semantic inference once
+        // the host has narrowed the offered schema to exactly ONE source that
+        // was already observed in authenticated search receipts. This is a
+        // scheduler decision, never a second cognitive model or source proof.
+        const fallbackUrl=single?.name==='browser.inspect'&&
+            Array.isArray(fields?.url?.enum)&&fields.url.enum.length===1
+                ?fields.url.enum[0]:null;
+        const deterministicSource=!!catalogForEvidence&&
+            single?.name==='browser.inspect'&&single.mutates!==true&&
+            single.requiresApproval!==true&&required.length===1&&required[0]==='url'&&
+            typeof fallbackUrl==='string'&&fallbackUrl.startsWith('https://')&&
+            receipts.some(r=>r.name==='browser.inspect'&&r.ok===false)&&
+            !receipts.some(r=>r.name==='browser.inspect'&&r.args?.url===fallbackUrl)&&
+            receipts.some(r=>r.ok===true&&r.name==='web.research'&&
+                r.observation?.sources?.some(s=>s.url===fallbackUrl));
         let decision;
         try{
             if(deterministic)decision={toolCall:{name:single.name,args:Object.fromEntries(required.map(k=>[k,structuredClone(fields[k].const)]))},hostBound:true};
+            else if(deterministicSource)decision={toolCall:{name:'browser.inspect',args:{url:fallbackUrl}},hostBound:true};
             else {modelDecisionCount+=1;decision=await selectNextAction({
                 instruction,repositoryMap,
                 tools:offered.map(tool=>{const schema=structuredClone(tool.inputSchema);

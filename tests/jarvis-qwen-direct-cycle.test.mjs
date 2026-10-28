@@ -298,3 +298,72 @@ test('context pressure is not mislabeled as offline Qwen and never executes any 
  assert.equal(result.recoveryAction,'REVIEW_VERIFIED_EVIDENCE_PAGES');
  assert.equal(invoked,0);
 });
+
+test('a physically failed web source switches to the single grounded replacement without an extra Qwen HTTP 400',async()=>{
+ const {runQwenAuthorizedCycle}=await import('../jarvis-qwen-direct-cycle.js');
+ const failed='https://www.energy.gov/node/374803';
+ const good='https://www.energystar.gov/saveathome/heating-cooling/maintenance-checklist';
+ const search={name:'web.research',mutates:false,requiresApproval:false,
+  inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}};
+ const inspect={name:'browser.inspect',mutates:false,requiresApproval:false,
+  inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url']}};
+ const executed=[];
+ let modelCalls=0,authorizations=0;
+ const result=await runQwenAuthorizedCycle({
+  instruction:'Investiga mantenimiento de filtros de aire acondicionado residencial usando tres fuentes independientes',
+  catalog:[search,inspect],maximumSteps:3,repairIncomplete:true,
+  catalogForEvidence:(_available,receipts)=>{
+   if(!receipts.some(r=>r.name==='web.research'))return [{...search,inputSchema:{
+    ...search.inputSchema,properties:{query:{type:'string',const:'air conditioner filters official'}}}}];
+   const attempted=receipts.filter(r=>r.name==='browser.inspect');
+   if(attempted.length>=2)return [];
+   return [{...inspect,inputSchema:{...inspect.inputSchema,
+    properties:{url:{type:'string',enum:attempted.length?[good]:[failed,good]}}}}];
+  },
+  selectNextAction:async()=>{
+   modelCalls++;
+   if(modelCalls===1)return {toolCall:{name:'web.research',args:{query:'air conditioner filters official'}}};
+   if(modelCalls===2)return {toolCall:{name:'browser.inspect',args:{url:failed}}};
+   throw Error('LOCAL_QWEN_HTTP_400');
+  },
+  authorize:async()=>{authorizations++;return {ok:true};},
+  execute:async({name,args})=>{
+   executed.push({name,args});
+   if(name==='web.research')return {ok:true,sources:[{url:failed,title:'Air Conditioner Maintenance'},{url:good,title:'Maintenance Checklist'}]};
+   return args.url===failed?{ok:false,status:'HTTP_404',error:{code:'HTTP_404'}}:
+    {ok:true,status:'BROWSER_INSPECT_SOURCE_HTML_VERIFIED',url:good,dom:'<html><title>HVAC</title><main><p>Filter maintenance</p></main></html>'};
+  },
+  verifyCompletion:async()=>({ok:false,reason:'THREE_SOURCES_REQUIRED'})
+ });
+ assert.equal(modelCalls,2,'the third action is a bounded host selection, not another model');
+ assert.equal(authorizations,3,'each actual read still needs authorization');
+ assert.equal(executed.length,3);
+ assert.equal(executed[2].args.url,good);
+ assert.equal(result.receipts[1].ok,false);
+ assert.equal(result.receipts[2].ok,true);
+ assert.equal(result.decisions[2].hostBound,true);
+ assert.notEqual(result.status,'SUCCESS','one verified source is not enough to certify the mission');
+});
+test('a fabricated or ungrounded singleton URL cannot bypass Qwen or authorization',async()=>{
+ const {runQwenAuthorizedCycle}=await import('../jarvis-qwen-direct-cycle.js');
+ const url='https://example.com/unproven';
+ const inspect={name:'browser.inspect',mutates:false,requiresApproval:false,
+  inputSchema:{type:'object',properties:{url:{type:'string',enum:[url]}},required:['url']}};
+ let attempts=0,modelCalls=0;
+ const result=await runQwenAuthorizedCycle({
+  instruction:'Inspect one public source',catalog:[inspect],maximumSteps:3,repairIncomplete:true,
+  catalogForEvidence:()=>[inspect],
+  selectNextAction:async()=>{
+   modelCalls++;
+   if(modelCalls===1)return {toolCall:{name:'browser.inspect',args:{url}}};
+   throw Error('LOCAL_QWEN_HTTP_400');
+  },
+  authorize:async()=>({ok:true}),
+  execute:async()=>{attempts++;return {ok:false,status:'HTTP_404',error:{code:'HTTP_404'}};},
+  verifyCompletion:async()=>({ok:false})
+ });
+ assert.equal(attempts,1,'a missing physical source is not replayed or replaced without search proof');
+ assert.equal(modelCalls,2);
+ assert.equal(result.status,'PARTIAL');
+ assert.equal(result.reason,'MODEL_UNAVAILABLE');
+});
