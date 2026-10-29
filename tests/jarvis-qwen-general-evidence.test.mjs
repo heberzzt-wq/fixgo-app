@@ -24,9 +24,14 @@ test('explicit read-only gitStatus cannot be certified by capability inventory a
  const policy=createGeneralToolPolicy({location:{protocol:'http:',hostname:'127.0.0.1',port:'5000'},missionId:'general-12345678',objectives});
  const catalog=generalToolCatalog({list:()=>[
    {name:'system.capabilities',mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{}}},
-   {name:'repo.gitStatus',mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{}}}
+   {name:'repo.gitStatus',mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{cwd:{type:'string',const:'.'}},required:['cwd'],additionalProperties:false}}
  ]},policy,objectives,instruction);
  assert.deepEqual(catalog.map(x=>x.name).sort(),['repo.gitStatus','system.capabilities']);
+ const git=catalog.find(x=>x.name==='repo.gitStatus');
+ assert.equal(Object.hasOwn(git.inputSchema.properties,'cwd'),false,'Qwen must not be offered authority arguments');
+ assert.deepEqual(git.inputSchema.required||[],[]);
+ assert.equal(policy.authorize({name:'repo.gitStatus',args:{cwd:'.'}}).ok,false);
+ assert.equal(policy.authorize({name:'repo.gitStatus',args:{}}).ok,true);
 });
 test('tool success and a screenshot never suffice to certify page completion',async()=>{
  const result=await verifyGeneralMission({instruction:'Crea una landing',receipts:[{ok:true,name:'page.create',observation:{ok:true,output:'x.html'}},{ok:true,name:'browser.screenshot',observation:{ok:true}}],proposedReport:'SUCCESS'});

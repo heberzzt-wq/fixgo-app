@@ -47,6 +47,15 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
     return runtime.list().filter(t=>policy.accept(t)&&needed.has(t.name)).map(tool=>{
         const t={...tool,inputSchema:normalizeGeneralSchema(tool.inputSchema)};
         const p=t.inputSchema.properties||{};
+        if(tool.name==='repo.gitStatus'){
+            // Its registered executor defaults to the official root when cwd
+            // is absent. Never ask Qwen to supply a path authority that the
+            // host policy must reject, even when the schema advertises '.'.
+            delete p.cwd;
+            delete p.root;
+            t.inputSchema.required=(t.inputSchema.required||[]).filter(k=>k!=='cwd'&&k!=='root');
+            t.inputSchema.additionalProperties=false;
+        }
         if(tool.name.startsWith('browser.')){p.url={type:'string'};t.inputSchema.required=[...new Set([...(t.inputSchema.required||[]),'url'])];}
         if(tool.name==='advertising.research'){
             t.description='Investiga principios de publicidad y diseño de servicios profesionales sin nombres de marca o cliente. Busca guías independientes de marketing jurídico/fiscal y creatividad; jamás empresas homónimas. Necesitamos dos fuentes con contenido real comprobable.';
