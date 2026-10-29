@@ -32,7 +32,10 @@ test('real incident signatures map to their owner-friendly fixed codes',()=>{
   ['LOCAL_SEMANTIC_PLAN_REQUIRED','JAR-404'],
   ['PLANNER_RECOVERY_EXHAUSTED','JAR-405'],
   ['EVIDENCE_SEGMENTATION_REQUIRED','JAR-501'],
-  ['ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED','JAR-502']
+  ['ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED','JAR-502'],
+  ['THREE_OPENED_CITED_URLS_REQUIRED','JAR-502'],
+  ['SOURCE_QUOTATIONS_AND_TITLES_REQUIRED','JAR-502'],
+  ['UNSUPPORTED_REPORT_ASSERTIONS','JAR-502']
  ];
  for(const [input,code] of scenarios){
   const diagnostic=diagnoseJarvisError(input);
