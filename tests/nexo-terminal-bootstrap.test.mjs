@@ -907,3 +907,64 @@ test('workstation relay restores signed heartbeat on tab wake and unhooks all wa
     assert.equal(docListeners.size,0);
     assert.equal(globalListeners.size,0);
 });
+
+
+test('public Terminal loads a fresh bootstrap that includes upload reconnection checks',()=>{
+ const terminal=fs.readFileSync('gestia-terminal.html','utf8');
+ const proposal=fs.readFileSync('modules/terminal/proposal-state.js','utf8');
+ assert.match(terminal,/proposal-state\.js\?v=v142-owner-upload-heartbeat-20261029-v3/);
+ assert.match(proposal,/nexo-bootstrap\.js\?v=v142-owner-upload-heartbeat-20261029-v3/);
+});
+
+test('mobile upload waits for a brief offline heartbeat before queueing exactly one authenticated request',async()=>{
+ const fake=relayFakeSdk();
+ const owner={uid:JARVIS_PRIVATE_RELAY.ownerUid,async getIdToken(){return 'only-in-local-header';}};
+ const auth={currentUser:owner,async authStateReady(){}};
+ const worker=await startJarvisBrowserRelay({auth,db:{},sdk:fake.sdk,
+  contract:{releaseId:'relay-test',gitSha:'a'.repeat(40)},
+  requestLocal:async(route,_payload,options)=>{
+   if(route==='/workstation/health'){
+    assert.equal(options.idToken,'only-in-local-header');
+    return {ok:true,status:'JARVIS_WORKSTATION_LIVE',runtime:{bridgeStarted:true,loadedHead:'a'.repeat(40)}};
+   }
+   assert.equal(route,'/upload/start');
+   assert.equal(options.idToken,'only-in-local-header');
+   return {ok:true,status:'UPLOAD_SESSION_READY',uploadId:relayId};
+  },uuid:()=> 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'});
+ try{
+  const before=fake.sdk.getDocFromServer;
+  const parent='jarvis_private_relay/'+JARVIS_PRIVATE_RELAY.ownerUid;
+  let unavailable=2, checks=0;
+  fake.sdk.getDocFromServer=async target=>{
+   if(target.path===parent){checks++;if(unavailable-- >0)return {data:()=>null};}
+   return before(target);
+  };
+  const progress=[];
+  const client=createJarvisPrivateRelayClient({auth,db:{},sdk:fake.sdk,
+   uuid:()=>relayId,uploadPresenceRetryMs:1,uploadPresenceAttempts:4,
+   onProgress:value=>progress.push(value)});
+  const start={batchId:'batch-1234567890',name:'captura.png',mimeType:'image/png',expectedBytes:44};
+  const receipt=await client.requestJson('/upload/start',start,{contract:{releaseId:'relay-test',gitSha:'a'.repeat(40)}});
+  assert.equal(receipt.status,'UPLOAD_SESSION_READY');
+  assert.equal(checks>=3,true);
+  assert.equal(progress.filter(p=>p.stage==='relay_waiting_for_workstation').length,2);
+  const requests=fake.writes.filter(x=>x.path.includes('/requests/')&&x.data.state==='QUEUED');
+  assert.equal(requests.length,1,'never duplicate an upload session');
+  assert.equal(requests[0].data.route,'/upload/start');
+  assert.ok(fake.writes.every(x=>!JSON.stringify(x).includes('only-in-local-header')));
+ }finally{await worker.stop();}
+});
+
+test('offline upload retries presence only and never queues a file, a command or an extra route',async()=>{
+ const fake=relayFakeSdk();
+ const auth={currentUser:{uid:JARVIS_PRIVATE_RELAY.ownerUid},async authStateReady(){}};
+ const client=createJarvisPrivateRelayClient({auth,db:{},sdk:fake.sdk,
+  uploadPresenceRetryMs:1,uploadPresenceAttempts:2});
+ const request={batchId:'batch-1234567890',name:'captura.png',mimeType:'image/png',expectedBytes:44};
+ await assert.rejects(client.requestJson('/upload/start',request,{contract:{releaseId:'relay-test'}}),
+  /JARVIS_RELAY_WORKSTATION_UNAVAILABLE/);
+ assert.equal(fake.writes.length,0);
+ await assert.rejects(client.requestJson('/git',{action:'push'},{contract:{releaseId:'relay-test'}}),
+  /JARVIS_RELAY_LOCAL_OPERATION_REQUIRED/);
+ assert.equal(fake.writes.length,0);
+});

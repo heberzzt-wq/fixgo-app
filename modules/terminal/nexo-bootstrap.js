@@ -159,7 +159,8 @@ async function privateRelayDependencies() {
 
 export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
     uuid = () => globalThis.crypto.randomUUID(), onProgress = () => {},
-    pollIntervalMs = 5000, receiptSilenceMs = 15000, pollReadTimeoutMs = 10000 }) {
+    pollIntervalMs = 5000, receiptSilenceMs = 15000, pollReadTimeoutMs = 10000,
+    uploadPresenceRetryMs = 1500, uploadPresenceAttempts = 4 }) {
     const policy = JARVIS_PRIVATE_RELAY;
     return {
         async requestJson(route, payload, { contract, signal } = {}) {
@@ -173,8 +174,24 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
                 validateMobileRelayUploadOperation(route,payload);
             signal?.throwIfAborted();
             const parent = sdk.doc(db, policy.collection, policy.ownerUid);
-            const live = await sdk.getDocFromServer(parent);
-            if (!jarvisRelayPresenceIsLive(live.data(), contract.releaseId, now(), contract.gitSha)) throw new Error("JARVIS_RELAY_WORKSTATION_UNAVAILABLE");
+            // The desktop tab can briefly relinquish the owner lease during a
+            // verified refresh or network wake. For uploads ONLY, wait for the
+            // exact same authenticated and SHA-matched worker to reappear.
+            // This happens BEFORE any Firestore request is queued, so no
+            // upload operation is ever replayed after an uncertain response.
+            const uploadRoute = JARVIS_MOBILE_UPLOAD_ROUTES.includes(route);
+            const attempts = uploadRoute ? Math.max(1,Math.min(4,Number(uploadPresenceAttempts)||4)) : 1;
+            let live;
+            for(let attempt=1;attempt<=attempts;attempt++){
+                signal?.throwIfAborted();
+                live = await sdk.getDocFromServer(parent);
+                if(jarvisRelayPresenceIsLive(live.data(),contract.releaseId,now(),contract.gitSha)) break;
+                if(attempt===attempts) throw new Error("JARVIS_RELAY_WORKSTATION_UNAVAILABLE");
+                onProgress({type:"progress",stage:"relay_waiting_for_workstation",attempt,requestId:null,noDeadline:true});
+                await new Promise(resolve=>setTimeout(resolve,Math.max(50,Math.min(2000,Number(uploadPresenceRetryMs)||1500))));
+            }
+            signal?.throwIfAborted();
+            if(auth.currentUser?.uid !== policy.ownerUid) throw new Error("JARVIS_RELAY_OWNER_REQUIRED");
             const body = JSON.stringify(payload || {});
             if (new TextEncoder().encode(body).length > policy.maxBytes) throw new Error("JARVIS_RELAY_PAYLOAD_TOO_LARGE");
             const requestId = uuid(), ref = sdk.doc(parent, "requests", requestId);
