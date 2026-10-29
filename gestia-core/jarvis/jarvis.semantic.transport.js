@@ -101,7 +101,7 @@ export function semanticFailurePresentation(error = "") {
         action:diagnostic.action,technicalCode:diagnostic.technicalCode};
 }
 
-import {validateMobileRelayReadOperation} from '../../modules/terminal/jarvis-mobile-relay-policy.js';
+import {validateMobileRelayReadOperation,validateMobileRelayUploadOperation,JARVIS_MOBILE_UPLOAD_ROUTES} from '../../modules/terminal/jarvis-mobile-relay-policy.js';
 // Transport-only policy shared by the browser and the existing workstation.
 // The UID is a public identifier, never a password or a grant by itself.
 export const JARVIS_PRIVATE_RELAY = Object.freeze({
@@ -121,7 +121,8 @@ export const JARVIS_PRIVATE_RELAY = Object.freeze({
         // Owner-only research / local Qwen action. Broker applies an additional
         // read-only gate, without storing any Firebase ID token in Firestore.
         "/research", "/browser", "/qwen-pilot/preflight",
-        "/qwen-isolated/evidence", "/qwen-isolated/verify"
+        "/qwen-isolated/evidence", "/qwen-isolated/verify",
+        ...JARVIS_MOBILE_UPLOAD_ROUTES
     ])
 });
 
@@ -152,6 +153,9 @@ export function validateJarvisRelayRequest(request, { requestId, releaseId, now 
     if (['/research','/browser','/read','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(request.route) ||
         request.route === '/semantic/plan' && payload?.missionState?.phase === 'DIRECT_READ_ONLY_ACTION') {
         validateMobileRelayReadOperation(request.route,payload);
+    }
+    if (JARVIS_MOBILE_UPLOAD_ROUTES.includes(request.route)) {
+        validateMobileRelayUploadOperation(request.route,payload);
     }
     if (request.route.startsWith("/memory/")) {
         if (payload.identity?.userId && payload.identity.userId !== policy.ownerUid) throw new Error("JARVIS_RELAY_MEMORY_OWNER_MISMATCH");

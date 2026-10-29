@@ -1,5 +1,5 @@
 import { readSemanticStream, semanticFailurePresentation, JARVIS_PRIVATE_RELAY, validateJarvisRelayRequest, jarvisRelayPresenceIsLive, relayTimestampMs } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
-import {validateMobileRelayReadOperation,mobileRelayNeedsFreshOwnerToken,boundedMobileRelayReadPayload,boundMobileRelayRepoAuditGraph} from './jarvis-mobile-relay-policy.js';
+import {validateMobileRelayReadOperation,validateMobileRelayUploadOperation,JARVIS_MOBILE_UPLOAD_ROUTES,mobileRelayNeedsFreshOwnerToken,boundedMobileRelayReadPayload,boundMobileRelayRepoAuditGraph} from './jarvis-mobile-relay-policy.js';
 /*
  * ======================================================================================
  * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
@@ -169,6 +169,8 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
             if (['/research','/browser','/read','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route) ||
                 route === '/semantic/plan' && payload?.missionState?.phase === 'DIRECT_READ_ONLY_ACTION')
                 validateMobileRelayReadOperation(route,payload);
+            if (JARVIS_MOBILE_UPLOAD_ROUTES.includes(route))
+                validateMobileRelayUploadOperation(route,payload);
             signal?.throwIfAborted();
             const parent = sdk.doc(db, policy.collection, policy.ownerUid);
             const live = await sdk.getDocFromServer(parent);
@@ -706,7 +708,9 @@ export function installJarvisLocalBridgeTransport() {
                 180000
             );
             const maximumAttempts = 3;
-            const requestAttempts = semanticRequest ? 1 : maximumAttempts;
+            // Chunk uploads modify a physical .part file. Never retry an
+            // ambiguous response: the first attempt might have succeeded.
+            const requestAttempts = semanticRequest || JARVIS_MOBILE_UPLOAD_ROUTES.includes(path) ? 1 : maximumAttempts;
             let lastError = null;
 
             for (
@@ -749,12 +753,15 @@ export function installJarvisLocalBridgeTransport() {
                             headers: {
                                 "Content-Type": "application/json",
                                 "X-Jarvis-Release-Id": contract.releaseId,
+                                ...(options.privateRelayExecution === true && JARVIS_MOBILE_UPLOAD_ROUTES.includes(path) ?
+                                    {"X-Jarvis-Private-Relay": "owner-upload-v142"} : {}),
                                 ...(((path === "/semantic/plan" &&
                                     payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION") ||
                                     path === "/workstation/health" ||
                                     path === "/qwen-isolated/evidence" ||
                                     path === "/qwen-isolated/verify" ||
-                                    path === "/security/local/status") &&
+                                    path === "/security/local/status" ||
+                                    JARVIS_MOBILE_UPLOAD_ROUTES.includes(path)) &&
                                     options.idToken ? { Authorization: `Bearer ${options.idToken}` } : {})
                             },
                             body: JSON.stringify(

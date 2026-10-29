@@ -11,6 +11,21 @@ const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
 const CHUNK_BYTES = 2 * 1024 * 1024;
 const UPLOAD_CONCURRENCY = 3;
+// The Firestore owner relay has a bounded 384KB envelope. Never send the
+// 2MB desktop chunks through it, and do not expose arbitrary uploads.
+const isMobileRelayHost = () => typeof window !== "undefined" &&
+    window.location?.protocol === "https:" &&
+    ["fixgo-44e4d.web.app","fixgo-44e4d.firebaseapp.com",
+     "fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app"]
+     .includes(window.location?.hostname);
+const MOBILE_CHUNK_BYTES = 128 * 1024;
+const MOBILE_FILE_BYTES = 8 * 1024 * 1024;
+const MOBILE_BATCH_BYTES = 16 * 1024 * 1024;
+const MOBILE_FILE_COUNT = 8;
+const MOBILE_EXTENSIONS = new Set([
+ "jpg","jpeg","png","webp","gif","pdf",
+ "txt","md","csv","json","docx","xlsx","pptx"
+]);
 const STORAGE_KEY = "jarvis.multimodal.completed.v2";
 const TEXT_EXTENSIONS = new Set(["txt", "md", "csv", "json", "xml", "yaml", "yml", "js", "mjs", "cjs", "ts", "tsx", "jsx", "css", "html", "py", "sql"]);
 const state = {
@@ -164,6 +179,9 @@ function renderTray() {
 
 async function requestChunkWithRetry(payload, item, attempts = 3) {
     let lastError = null;
+    // Never replay an ambiguous Firestore upload receipt: a chunk may
+    // have reached the laptop even when its confirmation was lost.
+    if (isMobileRelayHost()) attempts = 1;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
         if (item.cancelled) throw new Error("UPLOAD_CANCELLED");
         const response = await window.JarvisLocalBridge.requestJson("/upload/chunk", payload, { timeoutMs: 45000 });
@@ -195,6 +213,8 @@ async function prepareFile(file, existingItem = null) {
                 const textBuffer = await file.slice(0, 100000).arrayBuffer();
                 item.extractedText = new TextDecoder("utf-8", { fatal: false }).decode(textBuffer).slice(0, 50000);
             }
+            if (isMobileRelayHost() && (!MOBILE_EXTENSIONS.has(extensionOf(file.name)) ||
+                file.size > MOBILE_FILE_BYTES)) throw new Error("JARVIS_MOBILE_UPLOAD_FILE_LIMIT");
             if (typeof window.JarvisLocalBridge?.requestJson !== "function") throw new Error("LOCAL_BRIDGE_REQUIRED");
             const started = await window.JarvisLocalBridge.requestJson("/upload/start", {
                 batchId: state.batchId,
@@ -206,7 +226,8 @@ async function prepareFile(file, existingItem = null) {
             }, { timeoutMs: 30000 });
             if (started?.ok !== true) throw new Error(started?.error || started?.status || "UPLOAD_START_FAILED");
             item.uploadId = started.uploadId;
-            const chunkSize = Math.min(Number(started.maxChunkBytes || CHUNK_BYTES), CHUNK_BYTES);
+            const chunkSize = Math.min(Number(started.maxChunkBytes || CHUNK_BYTES),
+                isMobileRelayHost() ? MOBILE_CHUNK_BYTES : CHUNK_BYTES);
             for (let offset = 0; offset < file.size; offset += chunkSize) {
                 const buffer = await file.slice(offset, Math.min(offset + chunkSize, file.size)).arrayBuffer();
                 const chunk = await requestChunkWithRetry({
@@ -251,7 +272,12 @@ async function prepareFile(file, existingItem = null) {
             });
         } catch (error) {
             item.status = "failed";
-            item.error = error?.message || String(error);
+            const reason = String(error?.code || error?.message || error);
+            item.error = isMobileRelayHost() &&
+                /(?:permission-denied|missing or insufficient permissions|JARVIS_RELAY_LOCAL_OPERATION_REQUIRED)/i.test(reason)
+                ? "El enlace móvil no tiene permiso de Firebase para recibir este archivo. No se guardó."
+                : reason.slice(0, 180);
+            if (isMobileRelayHost()) setComposerMessage(item.error, "error");
         }
         renderTray();
         return item;
@@ -262,14 +288,18 @@ async function prepareFile(file, existingItem = null) {
 async function acceptFiles(fileList) {
     const files = Array.from(fileList || []);
     ensureCase();
+    const mobile = isMobileRelayHost();
+    const maxFiles = mobile ? MOBILE_FILE_COUNT : MAX_FILES;
+    const maxFileBytes = mobile ? MOBILE_FILE_BYTES : MAX_FILE_BYTES;
+    const maxTotalBytes = mobile ? MOBILE_BATCH_BYTES : MAX_TOTAL_BYTES;
     let acceptedBytes = state.items.reduce((total, item) => total + itemBytes(item), 0);
     const known = new Set(state.items.map(item => `${itemName(item)}:${itemBytes(item)}:${item.lastModified || 0}`));
     const queued = [];
     for (const file of files) {
         const dedupeKey = `${file.name}:${file.size}:${file.lastModified || 0}`;
         if (known.has(dedupeKey)) continue;
-        if (state.items.length >= MAX_FILES) {
-            setComposerMessage(`Se alcanzó el límite seguro de ${MAX_FILES} archivos por orden.`, "error");
+        if (state.items.length >= maxFiles) {
+            setComposerMessage(`Se alcanzó el límite seguro de ${maxFiles} archivos por orden.`, "error");
             break;
         }
         const item = {
@@ -282,12 +312,15 @@ async function acceptFiles(fileList) {
             output: null,
             extractedText: ""
         };
-        if (file.size < 1 || file.size > MAX_FILE_BYTES) {
+        if (mobile && !MOBILE_EXTENSIONS.has(extensionOf(file.name))) {
             item.status = "failed";
-            item.error = `tamaño fuera del límite de ${formatBytes(MAX_FILE_BYTES)}`;
-        } else if (acceptedBytes + file.size > MAX_TOTAL_BYTES) {
+            item.error = "tipo de archivo no autorizado en el enlace móvil";
+        } else if (file.size < 1 || file.size > maxFileBytes) {
             item.status = "failed";
-            item.error = `el lote supera ${formatBytes(MAX_TOTAL_BYTES)}`;
+            item.error = `tamaño fuera del límite de ${formatBytes(maxFileBytes)}`;
+        } else if (acceptedBytes + file.size > maxTotalBytes) {
+            item.status = "failed";
+            item.error = `el lote supera ${formatBytes(maxTotalBytes)}`;
         } else {
             acceptedBytes += file.size;
             queued.push(item);

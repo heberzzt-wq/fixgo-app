@@ -24,6 +24,54 @@ function cleanBody(payload){
  visit(payload,0);
  return !unsafe;
 }
+// Dedicated owner-only attachment upload transport. No repository, command,
+// Cloud Functions or arbitrary filesystem writes are authorized by these routes.
+export const MOBILE_UPLOAD_MAX_FILE_BYTES = 8 * 1024 * 1024;
+export const MOBILE_UPLOAD_CHUNK_BYTES = 128 * 1024;
+export const MOBILE_UPLOAD_BATCH_BYTES = 16 * 1024 * 1024;
+export const MOBILE_UPLOAD_MAX_FILES = 8;
+export const JARVIS_MOBILE_UPLOAD_ROUTES = Object.freeze([
+ '/upload/start','/upload/chunk','/upload/complete','/upload/cancel'
+]);
+const mobileUploadIds=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+const mobileUploadAllowed=new Set([
+ '.jpg','.jpeg','.png','.webp','.gif',
+ '.pdf','.txt','.md','.csv','.json','.docx','.xlsx','.pptx'
+]);
+const exactFields=(value,fields)=>Object.keys(value).every(key=>fields.includes(key));
+export function validateMobileRelayUploadOperation(route,payload={}){
+ if(!JARVIS_MOBILE_UPLOAD_ROUTES.includes(route)||!cleanBody(payload))
+   throw Error('JARVIS_MOBILE_UPLOAD_ROUTE_DENIED');
+ const id=String(payload.uploadId||'');
+ if(route==='/upload/start'){
+   const name=String(payload.name||''), mime=String(payload.mimeType||'');
+   const lower=name.toLowerCase();
+   if(!exactFields(payload,['batchId','name','mimeType','expectedBytes','caseId','objectiveId'])||
+      typeof payload.batchId!=='string'||!/^batch-[a-z0-9-]{8,90}$/i.test(payload.batchId)||
+      typeof payload.name!=='string'||name.length>160||!name.trim()||
+      /[\\/\x00-\x1f]/.test(name)||name==='.'||name==='..'||
+      ![...mobileUploadAllowed].some(ext=>lower.endsWith(ext))||
+      typeof payload.mimeType!=='string'||mime.length>110||
+      !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(mime)||
+      !Number.isSafeInteger(payload.expectedBytes)||payload.expectedBytes<1||
+      payload.expectedBytes>MOBILE_UPLOAD_MAX_FILE_BYTES||
+      ['caseId','objectiveId'].some(field=>payload[field]!=null&&
+        (typeof payload[field]!=='string'||!(/^[A-Za-z0-9._-]{1,120}$/).test(payload[field]))))
+      throw Error('JARVIS_MOBILE_UPLOAD_START_INVALID');
+ } else if(route==='/upload/chunk'){
+   const raw=payload.dataBase64;
+   if(!exactFields(payload,['uploadId','offset','dataBase64'])||
+      !mobileUploadIds.test(id)||!Number.isSafeInteger(payload.offset)||
+      payload.offset<0||payload.offset>=MOBILE_UPLOAD_MAX_FILE_BYTES||
+      typeof raw!=='string'||raw.length<4||raw.length>Math.ceil(MOBILE_UPLOAD_CHUNK_BYTES/3)*4||
+      raw.length%4!==0||!/^[A-Za-z0-9+/]+={0,2}$/.test(raw))
+      throw Error('JARVIS_MOBILE_UPLOAD_CHUNK_INVALID');
+ } else if(!exactFields(payload,['uploadId'])||!mobileUploadIds.test(id)){
+   throw Error('JARVIS_MOBILE_UPLOAD_ID_INVALID');
+ }
+ return {route,payload};
+}
+
 export function safeMobileReadUrl(raw){
  try{
   const u=new URL(String(raw||'')),hostname=u.hostname.replace(/\.$/,'').toLowerCase();
@@ -131,6 +179,6 @@ export function boundMobileRelayRepoAuditGraph(route,payload,value,{maxBytes=384
 }
 
 export function mobileRelayNeedsFreshOwnerToken(route,payload){
- return route==='/semantic/plan'&&payload?.missionState?.phase==='DIRECT_READ_ONLY_ACTION'||
+ return JARVIS_MOBILE_UPLOAD_ROUTES.includes(route) || route==='/semantic/plan'&&payload?.missionState?.phase==='DIRECT_READ_ONLY_ACTION'||
   ['/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route);
 }

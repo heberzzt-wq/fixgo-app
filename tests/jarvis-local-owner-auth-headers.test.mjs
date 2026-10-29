@@ -21,7 +21,9 @@ test('owner-only isolated endpoints forward the supplied Firebase ID token and r
       return Response.json({git_sha:'f'.repeat(40)});
     const route=new URL(String(url)).pathname;
     calls.push({route,headers:request.headers,body:JSON.parse(request.body)});
-    const protectedRoute=['/qwen-isolated/evidence','/qwen-isolated/verify','/security/local/status','/workstation/health'].includes(route);
+    const protectedRoute=['/qwen-isolated/evidence','/qwen-isolated/verify','/security/local/status','/workstation/health'].includes(route) ||
+      ['/upload/start','/upload/chunk','/upload/complete','/upload/cancel'].includes(route) &&
+      request.headers['X-Jarvis-Private-Relay']==='owner-upload-v142';
     const authorized=request.headers.Authorization==='Bearer test-firebase-owner-token';
     return Response.json(protectedRoute&&!authorized
       ? {ok:false,error:'QWEN_BROWSER_TOKEN_REQUIRED'}
@@ -42,6 +44,22 @@ test('owner-only isolated endpoints forward the supplied Firebase ID token and r
   const noToken=await bridge.requestJson('/qwen-isolated/evidence',{missionId:'test-only'},{timeoutMs:2500});
   assert.equal(noToken.ok,false);
   assert.equal(noToken.httpStatus,401);
+  assert.equal(calls.at(-1).headers.Authorization,undefined);
+  for(const route of ['/upload/start','/upload/chunk','/upload/complete','/upload/cancel']){
+    const payload={uploadId:'11111111-2222-4333-8444-555555555555'};
+    const res=await bridge.requestJson(route,payload,
+      {idToken:'test-firebase-owner-token',privateRelayExecution:true,timeoutMs:2500});
+    assert.equal(res.ok,true,route);
+    assert.equal(calls.at(-1).headers.Authorization,'Bearer test-firebase-owner-token',route);
+    assert.equal(calls.at(-1).headers['X-Jarvis-Private-Relay'],'owner-upload-v142',route);
+    assert.equal(calls.at(-1).headers['X-Jarvis-Release-Id'],'test-owner-release');
+    const rejected=await bridge.requestJson(route,payload,{privateRelayExecution:true,timeoutMs:2500});
+    assert.equal(rejected.ok,false,route);
+    assert.equal(rejected.httpStatus,401,route);
+  }
+  const desktop=await bridge.requestJson('/upload/start',{name:'desktop.pdf'}, {timeoutMs:2500});
+  assert.equal(desktop.ok,true,'local desktop still uses its original route');
+  assert.equal(calls.at(-1).headers['X-Jarvis-Private-Relay'],undefined);
   assert.equal(calls.at(-1).headers.Authorization,undefined);
   const ordinary=await bridge.requestJson('/artifact/read',{output:'example'}, {idToken:'test-firebase-owner-token',timeoutMs:2500});
   assert.equal(ordinary.ok,true);

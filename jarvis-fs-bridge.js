@@ -13,6 +13,7 @@ import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-ver
 import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
 import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
 import {JARVIS_PRIVATE_RELAY as workstationRelay} from './gestia-core/jarvis/jarvis.semantic.transport.js';
+import {validateMobileRelayUploadOperation,JARVIS_MOBILE_UPLOAD_ROUTES,MOBILE_UPLOAD_MAX_FILE_BYTES,MOBILE_UPLOAD_BATCH_BYTES,MOBILE_UPLOAD_MAX_FILES} from './modules/terminal/jarvis-mobile-relay-policy.js';
 import {createQwenArtifactPreview} from './jarvis-qwen-artifact-preview.js';
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
 import { createQwenDecisionHandler } from "./jarvis-qwen-decision-http.js";
@@ -5342,19 +5343,22 @@ function writeBatchLedger(batch, usage) {
 
 export function startChunkedUpload({
     batchId = "", name = "", mimeType = "application/octet-stream", expectedBytes = 0,
-    caseId = null, objectiveId = null, root = DEFAULT_ROOT
+    caseId = null, objectiveId = null, root = DEFAULT_ROOT,limits = null
 } = {}) {
     const safeBatchId = String(batchId || "").trim();
     if (!/^[A-Za-z0-9._-]{8,100}$/.test(safeBatchId)) throw new Error("UPLOAD_BATCH_ID_INVALID");
     const descriptor = normalizeUploadDescriptor(name);
     const size = Number(expectedBytes || 0);
-    if (!Number.isSafeInteger(size) || size < 1 || size > MAX_JARVIS_UPLOAD_BYTES) {
+    const fileLimit=limits?.maxFileBytes ?? MAX_JARVIS_UPLOAD_BYTES;
+    const batchLimit=limits?.maxBatchBytes ?? MAX_JARVIS_UPLOAD_BATCH_BYTES;
+    const fileCountLimit=limits?.maxFiles ?? MAX_JARVIS_UPLOAD_FILES;
+    if (!Number.isSafeInteger(size) || size < 1 || size > fileLimit) {
         throw new Error("UPLOAD_FILE_BYTES_OUT_OF_RANGE");
     }
     const batch = uploadBatchLedger(safeBatchId, root);
     const usage = batch.usage;
-    if (usage.files >= MAX_JARVIS_UPLOAD_FILES) throw new Error("UPLOAD_BATCH_FILE_LIMIT");
-    if (usage.bytes + size > MAX_JARVIS_UPLOAD_BATCH_BYTES) throw new Error("UPLOAD_BATCH_BYTES_OUT_OF_RANGE");
+    if (usage.files >= fileCountLimit) throw new Error("UPLOAD_BATCH_FILE_LIMIT");
+    if (usage.bytes + size > batchLimit) throw new Error("UPLOAD_BATCH_BYTES_OUT_OF_RANGE");
 
     const uploadId = randomUUID();
     const paths = uploadSessionPaths(uploadId, root);
@@ -7077,7 +7081,7 @@ export function createJarvisFsBridgeApp({
             return callback(new Error("BRIDGE_ORIGIN_NOT_ALLOWED"));
         },
         methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id", "Authorization"]
+        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id", "X-Jarvis-Private-Relay", "Authorization"]
     }));
 
     app.use(express.json({
@@ -9907,6 +9911,26 @@ export function createJarvisFsBridgeApp({
         }
     });
 
+    // Local desktop upload remains unchanged. A relay-labelled request must
+    // prove the current Firebase owner and pass the separate mobile envelope.
+    // Never treat an arbitrary client-provided label as authentication.
+    const authorizeMobileAttachment = createWorkstationAuthorization({
+        identity:requestIdentity,verifyIdToken:verifyBrowserIdToken,
+        ownerUid:workstationRelay.ownerUid
+    });
+    app.use(JARVIS_MOBILE_UPLOAD_ROUTES, async (req,res,next) => {
+        if(req.method!=="POST")return res.status(405).json({ok:false,status:"UPLOAD_METHOD_NOT_ALLOWED"});
+        const marker=req.get("X-Jarvis-Private-Relay");
+        if(!marker)return next(); // trusted loopback desktop caller
+        if(marker!=="owner-upload-v142")
+            return res.status(403).json({ok:false,status:"JARVIS_MOBILE_UPLOAD_MARKER_INVALID"});
+        if(!await authorizeMobileAttachment(req,res))return;
+        try{validateMobileRelayUploadOperation(req.path,req.body||{});}
+        catch(error){return res.status(400).json({ok:false,status:String(error.message||"JARVIS_MOBILE_UPLOAD_INVALID")});}
+        res.locals.jarvisMobileUpload=true;
+        return next();
+    });
+
     app.post("/upload/start", (req, res) => {
         try {
             return res.json({
@@ -9917,7 +9941,12 @@ export function createJarvisFsBridgeApp({
                     expectedBytes: req.body?.expectedBytes,
                     caseId: req.body?.caseId,
                     objectiveId: req.body?.objectiveId,
-                    root
+                    root,
+                    ...(res.locals.jarvisMobileUpload === true ? {limits:{
+                        maxFileBytes:MOBILE_UPLOAD_MAX_FILE_BYTES,
+                        maxBatchBytes:MOBILE_UPLOAD_BATCH_BYTES,
+                        maxFiles:MOBILE_UPLOAD_MAX_FILES
+                    }} : {})
                 }),
                 persisted: false,
                 uploadTransportVersion:
