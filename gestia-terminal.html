@@ -6080,8 +6080,55 @@ const summary =
                     typeof item.kind !== 'string' || !item.text.trim())) return null;
             return { sources: rows, steps, warnings };
         })();
-        const safeTitle = escapeHTML(String(researchReport ? "Fuentes de la investigación" : title || "Jarvis"));
+        // The same verified repo-status receipt must be understandable without
+        // reading tool names, SHA codes or performance counters. Keep the exact
+        // original inside technical details; never infer platform-wide health.
+        const readableRepoStatus = !researchReport && title === "Misión general verificada" &&
+            typeof message === "string" &&
+            /^Misión completada\. Se ha verificado el estado del repositorio\b/u.test(message) &&
+            /\bmediante repo\.gitStatus\b/u.test(message) &&
+            /\bEl árbol de trabajo está limpio\b/u.test(message) &&
+            /\bMisión:\s*general-[a-f0-9-]+/iu.test(message) &&
+            /\bLlamadas registradas:\s*[1-9]\d*; exitosas:\s*[1-9]\d*/u.test(message);
+        const safeTitle = escapeHTML(String(researchReport ? "Fuentes de la investigación" :
+            readableRepoStatus ? "Revisión del proyecto completada" : title || "Jarvis"));
         const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
+        // All general mission results share this boundary: outcome first,
+        // exact technical transcript and receipts only in the details fold.
+        const signedMissionMessage = !researchReport &&
+            /^Misión general (?:verificada|no certificada)$/u.test(String(title || "")) &&
+            typeof message === "string" &&
+            /\nMisión:\s*(?:general|resume)-[a-f0-9-]+\b/iu.test(message) &&
+            /\nLlamadas registradas:\s*\d+/u.test(message) &&
+            /\nEvidencia local SHA-256:\s*[a-f0-9]{64}/iu.test(message);
+        const missionExplanation = (() => {
+            if (!signedMissionMessage) return null;
+            if (title === "Misión general no certificada")
+                return "No pude confirmar que la misión terminara correctamente. Conservé la evidencia y la causa para revisarlas.";
+            if (readableRepoStatus) return "Revisé el estado de los archivos del proyecto y no encontré modificaciones pendientes. No cambié nada.";
+            const main = message.split(/\r?\nMisión:\s*(?:general|resume)-[a-f0-9-]+\b/iu)[0]
+                .split(/\r?\n(?:Código de falla|Significado|Qué revisar|Informe Qwen generado):/u)[0].trim();
+            if (/^Causa:/u.test(main)) {
+                if (main.includes("THREE_OPENED_CITED_URLS_REQUIRED"))
+                    return "No pude comprobar las tres fuentes necesarias. La investigación quedó incompleta.";
+                if (main.includes("JARVIS_RELAY_WORKSTATION_UNAVAILABLE"))
+                    return "No pude completar la misión porque el enlace con la laptop no estaba disponible.";
+                return "No pude terminar la misión. Dejé guardado el motivo del fallo para poder revisarlo.";
+            }
+            if (/^\s*[\[{]/u.test(main)) {
+                let parsed;
+                try { parsed = JSON.parse(main); } catch {}
+                const plain = parsed && !Array.isArray(parsed) && typeof parsed === "object" &&
+                    ["summary", "message", "report", "description", "text"].map(key => parsed[key])
+                        .find(value => typeof value === "string" && value.trim());
+                return plain ? plain.trim() :
+                    "La misión devolvió datos técnicos, pero no una explicación comprobable de su resultado. Puedes consultar el expediente original.";
+            }
+            if (/\b(?:repo\.[a-zA-Z]+|timeoutMs|SHA-256|JSON|VERIFIED_COMPLETE|PARTIAL|LOCAL_SEMANTIC_[A-Z_]+)\b/u.test(main) ||
+                /\b[a-f0-9]{40,64}\b/iu.test(main))
+                return "La misión terminó, pero el resultado llegó en lenguaje técnico. Conservé el informe original y falta explicarlo en palabras sencillas.";
+            return main || "No recibí una explicación clara de lo que hizo la misión. Conservé el expediente técnico.";
+        })();
         const researchItems = researchReport?.sources.map((source, index) =>
             '<li class="mb-4 break-words">' +
             '<p class="font-semibold text-white">' + (index + 1) + '. ' + escapeHTML(source.title) + '</p>' +
@@ -6110,6 +6157,12 @@ const summary =
             (!procedureItems ? '<p class="text-xs text-slate-400">Las citas documentan las fuentes. El informe no incluye todavía una interpretación técnica elaborada.</p>' : '') +
             '<details class="text-xs text-slate-400"><summary class="cursor-pointer">Ver detalles técnicos (JSON)</summary>' +
             '<pre class="whitespace-pre-wrap break-all mt-2">' + escapeHTML(String(message)) + '</pre></details></div>'
+            : signedMissionMessage ?
+            '<div data-jarvis-readable-mission="true" class="space-y-3 font-sans">' +
+            '<p>' + escapeHTML(missionExplanation) + '</p>' +
+            (readableRepoStatus ? '<p class="text-xs text-slate-400">Esto confirma el estado de los archivos, no que toda la plataforma esté libre de fallas.</p>' : '') +
+            '<details class="text-xs text-slate-400"><summary class="cursor-pointer">Ver detalles técnicos de la revisión</summary>' +
+            '<pre class="whitespace-pre-wrap break-all mt-2">' + escapeHTML(String(message)) + '</pre></details></div>'
             : safeMessage;
 
         const responseHtml = `
@@ -6119,7 +6172,7 @@ const summary =
                 </div>
                 <div class="bg-gestia-panel border ${current.border} p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
                     <h3 class="font-semibold text-white mb-3 text-lg">${safeTitle}</h3>
-                    <div class="text-slate-300 text-sm leading-relaxed ${researchReport ? "font-sans" : "font-mono"}">
+                    <div class="text-slate-300 text-sm leading-relaxed ${researchReport || signedMissionMessage ? "font-sans" : "font-mono"}">
                         ${renderedMessage}
                     </div>
                 </div>

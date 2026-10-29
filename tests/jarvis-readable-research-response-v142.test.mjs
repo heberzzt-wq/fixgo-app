@@ -91,3 +91,22 @@ test('A non-evidence JSON envelope cannot hijack readable research presentation'
    '\nMisión: general-sample';
  assert.equal(render(msg).researchReport,null);
 });
+
+test('Verified repository status is explained in plain Spanish with original technical proof preserved',()=>{
+ const message='Misión completada. Se ha verificado el estado del repositorio heberzzt-wq/fixgo-app en la rama v142-official mediante repo.gitStatus (timeoutMs: 5000). El árbol de trabajo está limpio y el SHA es válido. No se requieren más lecturas ni herramientas adicionales.'+
+   '\nMisión: general-d7e9a1f8-b0f6-4c04-8d09-47e44bee9e7d'+
+   '\nLlamadas registradas: 1; exitosas: 1; inferencias: 2'+
+   '\nTokens: 2769 entrada / 149 salida; duración: 57315 ms.'+
+   '\nEvidencia local SHA-256: f0f1eaca711e2b8ad366ef0a52f1c0934f4109c00ea1f170e61391cbee32692a';
+ const view=render(message,'Misión general verificada');
+ assert.match(view.safeTitle,/Revisión del proyecto completada/);
+ assert.match(view.renderedMessage,/Revisé el estado de los archivos del proyecto/);
+ assert.match(view.renderedMessage,/no que toda la plataforma esté libre de fallas/);
+ assert.match(view.renderedMessage,/Ver detalles técnicos de la revisión/);
+ assert.match(view.renderedMessage,/general-d7e9a1f8/);
+ assert.doesNotMatch(view.renderedMessage,/^Misión completada/);
+ const incomplete=render(message,'Misión general no certificada');
+ assert.match(incomplete.renderedMessage,/No pude confirmar que la misión terminara correctamente/);
+ assert.match(incomplete.renderedMessage,/Ver detalles técnicos/);
+ assert.doesNotMatch(incomplete.renderedMessage,/^Misión completada/);
+});
