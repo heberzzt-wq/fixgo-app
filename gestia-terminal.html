@@ -192,12 +192,40 @@
     </header>
     <script id="terminal-refresh-control">
     (() => {
-        // This is bound before the large Terminal modules load. PWA/standalone
-        // mobile users must be able to refresh without closing the app.
+        // Install early, before Qwen/Bridge modules. The URL must reflect the
+        // actual served release, never a historical hardcoded query parameter.
         const refresh = document.getElementById('btn-refresh-terminal');
         if (!refresh || refresh.dataset.refreshBound === 'true') return;
         refresh.dataset.refreshBound = 'true';
-        refresh.addEventListener('click', () => {
+        const SHA = /^[a-f0-9]{40}$/i;
+        const releaseUrl = (sha, fresh = false) => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('mobile_release', sha);
+            if (fresh) url.searchParams.set('refresh', String(Date.now()));
+            return url.toString();
+        };
+        const readRelease = async () => {
+            const response = await window.fetch('/release-manifest.json', {
+                cache: 'no-store', credentials: 'same-origin'
+            });
+            if (!response.ok) throw new Error('TERMINAL_RELEASE_FETCH_FAILED');
+            const manifest = await response.json();
+            const sha = String(manifest?.git_sha || '');
+            if (!SHA.test(sha)) throw new Error('TERMINAL_RELEASE_SHA_INVALID');
+            return sha;
+        };
+        // Fix an old bookmarked address on first load without reloading and
+        // without interrupting any mission. history.replaceState is URL-only.
+        readRelease().then(sha => {
+            refresh.dataset.releaseSha = sha;
+            refresh.title = 'Actualizar Terminal · versión ' + sha.slice(0, 8);
+            const current = new URL(window.location.href);
+            if (current.searchParams.get('mobile_release') !== sha)
+                window.history.replaceState(window.history.state, '', releaseUrl(sha));
+        }).catch(() => {
+            refresh.title = 'No se pudo verificar la versión instalada';
+        });
+        refresh.addEventListener('click', async () => {
             const cancel = document.getElementById('btn-stop-mission');
             const active = cancel && !cancel.hidden;
             const draft = document.getElementById('gestia-input')?.value?.trim();
@@ -207,9 +235,17 @@
             if (!active && draft && !window.confirm(
                 'El mensaje que todavía no envías se perderá. ¿Actualizar Terminal?'
             )) return;
-            // pagehide requests an abort through the existing mission controller.
-            // Never represent reload as server-side cancellation or SUCCESS.
-            window.location.reload();
+            refresh.disabled = true;
+            try {
+                const sha = await readRelease();
+                // This new navigation avoids the old URL cache key. It does NOT
+                // certify cancellation of any remote mission.
+                window.location.replace(releaseUrl(sha, true));
+            } catch {
+                window.alert('No se pudo confirmar el commit de la Terminal. Comprueba el servidor local y vuelve a intentarlo.');
+            } finally {
+                refresh.disabled = false;
+            }
         });
     })();
     </script>
