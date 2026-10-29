@@ -4127,7 +4127,8 @@ export const GestiaCore = {
             globalThis.location?.port==='5000'&&(!localQwenMode||localQwenMode==='general-v1');
         let ownerMobileResearchHost=false;
         if(!localGeneralHost && globalThis.location?.protocol==='https:'&&
-            ['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com'].includes(globalThis.location?.hostname)){
+            ['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com',
+             'fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app'].includes(globalThis.location?.hostname)){
             const [{generalObjectives},{mobileGeneralResearchPilot}]=await Promise.all([
                 import('../modules/terminal/qwen-general-evidence.js?release=v142-code-preview-20261021-v32'),
                 import('../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10')]);

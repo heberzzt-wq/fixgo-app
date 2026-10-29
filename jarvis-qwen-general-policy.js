@@ -13,7 +13,8 @@ export function localGeneralPilot(location){
 export function mobileGeneralResearchPilot(location,objectives={}){
     const mode=new URLSearchParams(location?.search||'').get('qwenPilot');
     return location?.protocol==='https:'&&
-        ['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com'].includes(location?.hostname)&&
+        ['fixgo-44e4d.web.app','fixgo-44e4d.firebaseapp.com',
+         'fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app'].includes(location?.hostname)&&
         (!mode||mode==='general-v1')&&objectives.research===true&&
         !['code','architecture','sourceDocument','advertising','records','page','document',
           'reel','unsupported','prohibited','capabilities'].some(key=>objectives[key]===true);

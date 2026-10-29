@@ -7,6 +7,7 @@ import {generalToolCatalog,prioritizeGeneralAdvertisingCatalog} from '../modules
 
 const exact='Sí, inicia ahora la investigación. Investiga cómo limpiar correctamente los filtros de un aire acondicionado residencial. Utiliza tres fuentes independientes y verificables. Ejecuta las herramientas de investigación web e inspección de páginas. Entrega un informe breve con el título, URL y una cita textual comprobada de cada fuente, además de las recomendaciones de mantenimiento. No leas archivos del repositorio, no ejecutes repo.audit y no modifiques código. Si falta alguna evidencia, indícalo. Declara VERIFIED_COMPLETE solamente cuando las tres fuentes estén verificadas.';
 const mobile={protocol:'https:',hostname:'fixgo-44e4d.web.app',search:''};
+const preview={protocol:'https:',hostname:'fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app',search:''};
 const name='general-11111111-2222-4333-8444-555555555555';
 const tool=name=>({name,mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{query:{type:'string'},url:{type:'string'}},required:[]}});
 
@@ -22,6 +23,22 @@ test('literal mobile HVAC research with negative repo prohibitions is RESEARCH o
  const catalog=generalToolCatalog({list:()=>['repo.read','repo.audit','advertising.research','web.research','browser.inspect'].map(tool)},policy,goals,exact);
  assert.deepEqual(catalog.map(t=>t.name),['web.research','browser.inspect']);
  assert.deepEqual(prioritizeGeneralAdvertisingCatalog(catalog,[],goals,exact).map(t=>t.name),['web.research']);
+});
+
+test('exact preview supports authenticated research only, never capability inventory or writes',()=>{
+ const objectives=generalObjectives(exact);
+ assert.equal(mobileGeneralResearchPilot(preview,objectives),true);
+ const policy=createGeneralToolPolicy({location:preview,missionId:name,objectives,instruction:exact});
+ assert.deepEqual(['web.research','browser.inspect','system.capabilities','repo.read','repo.gitStatus','platform.query','document.create','tests.run','repo.write']
+   .filter(n=>policy.accept(tool(n))),['web.research','browser.inspect']);
+ const capacity=generalObjectives('Consulta las capacidades disponibles de Jarvis. Solo lectura, sin modificar archivos.');
+ assert.equal(capacity.capabilities,true);
+ assert.equal(mobileGeneralResearchPilot(preview,capacity),false);
+ assert.throws(()=>createGeneralToolPolicy({location:preview,missionId:name,objectives:capacity}),/QWEN_GENERAL_LOCAL_SCOPE_REQUIRED/);
+ for(const hostname of [preview.hostname+'.attacker.test','v142-jarvis-webtest-20261023-zht01nmx.web.app','evil.web.app']){
+   assert.equal(mobileGeneralResearchPilot({...preview,hostname},objectives),false);
+ }
+ assert.equal(mobileGeneralResearchPilot({...preview,protocol:'http:'},objectives),false);
 });
 
 test('a genuine engineering request remains engineering despite no-modification restriction',()=>{
@@ -55,5 +72,5 @@ test('production core dispatches only owner-scoped public research to isolated p
  const core=readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
  assert.match(core,/ownerMobileResearchHost=mobileGeneralResearchPilot\(globalThis\.location,generalObjectives\(inputRaw\)\)/);
  assert.match(core,/if\(localGeneralHost\|\|ownerMobileResearchHost\)/);
- assert.match(core,/\['fixgo-44e4d\.web\.app','fixgo-44e4d\.firebaseapp\.com'\]/);
+ assert.match(core,/fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx\.web\.app/);
 });
