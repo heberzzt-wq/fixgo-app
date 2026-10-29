@@ -5159,7 +5159,18 @@ if (
             }
             throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
         };
+    // A wide registered catalog may contain platform.query even when Qwen's
+    // validated mission contract selected only the capability inventory.
+    // Do not force another unrelated population/relationship objective phase:
+    // the selected tool and its original model-owned objective remain binding.
+    // Any requested platform-record objective still requires the full contract.
+    const capabilityInventoryOnlyContract =
+        lastMissionContractError === null &&
+        missionContractToolCalls.length > 0 &&
+        missionContractToolCalls.every(call => call?.name === "system.capabilities") &&
+        !missionContractEvidenceObjectives.some(goal => goal?.requiredEvidenceKind === "platform_records");
     const initialCoverageContract = !pendingMissionId && !missionIsIsolated && !repositoryContractMission &&
+        !capabilityInventoryOnlyContract &&
         missionToolCatalog.some(tool => tool.evidenceKinds?.includes("platform_records"))
         ? await buildMissionToolCallsWithTransientRetry(effectiveMissionInstruction, {
             ...context, throwOnUnavailable:true, toolCatalog:missionToolCatalog,

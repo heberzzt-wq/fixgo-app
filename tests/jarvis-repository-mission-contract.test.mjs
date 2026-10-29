@@ -12,12 +12,12 @@ const objectives=[{objective:instruction,requestQuote:instruction,requiredEviden
 const calls=[{name:'repo.read',args:{file:'gestia-core/jarvis/jarvis.local.policy.js'},approved:false}];
 const source=readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
 
-async function contractPath(goals=objectives,selected=calls){
+async function contractPath(goals=objectives,selected=calls,registered=tools,forceUnbounded=false){
  const start=source.indexOf('    const operationalMissionToolNames ='),end=source.indexOf('    const missionResult =',start),phases=[];
  const result=await runInNewContext(`(async()=>{${source.slice(start,end)};return {missionToolCatalog,missionContractEvidenceObjectives,initialCoverageContract,missionInitialToolCalls};})()`,{
   structuredClone, operationalInitialToolCalls:selected, terminalSemanticPlan:{reason:'model_selected_multifunction_plan',toolCalls:selected},
-  registeredMissionTools:tools,context:{},semanticMemoryContext:null,effectiveMissionInstruction:instruction,inputRaw:instruction,
-  conversationalPlan:{requiresFinalConversation:true},isBoundedReadOnlyMission,
+  registeredMissionTools:registered,context:{},semanticMemoryContext:null,effectiveMissionInstruction:instruction,inputRaw:instruction,
+  conversationalPlan:{requiresFinalConversation:true},isBoundedReadOnlyMission:forceUnbounded?()=>false:isBoundedReadOnlyMission,
   scopeValidatedRepositoryMission:scope.scopeValidatedRepositoryMission,
   ensureExecutableArtifactDependencies:({toolCalls})=>toolCalls,mergeEvidenceGroundedToolCalls:a=>a,
   compactJarvisSemanticMemoryForPlanner:()=>null,resolveExplicitRepositoryTargets:()=>[],normalizeObservationFilePath:x=>x,
@@ -48,6 +48,22 @@ test('mixed or empty contracts keep operational coverage instead of narrowing by
   assert.deepEqual(phases,['MISSION_CONTRACT','OBJECTIVE_CONTRACT']);
   assert.ok(result.missionToolCatalog.some(t=>t.name==='platform.query'));
  }
+});
+
+test('capability-only owner mission does not invoke a redundant platform population contract',async()=>{
+ const selected=[{name:'system.capabilities',args:{},approved:false}];
+ const catalog=[...tools,{name:'system.capabilities',mutates:false,requiresApproval:false,investigationReadOnly:true,evidenceKinds:['tool_result']}];
+ for(const goals of [[],[{objective:'Consultar capacidades',requestQuote:'Consultar capacidades',requiredEvidenceKind:'tool_result'}]]){
+  const {result,phases}=await contractPath(goals,selected,catalog,true);
+  assert.deepEqual(phases,['MISSION_CONTRACT']);
+  assert.equal(result.initialCoverageContract,null);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.missionInitialToolCalls)),selected);
+ }
+ const goals=[{objective:'Contar técnicos',requiredEvidenceKind:'platform_records'}];
+ const {result,phases}=await contractPath(goals,selected,catalog,true);
+ assert.deepEqual(phases,['MISSION_CONTRACT','OBJECTIVE_CONTRACT'],
+  'the capability-only tool selection never suppresses a model-owned records obligation');
+ assert.ok(result.initialCoverageContract?.completionAssessment?.objectives?.length);
 });
 
 test('repository contract scope rejects writes, approval, artifact, unknown tools and unvalidated objectives',()=>{
