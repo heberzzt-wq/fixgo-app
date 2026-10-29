@@ -150,7 +150,12 @@ export function generalObjectives(instruction){
     const pageRequested=/\blanding\b|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/iu.test(s)&&
         (!requestedFormats.includes('pdf')||explicitWebPage);
     const sourceDocument=Boolean(requestedSourceDocumentFile(instruction));
-    return {code,architecture,sourceDocument,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:pageRequested,
+    // Only an exact, host-registered read-only tool identifier can become an
+    // explicit obligation; prose cannot grant tools, writes or authority.
+    const requestedReadTools=[...new Set([
+        ...(/\brepo\.gitstatus\b/iu.test(instruction)?['repo.gitStatus']:[])
+    ])];
+    return {code,architecture,sourceDocument,requestedReadTools,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:pageRequested,
         records:!code&&generalRecordsRequested(instruction),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
         ...(requestedImageFormats.length?{requestedImageFormats}:{}),current:/actual|reciente|hoy|vigente/.test(s),unsupported:reel||advertising||/imagen/.test(s)||generalRestrictedActionRequested(s)};
 }
@@ -257,6 +262,8 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
     const gaps=mediaDeliveryGaps(receipts,objectives);
     for(const format of unfulfilledDownloadFormats(instruction,receipts))gaps.push({goal:'requested downloadable '+format,requiredTool:'document.create',format});
     if(objectives.capabilities&&!has('system.capabilities'))gaps.push({goal:'live registered capability inventory',requiredTool:'system.capabilities'});
+    for(const name of objectives.requestedReadTools||[])if(!has(name))
+        gaps.push({goal:'explicit requested read-only tool result: '+name,requiredTool:name,reason:'EXPLICIT_READ_RECEIPT_REQUIRED'});
     if(objectives.records&&!records?.ok)gaps.push({goal:'authorized complete counts',requiredTool:'platform.query',reason:records.reason});
     if(objectives.code){
         for(const file of requiredEngineeringSourceFiles(instruction)){
@@ -556,6 +563,14 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
             });
         }));
         check('source-bound original office files',bound,'RESEARCH_DOCUMENT_SOURCE_AND_PDF_CONTENT_REQUIRED');
+    }
+    for(const name of objectives.requestedReadTools||[]){
+        const receipt=rows.find(r=>{
+            if(r.name!==name||r.observation?.status!=='GIT_STATUS_OK')return false;
+            const line=String(r.observation.branchLine||r.observation.stdout||'').split(/\r?\n/u)[0];
+            return /^## v142-official(?:\s|$)/u.test(line);
+        });
+        check('explicit read-only tool result: '+name,Boolean(receipt),'EXPLICIT_READ_RECEIPT_REQUIRED');
     }
     if(objectives.capabilities){
         const c=rows.find(r=>r.name==='system.capabilities')?.observation;

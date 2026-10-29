@@ -36,6 +36,7 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
     const needed=new Set([
         ...(objectives?.advertising?['advertising.research','media.library','image.adapt','media.analyze','artifact.read','browser.inspect',...(objectives.reel?['speech.synthesize','reel.create']:[])]:[]),
         ...(objectives?.capabilities?['system.capabilities']:[]),
+        ...(objectives?.requestedReadTools||[]),
         ...(objectives?.code?['repo.search','repo.grep','repo.read',...(objectives.architecture?['repo.graph']:[]),'repo.diagnose','repo.prepareWrite','tests.run','repo.gitStatus']:[]),
         ...(objectives?.sourceDocument?['repo.read']:[]),
         ...(objectives?.research&&!objectives?.advertising?['web.research','browser.inspect']:[]),

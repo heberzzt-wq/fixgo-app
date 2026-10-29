@@ -5,6 +5,29 @@ test('opening source pages does not authorize creating a page',()=>{
  assert.equal(generalObjectives('Investiga WebGPU, abre sus páginas. Solo lectura.').page,false);
  assert.equal(generalObjectives('Crea una página de prueba en HTML').page,true);
 });
+test('explicit read-only gitStatus cannot be certified by capability inventory alone',async()=>{
+ const instruction='Consulta system.capabilities y repo.gitStatus del repositorio actual, solo lectura';
+ const objectives=generalObjectives(instruction);
+ assert.deepEqual(objectives.requestedReadTools,['repo.gitStatus']);
+ const cap={name:'system.capabilities',ok:true,observation:{ok:true,
+   workstation:{ok:true},totalTools:1,inventory:[{name:'repo.gitStatus',registered:true,physicallyVerified:false,executionStatus:'ELIGIBLE_UNVERIFIED'}]}};
+ const {summarizeGeneralEvidence}=await import('../modules/terminal/qwen-general-evidence.js');
+ const summary=summarizeGeneralEvidence([cap],objectives,instruction);
+ assert.equal(summary.finishEligible,false);
+ assert.ok(summary.deliveryGaps.some(g=>g.requiredTool==='repo.gitStatus'));
+ assert.equal((await verifyGeneralMission({instruction,receipts:[cap],proposedReport:'Finish'})).ok,false);
+ const physical={name:'repo.gitStatus',ok:true,observation:{ok:true,status:'GIT_STATUS_OK',stdout:'## v142-official\n'}};
+ assert.equal((await verifyGeneralMission({instruction,receipts:[cap,{...physical,observation:{ok:true,status:'GIT_STATUS_OK'}}],proposedReport:'Finish'})).ok,false);
+ assert.equal((await verifyGeneralMission({instruction,receipts:[cap,physical],proposedReport:'Finish'})).ok,true);
+ const {generalToolCatalog}=await import('../modules/terminal/qwen-general-pilot.js');
+ const {createGeneralToolPolicy}=await import('../jarvis-qwen-general-policy.js');
+ const policy=createGeneralToolPolicy({location:{protocol:'http:',hostname:'127.0.0.1',port:'5000'},missionId:'general-12345678',objectives});
+ const catalog=generalToolCatalog({list:()=>[
+   {name:'system.capabilities',mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{}}},
+   {name:'repo.gitStatus',mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{}}}
+ ]},policy,objectives,instruction);
+ assert.deepEqual(catalog.map(x=>x.name).sort(),['repo.gitStatus','system.capabilities']);
+});
 test('tool success and a screenshot never suffice to certify page completion',async()=>{
  const result=await verifyGeneralMission({instruction:'Crea una landing',receipts:[{ok:true,name:'page.create',observation:{ok:true,output:'x.html'}},{ok:true,name:'browser.screenshot',observation:{ok:true}}],proposedReport:'SUCCESS'});
  assert.equal(result.ok,false);assert.ok(result.objectives.some(x=>x.reason==='LOCAL_VISUAL_REVIEW_OR_LAYOUT_REPAIR_REQUIRED'));
@@ -39,11 +62,12 @@ test('page completion binds visual review to captured bytes and rejects detected
  review.observation.imageSha256='a'.repeat(64);review.observation.review.overlappingContent=true;assert.equal((await verify()).ok,false);
 });
 test('research rejects unquoted factual assertions even with three opened dated links',async()=>{
- const date=new Date().toISOString().slice(0,10),sources=[1,2,3].map(i=>({url:'https://example.org/'+i,title:'Source '+i}));
- const receipts=[{name:'web.research',ok:true,observation:{ok:true,sources}},...sources.map(s=>({name:'browser.inspect',ok:true,observation:{ok:true,url:s.url,dom:`<title>${s.title}</title><p>${date} This is a sufficiently long literal statement from this source.</p>`}}))];
- const proposedReport=JSON.stringify({sources:sources.map(s=>({...s,date,quote:'This is a sufficiently long literal statement from this source.'}))});
- assert.equal((await verifyGeneralMission({instruction:'Investiga un tema actual',receipts,proposedReport})).ok,true);
- assert.equal((await verifyGeneralMission({instruction:'Investiga un tema actual',receipts,proposedReport:proposedReport.replace('sufficiently','invented')})).ok,false);
+ const date=new Date().toISOString().slice(0,10),sources=[1,2,3].map(i=>({url:'https://example.org/'+i,title:'WebGPU source '+i}));
+ const quote='WebGPU publication guidance has a sufficiently long literal statement from this source.';
+ const receipts=[{name:'web.research',ok:true,observation:{ok:true,sources}},...sources.map(s=>({name:'browser.inspect',ok:true,observation:{ok:true,url:s.url,dom:`<title>${s.title}</title><p>${date} ${quote}</p>`}}))];
+ const proposedReport=JSON.stringify({sources:sources.map(s=>({...s,date,quote}))});
+ assert.equal((await verifyGeneralMission({instruction:'Investiga WebGPU actual',receipts,proposedReport})).ok,true);
+ assert.equal((await verifyGeneralMission({instruction:'Investiga WebGPU actual',receipts,proposedReport:proposedReport.replace('sufficiently','invented')})).ok,false);
 });
 import {summarizeGeneralEvidence} from '../modules/terminal/qwen-general-evidence.js';
 test('no-publish does not hide unsupported media objectives and a catalog is never execution proof',async()=>{
