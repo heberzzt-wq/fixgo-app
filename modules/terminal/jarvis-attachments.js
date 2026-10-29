@@ -6,7 +6,7 @@ import {
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
 import {optimizeSelectedMobileVideo,mobileVideoCompressionDecision} from './jarvis-video-economy.js';
 
-const VERSION = "2.5.0-artifact-download-lifecycle-v142";
+const VERSION = "2.5.1-mobile-upload-stage-diagnostics-v142";
 const MAX_FILES = 30;
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -210,6 +210,7 @@ async function prepareFile(file, existingItem = null) {
     item.status = "uploading";
     item.error = "";
     item.progress = 0;
+    let uploadStage = 'preparación';
     renderTray();
     item.pending = (async () => {
         try {
@@ -241,6 +242,7 @@ async function prepareFile(file, existingItem = null) {
                 uploadFile.size > MOBILE_FILE_BYTES)) throw new Error("JARVIS_MOBILE_UPLOAD_FILE_LIMIT");
             if(item.cancelled)throw new Error('UPLOAD_CANCELLED');
             if (typeof window.JarvisLocalBridge?.requestJson !== "function") throw new Error("LOCAL_BRIDGE_REQUIRED");
+            uploadStage = 'inicio';
             const started = await window.JarvisLocalBridge.requestJson("/upload/start", {
                 batchId: state.batchId,
                 name: uploadFile.name,
@@ -257,6 +259,7 @@ async function prepareFile(file, existingItem = null) {
             const chunkSize = Math.min(Number(started.maxChunkBytes || selectedCeiling), selectedCeiling);
             if (!Number.isSafeInteger(chunkSize) || chunkSize < 1)
                 throw new Error('UPLOAD_CHUNK_SIZE_INVALID');
+            uploadStage = 'fragmentos';
             for (let offset = 0; offset < uploadFile.size; offset += chunkSize) {
                 const buffer = await uploadFile.slice(offset, Math.min(offset + chunkSize, uploadFile.size)).arrayBuffer();
                 const chunk = await requestChunkWithRetry({
@@ -268,10 +271,12 @@ async function prepareFile(file, existingItem = null) {
                 renderTray();
             }
             if (item.cancelled) throw new Error("UPLOAD_CANCELLED");
+            uploadStage = 'finalización';
             const saved = await window.JarvisLocalBridge.requestJson("/upload/complete", {
                 uploadId: item.uploadId
             }, { timeoutMs: 45000 });
             if (saved?.ok !== true) throw new Error(saved?.error || saved?.status || "UPLOAD_FAILED");
+            uploadStage = 'registro';
             item.output = saved.output;
             item.status = "ready";
             item.progress = 100;
@@ -311,7 +316,15 @@ async function prepareFile(file, existingItem = null) {
                 : isMobileRelayHost() && reason.startsWith('VIDEO_COMPRESSION_') ?
                 'No pude comprimir este video manteniendo su audio y duración. El original no se modificó ni se subió.' :
                 reason.slice(0,180);
-            if (isMobileRelayHost()) setComposerMessage(item.error, "error");
+            if (isMobileRelayHost()) {
+                const routeError = /^JARVIS_MOBILE_UPLOAD_ROUTE_DENIED$/.test(reason);
+                const label = routeError ?
+                    `Ruta rechazada en ${uploadStage}; versión ${VERSION}` :
+                    `Error durante ${uploadStage}; versión ${VERSION}`;
+                item.error = `${label}. ${item.error}`;
+                setComposerMessage(item.error, "error");
+                console.warn('[JARVIS_MOBILE_UPLOAD_DIAGNOSTIC]',{stage:uploadStage,code:reason.slice(0,80),version:VERSION});
+            }
         }
         renderTray();
         return item;

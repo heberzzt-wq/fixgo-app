@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "2.5.0-artifact-download-lifecycle-v142");
+    assert.equal(description.version, "2.5.1-mobile-upload-stage-diagnostics-v142");
     assert.equal(description.transport, "chunked_progressive");
     assert.equal(description.maxFiles, 30);
     assert.equal(description.maxFileBytes, 250 * 1024 * 1024);

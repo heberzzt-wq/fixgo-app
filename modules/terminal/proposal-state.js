@@ -1,4 +1,4 @@
-import "./nexo-bootstrap.js?v=v142-mobile-upload-bounded-20261029-v5";
+import "./nexo-bootstrap.js?v=v142-upload-diagnostics-20261029-v6";
 import { inspectResponsiveCurrentBrowserPage } from "../../gestia-core/jarvis/jarvis.browser.grounding.js";
 import { recordAutonomyEvent } from "../../gestia-core/jarvis/jarvis.autonomy.engine.js";
 import { composeEvidenceGroundedConversation } from "../../gestia-core/jarvis/jarvis.conversation.composer.js";

@@ -912,8 +912,8 @@ test('workstation relay restores signed heartbeat on tab wake and unhooks all wa
 test('public Terminal loads a fresh bootstrap that includes upload reconnection checks',()=>{
  const terminal=fs.readFileSync('gestia-terminal.html','utf8');
  const proposal=fs.readFileSync('modules/terminal/proposal-state.js','utf8');
- assert.match(terminal,/proposal-state\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
- assert.match(proposal,/nexo-bootstrap\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
+ assert.match(terminal,/proposal-state\.js\?v=v142-upload-diagnostics-20261029-v6/);
+ assert.match(proposal,/nexo-bootstrap\.js\?v=v142-upload-diagnostics-20261029-v6/);
 });
 
 test('mobile upload waits for a brief offline heartbeat before queueing exactly one authenticated request',async()=>{

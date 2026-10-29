@@ -60,3 +60,37 @@ test('actual Android-style HTTPS attachment sends bounded chunks even if Bridge 
  assert.equal(results.ok,true,JSON.stringify(results));
  assert.equal(results.readyFiles,1);
 });
+
+test('an upload route rejection reports the exact failing stage and client revision, without bytes',async t=>{
+ const before={window:globalThis.window,document:globalThis.document,localStorage:globalThis.localStorage};
+ const store=new Map();
+ const mockNode=()=>({dataset:{},children:[],hidden:false,appendChild(child){this.children.push(child);return child;},
+   remove(){},querySelectorAll(){return [];},querySelector(){return null;},
+   addEventListener(){},getAttribute(){return null;},setAttribute(){},textContent:''});
+ const tray=mockNode();
+ globalThis.document={getElementById:id=>id==='jarvis-attachment-tray'?tray:null,
+   createElement:()=>mockNode()};
+ globalThis.localStorage={getItem:key=>store.get(key)||null,setItem:(key,value)=>store.set(key,String(value)),
+   removeItem:key=>store.delete(key)};
+ let called=0;
+ globalThis.window={location:{protocol:'https:',hostname:'other-preview.web.app'},
+   JarvisLocalBridge:{requestJson:async(route)=>{
+     assert.equal(route,'/upload/start');called++;
+     throw new Error('JARVIS_MOBILE_UPLOAD_ROUTE_DENIED');
+   }}};
+ t.after(()=>{
+  try{JarvisAttachments.clear()}catch{}
+  for(const [key,value] of Object.entries(before)){
+   if(value===undefined)delete globalThis[key];else globalThis[key]=value;
+  }
+ });
+ const photo=new File([new Uint8Array(24576)],'test-photo.png',{type:'image/png'});
+ await JarvisAttachments.acceptFiles([photo]);
+ assert.equal(called,1);
+ const result=JarvisAttachments.inspectAttachmentBatch();
+ assert.equal(result.incompleteFiles,1);
+ assert.match(result.incomplete[0].error,/Ruta rechazada en inicio/);
+ assert.match(result.incomplete[0].error,/2\.5\.1-mobile-upload-stage-diagnostics-v142/);
+ assert.match(result.incomplete[0].error,/JARVIS_MOBILE_UPLOAD_ROUTE_DENIED/);
+ assert.ok(!result.incomplete[0].error.includes('dataBase64'));
+});

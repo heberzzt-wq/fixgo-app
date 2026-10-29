@@ -138,9 +138,9 @@ test('fresh mobile browser uses new modules and retains the exact Firebase rules
  assert.match(receipt,/84fdac84-2c5f-4d7e-89a7-72877d819547/);
  assert.match(receipt,/Solo|Única modificación textual/);
  assert.match(receipt,/b76abec92fac1cd09866741a18058eaa2b471e57a26f86d03fb55d2d3d89b249/);
- assert.match(page,/jarvis-attachments\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
- assert.match(page,/proposal-state\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
- assert.match(state,/nexo-bootstrap\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
+ assert.match(page,/jarvis-attachments\.js\?v=v142-upload-diagnostics-20261029-v6/);
+ assert.match(page,/proposal-state\.js\?v=v142-upload-diagnostics-20261029-v6/);
+ assert.match(state,/nexo-bootstrap\.js\?v=v142-upload-diagnostics-20261029-v6/);
  assert.match(proposal,/NO PUBLICADA/);
  for(const route of JARVIS_MOBILE_UPLOAD_ROUTES){
   assert.ok(proposal.includes("'"+route+"'"),route);
