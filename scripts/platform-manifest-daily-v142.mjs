@@ -176,8 +176,19 @@ export async function updateDailyManifest({root=REPO_ROOT,destination=REPORT_DIR
   writeFileSync(temp,data,'utf8');
   renameSync(temp,filenameFull);
  }
+ // Immutable evidence of every observed commit, even when several occur
+ // on one day. Never stage or mutate the official Git-tracked master inventory.
+ const commitDir=join(destination,'commits');
+ mkdirSync(commitDir,{recursive:true});
+ const commitReceipt=join(commitDir,head+'.json');
+ if(!existsSync(commitReceipt)){
+  const temp=commitReceipt+'.tmp-'+process.pid;
+  writeFileSync(temp,body,'utf8');
+  renameSync(temp,commitReceipt);
+ }
  return {ok:true,date:report.dateLocal,head:head.slice(0,12),destination,
-  total:report.platform.total,affected:report.platform.workstreamsTouched.length,
+  commitReceipt,total:report.platform.total,
+  affected:report.platform.workstreamsTouched.length,
   tests:report.tests.status,clean:!dirty};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

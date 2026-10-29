@@ -22,6 +22,22 @@ evidencia y condiciones para autorizar cierres.
   el bridge requiere mantener el repositorio oficial limpio.
 - Las pruebas matutinas son dirigidas; no reemplazan pruebas E2E completas.
 
+## Actualización automática después de cada commit
+
+El hook versionado `.githooks/post-commit` ejecuta el generador con `--no-tests`
+automáticamente al completar cada commit local. Instalación por equipo:
+`powershell -ExecutionPolicy Bypass -File .\\scripts\\install-platform-manifest-commit-hook.ps1`.
+La instalación solo configura `core.hooksPath` local y respeta otros hooks existentes.
+
+La salida `Documents/Jarvis-V142-Manifiestos/commits/<SHA>.json` guarda
+un recibo por versión, además de actualizar `ultimo.md/json` y el
+corte diario. Registra archivos, frentes afectados, servicios y si Git
+estaba sucio. No acredita pruebas no ejecutadas ni despliegues; no
+escribe sobre los archivos maestros versionados, no hace push ni
+despliega y no modifica la autorización del Bridge. La actualización
+semántica de estados y aceptación del manifiesto maestro sigue exigiendo
+recibos objetivos y revisión autorizada; no se inventan conclusiones.
+
 ## Comandos del propietario
 
 Actualizar después de un avance importante (desde la raíz del repositorio):

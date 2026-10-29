@@ -1,0 +1,11 @@
+#!/bin/sh
+# V142: register each local commit in the read-only external manifest history.
+# A report failure must never undo a legitimate Git commit.
+repo_root="$(git rev-parse --show-toplevel)" || exit 0
+cd "$repo_root" || exit 0
+if command -v node >/dev/null 2>&1; then
+  node scripts/platform-manifest-daily-v142.mjs --no-tests || echo 'V142_MANIFEST_POST_COMMIT_FAILED: inspect local report' >&2
+else
+  echo 'V142_MANIFEST_POST_COMMIT_NODE_NOT_FOUND' >&2
+fi
+exit 0
