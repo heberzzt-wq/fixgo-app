@@ -4,6 +4,7 @@ import {
 import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
+import {optimizeSelectedMobileVideo,mobileVideoCompressionDecision} from './jarvis-video-economy.js';
 
 const VERSION = "2.5.0-artifact-download-lifecycle-v142";
 const MAX_FILES = 30;
@@ -124,6 +125,7 @@ async function removeItem(id) {
     if (index < 0) return;
     const [item] = state.items.splice(index, 1);
     item.cancelled = true;
+    item.compressionController?.abort();
     if (item.uploadId && item.status === "uploading" && typeof window.JarvisLocalBridge?.requestJson === "function") {
         await window.JarvisLocalBridge.requestJson("/upload/cancel", { uploadId: item.uploadId }, { timeoutMs: 15000 }).catch(() => null);
     }
@@ -158,8 +160,9 @@ function renderTray() {
         details.appendChild(createElement("div", "text-xs text-white truncate", itemName(item)));
         const statusText = item.status === "failed"
             ? `Error: ${item.error || "no se pudo guardar"}`
+            : item.status === "optimizing" ? `Comprimiendo video · ${Number(item.progress||0)}%`
             : item.status === "ready"
-                ? `${formatBytes(itemBytes(item))} · ${item.recovered ? "recuperado" : "listo"}${item.saved?.sha256 ? ` · ${item.saved.sha256.slice(0, 10)}` : ""}`
+                ? `${formatBytes(itemBytes(item))} · ${item.recovered ? "recuperado" : "listo"}${item.originalVideoBytes ? ` · reducido de ${formatBytes(item.originalVideoBytes)}` : ""}${item.saved?.sha256 ? ` · ${item.saved.sha256.slice(0, 10)}` : ""}`
                 : `${formatBytes(itemBytes(item))} · ${Number(item.progress || 0)}%`;
         details.appendChild(createElement("div", `text-[10px] ${item.status === "failed" ? "text-red-300" : item.status === "ready" ? "text-emerald-300" : "text-slate-400"}`, statusText));
         chip.appendChild(details);
@@ -210,18 +213,39 @@ async function prepareFile(file, existingItem = null) {
     renderTray();
     item.pending = (async () => {
         try {
-            if (TEXT_EXTENSIONS.has(extensionOf(file.name))) {
+            let uploadFile = file;
+            if(isMobileRelayHost() && file.type?.startsWith('video/') &&
+                mobileVideoCompressionDecision(file).kind === 'optimize') {
+                item.status='optimizing'; item.progress=0; renderTray();
+                item.compressionController=new AbortController();
+                const optimized=await optimizeSelectedMobileVideo(file,{
+                    signal:item.compressionController.signal,
+                    onProgress:percentage=>{if(!item.cancelled){item.progress=percentage;renderTray();}}
+                });
+                item.compressionController=null;
+                if(item.cancelled)throw new Error('UPLOAD_CANCELLED');
+                uploadFile=optimized.file;
+                item.file=uploadFile;
+                item.originalVideoBytes=optimized.originalBytes;
+                item.optimizedVideoBytes=optimized.optimizedBytes;
+                if(item.previewUrl){URL.revokeObjectURL(item.previewUrl);state.previewObjectUrls.delete(item.previewUrl);}
+                item.previewUrl=URL.createObjectURL(uploadFile);
+                state.previewObjectUrls.add(item.previewUrl);
+                item.status='uploading';item.progress=0;renderTray();
+            }
+            if (TEXT_EXTENSIONS.has(extensionOf(uploadFile.name))) {
                 const textBuffer = await file.slice(0, 100000).arrayBuffer();
                 item.extractedText = new TextDecoder("utf-8", { fatal: false }).decode(textBuffer).slice(0, 50000);
             }
-            if (isMobileRelayHost() && (!MOBILE_EXTENSIONS.has(extensionOf(file.name)) ||
-                file.size > MOBILE_FILE_BYTES)) throw new Error("JARVIS_MOBILE_UPLOAD_FILE_LIMIT");
+            if (isMobileRelayHost() && (!MOBILE_EXTENSIONS.has(extensionOf(uploadFile.name)) ||
+                uploadFile.size > MOBILE_FILE_BYTES)) throw new Error("JARVIS_MOBILE_UPLOAD_FILE_LIMIT");
+            if(item.cancelled)throw new Error('UPLOAD_CANCELLED');
             if (typeof window.JarvisLocalBridge?.requestJson !== "function") throw new Error("LOCAL_BRIDGE_REQUIRED");
             const started = await window.JarvisLocalBridge.requestJson("/upload/start", {
                 batchId: state.batchId,
-                name: file.name,
-                mimeType: file.type || "application/octet-stream",
-                expectedBytes: file.size,
+                name: uploadFile.name,
+                mimeType: uploadFile.type || "application/octet-stream",
+                expectedBytes: uploadFile.size,
                 caseId: ensureCase().caseId,
                 objectiveId: ensureCase().objectiveId
             }, { timeoutMs: 30000 });
@@ -229,8 +253,8 @@ async function prepareFile(file, existingItem = null) {
             item.uploadId = started.uploadId;
             const chunkSize = Math.min(Number(started.maxChunkBytes || CHUNK_BYTES),
                 isMobileRelayHost() ? MOBILE_CHUNK_BYTES : CHUNK_BYTES);
-            for (let offset = 0; offset < file.size; offset += chunkSize) {
-                const buffer = await file.slice(offset, Math.min(offset + chunkSize, file.size)).arrayBuffer();
+            for (let offset = 0; offset < uploadFile.size; offset += chunkSize) {
+                const buffer = await uploadFile.slice(offset, Math.min(offset + chunkSize, uploadFile.size)).arrayBuffer();
                 const chunk = await requestChunkWithRetry({
                     uploadId: item.uploadId,
                     offset,
@@ -274,10 +298,13 @@ async function prepareFile(file, existingItem = null) {
         } catch (error) {
             item.status = "failed";
             const reason = String(error?.code || error?.message || error);
+            item.compressionController=null;
             item.error = isMobileRelayHost() &&
                 /(?:permission-denied|missing or insufficient permissions|JARVIS_RELAY_LOCAL_OPERATION_REQUIRED)/i.test(reason)
                 ? "El enlace móvil no tiene permiso de Firebase para recibir este archivo. No se guardó."
-                : reason.slice(0, 180);
+                : isMobileRelayHost() && reason.startsWith('VIDEO_COMPRESSION_') ?
+                'No pude comprimir este video manteniendo su audio y duración. El original no se modificó ni se subió.' :
+                reason.slice(0,180);
             if (isMobileRelayHost()) setComposerMessage(item.error, "error");
         }
         renderTray();
@@ -293,7 +320,8 @@ async function acceptFiles(fileList) {
     const maxFiles = mobile ? MOBILE_FILE_COUNT : MAX_FILES;
     const maxFileBytes = mobile ? MOBILE_FILE_BYTES : MAX_FILE_BYTES;
     const maxTotalBytes = mobile ? MOBILE_BATCH_BYTES : MAX_TOTAL_BYTES;
-    let acceptedBytes = state.items.reduce((total, item) => total + itemBytes(item), 0);
+    let acceptedBytes = state.items.reduce((total,item)=>total+
+        (mobile && item.status==='optimizing' ? MOBILE_FILE_BYTES : itemBytes(item)),0);
     const known = new Set(state.items.map(item => `${itemName(item)}:${itemBytes(item)}:${item.lastModified || 0}`));
     const queued = [];
     for (const file of files) {
@@ -316,14 +344,16 @@ async function acceptFiles(fileList) {
         if (mobile && !MOBILE_EXTENSIONS.has(extensionOf(file.name))) {
             item.status = "failed";
             item.error = "Tipo de archivo no autorizado. En móvil se admiten imágenes, documentos y videos MP4, WEBM o MOV hasta 8 MB.";
-        } else if (file.size < 1 || file.size > maxFileBytes) {
+        } else if (file.size < 1 || (file.size > maxFileBytes && !(mobile &&
+            mobileVideoCompressionDecision(file).kind === 'optimize'))) {
             item.status = "failed";
             item.error = `tamaño fuera del límite de ${formatBytes(maxFileBytes)}`;
         } else if (acceptedBytes + file.size > maxTotalBytes) {
             item.status = "failed";
             item.error = `el lote supera ${formatBytes(maxTotalBytes)}`;
         } else {
-            acceptedBytes += file.size;
+            acceptedBytes += mobile && mobileVideoCompressionDecision(file).kind==='optimize' ?
+                MOBILE_FILE_BYTES : file.size;
             queued.push(item);
         }
         known.add(dedupeKey);
@@ -409,7 +439,7 @@ async function composePrompt(rawPrompt = "") {
 }
 
 function clear() {
-    state.items.forEach(item => { item.cancelled = true; });
+    state.items.forEach(item => { item.cancelled = true; item.compressionController?.abort(); });
     state.previewObjectUrls.forEach(url => URL.revokeObjectURL(url));
     state.previewObjectUrls.clear();
     state.items = [];
