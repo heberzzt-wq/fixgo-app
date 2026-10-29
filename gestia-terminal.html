@@ -6172,7 +6172,11 @@ const summary =
         const safeTitle = escapeHTML(String(researchReport ? "Fuentes de la investigación" :
             readableRepoStatus ? "Revisión del proyecto completada" :
             plainGitStatus ? "Estado del proyecto: sin cambios pendientes" : title || "Jarvis"));
-        const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
+        // Format only escaped, balanced Markdown bold in ordinary chat.
+        // No raw model HTML, links, scripts or mission evidence can execute.
+        const safeMessage = escapeHTML(String(message))
+            .replace(/\*\*([^*\r\n]+)\*\*/gu, '<strong>$1</strong>')
+            .split("\n").join("<br>");
         // All general mission results share this boundary: outcome first,
         // exact technical transcript and receipts only in the details fold.
         const signedMissionMessage = !researchReport &&

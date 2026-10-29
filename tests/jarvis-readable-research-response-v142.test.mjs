@@ -168,3 +168,21 @@ test('Git with pending files or a partial mission is never converted into zero f
  const untouched=render('Te envié un reporte con 4 puntos.', 'Jarvis');
  assert.equal(untouched.renderedMessage,'Te envié un reporte con 4 puntos.');
 });
+
+test('ordinary Qwen Markdown emphasis becomes safe bold without changing technical facts',()=>{
+ const view=render('Vacío absoluto: **0 inHg absolutos**. Vacío manométrico: **−29.92 inHg**.');
+ assert.match(view.renderedMessage,/<strong>0 inHg absolutos<\/strong>/);
+ assert.match(view.renderedMessage,/<strong>−29\.92 inHg<\/strong>/);
+ assert.doesNotMatch(view.renderedMessage,/\*\*0 inHg/);
+ const escaped=render('Medición **<img src=x onerror=alert(1)>** y <script>alert(1)</script>');
+ assert.match(escaped.renderedMessage,/<strong>&lt;img src=x onerror=alert\(1\)&gt;<\/strong>/);
+ assert.doesNotMatch(escaped.renderedMessage,/<img|<script>/);
+ const unpaired=render('La pantalla muestra **sin cierre.');
+ assert.match(unpaired.renderedMessage,/\*\*sin cierre/);
+});
+test('direct Qwen chat explicitly distinguishes absolute, gauge and vacuum reference frames',()=>{
+ const source=readFileSync(join(process.cwd(),'functions/jarvis-semantic-planner.js'),'utf8');
+ assert.match(source,/cero absoluto no equivale a cero manométrico/);
+ assert.match(source,/presión atmosférica local/);
+ assert.match(source,/No confundas un manómetro convencional con una medición precisa en micrones/);
+});
