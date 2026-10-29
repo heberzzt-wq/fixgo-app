@@ -73,6 +73,9 @@ const rows = [
     'THREE_OPENED_CITED_URLS_REQUIRED','SOURCE_QUOTATIONS_AND_TITLES_REQUIRED','UNSUPPORTED_REPORT_ASSERTIONS'],
     'Faltan fuentes verificables', 'La investigación no acreditó las fuentes necesarias.',
     'Consulta fuentes pertinentes y guarda sus recibos antes de certificar.', 'evidencia'],
+  ['JAR-503', ['RESEARCH_PROCEDURE_STEPS_REQUIRED','RESEARCH_PROCEDURE_WARNINGS_REQUIRED'],
+    'Procedimiento solicitado incompleto', 'La investigación carece de pasos o advertencias sustentados con citas verificables.',
+    'Comprueba las instrucciones y advertencias pendientes contra las páginas inspeccionadas; conserva PARTIAL si faltan citas.', 'evidencia'],
   ['JAR-601', ['ARTIFACT_READ_FAILED','ARTIFACT_WRITE_FAILED','FILE_NOT_FOUND'],
     'Archivo no disponible', 'No se confirmó lectura o entrega del artefacto.',
     'Comprueba el identificador y el recibo del archivo, sin inventar una descarga.', 'archivos']

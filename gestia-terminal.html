@@ -6048,7 +6048,8 @@ const summary =
             let parsed;
             try { parsed = JSON.parse(envelope ? envelope[1] : message); } catch { return null; }
             if (!parsed || Array.isArray(parsed) ||
-                Object.keys(parsed).length !== 1 ||
+                Object.keys(parsed).some(key => !['sources', 'steps', 'warnings'].includes(key)) ||
+                (!Object.hasOwn(parsed, 'sources')) ||
                 !Array.isArray(parsed.sources) ||
                 parsed.sources.length < 1 || parsed.sources.length > 20) return null;
             const rows = [];
@@ -6064,11 +6065,24 @@ const summary =
                 rows.push({ url: url.href, title: source.title, quote: source.quote,
                     date: /^20\d{2}-\d{2}-\d{2}$/.test(String(source.date || "")) ? source.date : null });
             }
-            return rows;
+            // A validated research procedure has exact source-bound steps;
+            // the view never supplies missing steps, sources or warnings.
+            const steps = parsed.steps === undefined ? [] : parsed.steps;
+            const warnings = parsed.warnings === undefined ? [] : parsed.warnings;
+            if (!Array.isArray(steps) || steps.length > 12 || !Array.isArray(warnings) || warnings.length > 12)
+                return null;
+            const usableCitation = item => item && typeof item === 'object' &&
+                typeof item.quote === 'string' && item.quote.trim().length >= 32 &&
+                typeof item.sourceUrl === 'string' && rows.some(source => source.url === item.sourceUrl);
+            if (steps.some((item, index) => !usableCitation(item) || item.number !== index + 1 ||
+                    typeof item.instruction !== 'string' || !item.instruction.trim()) ||
+                warnings.some(item => !usableCitation(item) || typeof item.text !== 'string' ||
+                    typeof item.kind !== 'string' || !item.text.trim())) return null;
+            return { sources: rows, steps, warnings };
         })();
         const safeTitle = escapeHTML(String(researchReport ? "Fuentes de la investigación" : title || "Jarvis"));
         const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
-        const researchItems = researchReport?.map((source, index) =>
+        const researchItems = researchReport?.sources.map((source, index) =>
             '<li class="mb-4 break-words">' +
             '<p class="font-semibold text-white">' + (index + 1) + '. ' + escapeHTML(source.title) + '</p>' +
             (source.date ? '<p class="text-xs text-slate-400">Fecha documentada: ' + escapeHTML(source.date) + '</p>' : '') +
@@ -6077,11 +6091,23 @@ const summary =
             '<p class="mt-1 text-slate-300"><strong>Fragmento citado:</strong> “' + escapeHTML(source.quote) + '”</p>' +
             '</li>'
         ).join('');
+        const procedureItems = researchReport?.steps.map(step =>
+            '<li class="mb-3"><strong>' + escapeHTML(step.number) + '. ' +
+            escapeHTML(step.instruction) + '</strong><p class="text-xs text-slate-400">' +
+            'Fuente: ' + escapeHTML(researchReport.sources.find(s => s.url === step.sourceUrl)?.title || 'Página inspeccionada') +
+            ' · Cita: “' + escapeHTML(step.quote) + '”</p></li>').join('') || '';
+        const warningsItems = researchReport?.warnings.map(warning =>
+            '<li class="mb-3">' + escapeHTML(warning.text) +
+            '<p class="text-xs text-slate-400">Cita: “' + escapeHTML(warning.quote) +
+            '” · ' + escapeHTML(researchReport.sources.find(s => s.url === warning.sourceUrl)?.title || 'Página inspeccionada') +
+            '</p></li>').join('') || '';
         const renderedMessage = researchReport ?
             '<div data-jarvis-research-report="true" class="space-y-3 font-sans">' +
-            '<p class="text-slate-200">Jarvis encontró ' + researchReport.length + ' fuentes verificadas. Estos son sus enlaces y los textos citados:</p>' +
+            '<p class="text-slate-200">Jarvis encontró ' + researchReport.sources.length + ' fuentes verificadas. Estos son sus enlaces y los textos citados:</p>' +
             '<ol class="space-y-3">' + researchItems + '</ol>' +
-            '<p class="text-xs text-slate-400">Las citas documentan las fuentes. El informe no incluye todavía una interpretación técnica elaborada.</p>' +
+            (procedureItems ? '<h4 class="font-semibold text-white">Procedimiento sustentado en las fuentes</h4><ol class="space-y-2">' + procedureItems + '</ol>' : '') +
+            (warningsItems ? '<h4 class="font-semibold text-white">Advertencias documentadas</h4><ul class="space-y-2">' + warningsItems + '</ul>' : '') +
+            (!procedureItems ? '<p class="text-xs text-slate-400">Las citas documentan las fuentes. El informe no incluye todavía una interpretación técnica elaborada.</p>' : '') +
             '<details class="text-xs text-slate-400"><summary class="cursor-pointer">Ver detalles técnicos (JSON)</summary>' +
             '<pre class="whitespace-pre-wrap break-all mt-2">' + escapeHTML(String(message)) + '</pre></details></div>'
             : safeMessage;

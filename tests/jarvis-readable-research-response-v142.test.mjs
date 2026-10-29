@@ -22,7 +22,7 @@ const sample={sources:[
 ]};
 test('Research evidence is readable and keeps the original JSON within details',()=>{
  const original=JSON.stringify(sample),view=render(original);
- assert.equal(view.researchReport.length,3);
+ assert.equal(view.researchReport.sources.length,3);
  assert.match(view.safeTitle,/Fuentes de la investigación/);
  assert.match(view.renderedMessage,/Jarvis encontró 3 fuentes verificadas/);
  assert.match(view.renderedMessage,/Abrir fuente original/);
@@ -31,6 +31,28 @@ test('Research evidence is readable and keeps the original JSON within details',
  assert.match(view.renderedMessage,/&amp;b=2/);
  assert.match(view.renderedMessage,/&quot;sources&quot;/);
  assert.match(page,/\$\{renderedMessage\}/,'Actual card uses the readable report');
+});
+test('procedural research renders six sourced steps and two warnings without changing receipts',()=>{
+ const full={...sample,steps:Array.from({length:6},(_,i)=>({
+  number:i+1,instruction:'Instrucción respaldada número '+(i+1)+': limpiar el filtro con precaución',
+  sourceUrl:sample.sources[0].url,quote:'Clean filters improve airflow and lower maintenance costs.'
+ })),warnings:[
+  {kind:'disposable_filter',text:'Reemplazar los filtros desechables.',sourceUrl:sample.sources[0].url,quote:'Clean filters improve airflow and lower maintenance costs.'},
+  {kind:'manufacturer_manual',text:'Leer el manual del fabricante.',sourceUrl:sample.sources[2].url,quote:'Inspect the system and follow manufacturer guidance.'}
+ ]};
+ const result=render(JSON.stringify(full),'Misión general verificada');
+ assert.equal(result.researchReport.sources.length,3);
+ assert.equal(result.researchReport.steps.length,6);
+ assert.match(result.renderedMessage,/Procedimiento sustentado en las fuentes/);
+ assert.match(result.renderedMessage,/Advertencias documentadas/);
+ assert.match(result.renderedMessage,/6\. Instrucción respaldada/);
+ assert.match(result.renderedMessage,/Ver detalles técnicos/);
+ const injected=structuredClone(full);injected.steps[2].instruction='<img src=x onerror=alert(1)>';
+ const safe=render(JSON.stringify(injected));
+ assert.match(safe.renderedMessage,/&lt;img/);
+ assert.doesNotMatch(safe.renderedMessage,/<img/);
+ const invalid=structuredClone(full);invalid.steps[0].sourceUrl='https://evil.example/filters';
+ assert.equal(render(JSON.stringify(invalid)).researchReport,null);
 });
 test('Unrelated mission messages stay unmodified',()=>{
  const msg='Misión cancelada: vuelva a intentar';
@@ -58,7 +80,7 @@ test('Actual verified pilot message with counters renders sources, not raw JSON'
    '\nTokens: 15556 entrada / 610 salida; duración: 95832 ms.'+
    '\nEvidencia local SHA-256: 380d54488c5da57c02c8087ade067e1a01a8639526a8502cbafed9dd1d9eee5f';
  const view=render(message,'Misión general verificada');
- assert.equal(view.researchReport.length,3);
+ assert.equal(view.researchReport.sources.length,3);
  assert.match(view.renderedMessage,/Abrir fuente original/);
  assert.match(view.renderedMessage,/Ver detalles técnicos/);
  assert.match(view.renderedMessage,/Misión: general-fb1fbf9f/);

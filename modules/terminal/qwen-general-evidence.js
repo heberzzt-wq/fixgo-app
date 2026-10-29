@@ -264,6 +264,49 @@ export function verifiedPreparedCodePreview(receipts=[]){
    snapshotSha256:patch.observation.snapshotSha256,expectedSha256:patch.observation.expectedSha256,
    written:false,requiresHumanApproval:true};
 }
+// Only explicit step counts and warning subjects in the ORIGINAL user request
+// become obligations. The model cannot add or remove deliverables at FINISH.
+export function requestedResearchProcedure(instruction=''){
+    const text=String(instruction).normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
+    const count=/\b(\d{1,2}|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+pasos(?:\s+numerados)?\b/u.exec(text)?.[1];
+    const numbers={tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10};
+    const steps=count?Number(numbers[count]||count):0;
+    const warnings=[];
+    if(/\bfiltros?\s+(?:desechables?|descartables?)\b/u.test(text))warnings.push('disposable_filter');
+    if(/\bmanual\s+del\s+fabricante\b/u.test(text))warnings.push('manufacturer_manual');
+    return {steps:steps>=2&&steps<=10?steps:0,warnings};
+}
+function researchReportContract(receipts,instruction=''){
+    const proofs=independentResearchProofs(receipts,instruction).slice(0,3);
+    const sources={type:'array',minItems:3,maxItems:3,items:{anyOf:proofs.map(p=>({
+        type:'object',properties:{url:{const:p.url},title:{const:p.title},
+        date:{enum:[...p.dates.slice(0,2),null]},quote:{enum:p.quotes.slice(0,2)}},
+        required:['url','title','date','quote'],additionalProperties:false
+    }))}};
+    const procedure=requestedResearchProcedure(instruction);
+    const properties={sources},required=['sources'];
+    if(procedure.steps){
+        properties.steps={type:'array',minItems:procedure.steps,maxItems:procedure.steps,items:{
+            type:'object',properties:{number:{type:'integer',minimum:1,maximum:procedure.steps},
+            instruction:{type:'string',minLength:15,maxLength:420},
+            sourceUrl:{type:'string',enum:proofs.map(p=>p.url)},
+            quote:{type:'string',enum:[...new Set(proofs.flatMap(p=>p.quotes.slice(0,5)))]}},
+            required:['number','instruction','sourceUrl','quote'],additionalProperties:false
+        }};
+        required.push('steps');
+    }
+    if(procedure.warnings.length){
+        properties.warnings={type:'array',minItems:procedure.warnings.length,maxItems:procedure.warnings.length,items:{
+            type:'object',properties:{kind:{type:'string',enum:procedure.warnings},
+            text:{type:'string',minLength:15,maxLength:420},
+            sourceUrl:{type:'string',enum:proofs.map(p=>p.url)},
+            quote:{type:'string',enum:[...new Set(proofs.flatMap(p=>p.quotes.slice(0,5)))]}},
+            required:['kind','text','sourceUrl','quote'],additionalProperties:false
+        }};
+        required.push('warnings');
+    }
+    return {type:'object',properties,required,additionalProperties:false};
+}
 export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
     const rows=good(receipts),sources=rows.filter(r=>r.name==='web.research').flatMap(r=>r.observation.sources||[]);
     const proofs=researchSourceProofs(receipts);
@@ -308,7 +351,7 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
         // Qwen needs a bounded choice among physically evidenced quotes, not
         // every excerpt of a 300 KB HTML page repeated in the Ollama schema.
         // Full sources and all quotes remain in receipts for independent audit.
-        ...(objectives.research&&!objectives.advertising&&proofs.length?{reportSchema:{type:'object',properties:{sources:{type:'array',minItems:3,maxItems:3,items:{anyOf:independentResearchProofs(receipts,instruction).slice(0,3).map(p=>({type:'object',properties:{url:{const:p.url},title:{const:p.title},date:{enum:[...p.dates.slice(0,2),null]},quote:{enum:p.quotes.slice(0,2)}},required:['url','title','date','quote'],additionalProperties:false}))}}},required:['sources'],additionalProperties:false}}:{}),
+        ...(objectives.research&&!objectives.advertising&&proofs.length?{reportSchema:researchReportContract(receipts,instruction)}:{}),
         sources:sources.map(s=>({url:s.url,title:s.title})).slice(0,12),
         artifacts:rows.filter(r=>['page.create','document.create'].includes(r.name)).map(r=>({output:r.observation.output,sha256:r.observation.sha256,url:r.observation.url})),
         rule:'FINISH requires independent verification. Search snippets alone do not establish current facts. Read sources with browser.inspect. Read produced files with artifact.read. A screenshot is a capture, not semantic visual inspection.'};
@@ -514,11 +557,67 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         // window, not a generic first-eight excerpt window which can drop
         // a later, physically verified source passage.
         const proofs=researchSourceProofs(receipts,instruction);
-        check('bounded evidence report',!!table&&Object.keys(table).length===1&&new Set(evidenceRows.map(r=>r?.url)).size>=3&&evidenceRows.every(r=>Object.keys(r).every(k=>['url','title','date','quote'].includes(k))),'UNSUPPORTED_REPORT_ASSERTIONS');
+        const procedure=requestedResearchProcedure(instruction);
+        const expectedKeys=['sources',...(procedure.steps?['steps']:[]),...(procedure.warnings.length?['warnings']:[])];
+        check('bounded evidence report',!!table&&Object.keys(table).length===expectedKeys.length&&
+            expectedKeys.every(k=>Object.hasOwn(table,k))&&
+            new Set(evidenceRows.map(r=>r?.url)).size>=3&&evidenceRows.every(r=>Object.keys(r).every(k=>['url','title','date','quote'].includes(k))),'UNSUPPORTED_REPORT_ASSERTIONS');
         if(objectives.current)check('dated current assertions',evidenceRows.some(s=>s.date!==null)&&evidenceRows.every(s=>{if(s.date===null)return true;const date=Date.parse(s.date);return typeof s.date==='string'&&/^20\d{2}[-/]\d{2}[-/]\d{2}$/.test(s.date)&&String(observed.get(s.url)||'').includes(s.date)&&Number.isFinite(date)&&date<=Date.now()+86400000&&Date.now()-date<=366*86400000;}),'SOURCE_DATES_AND_REPORT_BINDING_REQUIRED');
 
         const text=researchText;
         check('source quotations and attribution',evidenceRows.length>=3&&evidenceRows.every(s=>typeof s.url==='string'&&observed.has(s.url)&&typeof s.quote==='string'&&proofs.some(p=>p.url===s.url&&p.quotes.some(q=>q.includes(s.quote)))&&s.quote.length>=32&&s.quote.trim().split(/\s+/).length<=25&&text(observed.get(s.url)).includes(s.quote)&&typeof s.title==='string'&&text(observed.get(s.url)).includes(s.title)),'SOURCE_QUOTATIONS_AND_TITLES_REQUIRED');
+        if(procedure.steps){
+            const steps=Array.isArray(table?.steps)?table.steps:[];
+            const permitted=new Map(independentResearchProofs(receipts,instruction).slice(0,3).map(p=>[p.url,p]));
+            const normal=s=>String(s||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
+            // Match a procedural claim to a literal page excerpt in the same
+            // action family. A generic filter-efficiency quote cannot support
+            // an instruction to wash, unplug or reinstall equipment.
+            const actions=[
+                /\b(?:apag\w*|desconect\w*|switch(?:ing)?\s+off|turn(?:ing)?\s+off|power\s+off)\b/u,
+                /\b(?:retir\w*|extra\w*|sac\w*|remov\w*|take\s+out)\b/u,
+                /\b(?:limpi\w*|lav\w*|clean\w*|wash\w*)\b/u,
+                /\b(?:enjuag\w*|rins\w*)\b/u,
+                /\b(?:sec\w*|dry|dried|drying)\b/u,
+                /\b(?:reinstal\w*|coloc\w*|insert\w*|reinstall\w*|put\s+back)\b/u,
+                /\b(?:inspeccion\w*|revis\w*|check\w*|inspect\w*)\b/u,
+                /\b(?:reemplaz\w*|sustitu\w*|cambi\w*|replac\w*)\b/u
+            ];
+            const supported=step=>{
+                if(!step||typeof step!=='object'||Object.keys(step).some(k=>!['number','instruction','sourceUrl','quote'].includes(k))||
+                    typeof step.instruction!=='string'||step.instruction.trim().length<15||
+                    typeof step.quote!=='string'||!permitted.has(step.sourceUrl))return false;
+                const source=permitted.get(step.sourceUrl);
+                if(!source.quotes.some(q=>q.includes(step.quote))||!text(observed.get(step.sourceUrl)).includes(step.quote))return false;
+                const claim=normal(step.instruction),proof=normal(step.quote);
+                const invoked=actions.filter(re=>re.test(claim));
+                return invoked.length>0&&invoked.every(re=>re.test(proof));
+            };
+            check('requested numbered procedure with individually sourced steps',
+                steps.length===procedure.steps&&steps.every((step,i)=>step.number===i+1&&supported(step))&&
+                new Set(steps.map(step=>normal(step.instruction))).size===steps.length,
+                'RESEARCH_PROCEDURE_STEPS_REQUIRED');
+        }
+        if(procedure.warnings.length){
+            const warnings=Array.isArray(table?.warnings)?table.warnings:[];
+            const verified=new Map(independentResearchProofs(receipts,instruction).slice(0,3).map(p=>[p.url,p]));
+            const match=(kind,s)=>{
+                const t=String(s||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
+                return kind==='disposable_filter'
+                    ?/(?:desechab|descartab|disposable|throwaway|non.washable)/u.test(t)&&
+                      /(?:filtro|filter)/u.test(t)
+                    :/(?:manual|fabricante|manufacturer|manufacturer.s\s+instructions)/u.test(t);
+            };
+            check('explicit filter and manufacturer warnings bound to inspected pages',
+                warnings.length===procedure.warnings.length&&
+                new Set(warnings.map(w=>w?.kind)).size===warnings.length&&
+                procedure.warnings.every(kind=>warnings.some(w=>w?.kind===kind&&
+                    w.text?.length>=15&&match(kind,w.text)&&match(kind,w.quote)&&
+                    verified.get(w.sourceUrl)?.quotes.some(q=>q.includes(w.quote))&&
+                    text(observed.get(w.sourceUrl)).includes(w.quote)&&
+                    Object.keys(w).every(k=>['kind','text','sourceUrl','quote'].includes(k)))),
+                'RESEARCH_PROCEDURE_WARNINGS_REQUIRED');
+        }
         if(/fuentes primarias/i.test(instruction))check('primary source classification independently established',false,'PRIMARY_SOURCE_CLASSIFICATION_NOT_INDEPENDENTLY_ESTABLISHED');
     }
     if(objectives.page){

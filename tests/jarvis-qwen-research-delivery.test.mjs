@@ -93,6 +93,72 @@ test('filter cleaning buried later in a real paragraph is quoted without fabrica
  assert.ok(proofs[0].quotes.some(q=>q.includes('filter')&&q.includes('rinse')&&q.includes('dry')),JSON.stringify(proofs));
  assert.ok(proofs[0].quotes.every(q=>dom.includes(q)));
 });
+test('explicit six-step cleaning mission cannot complete with source-only JSON',async()=>{
+ const instruction='Investiga los filtros lavables y entrega seis pasos numerados, desde apagar equipo hasta reinstalar, advertencia sobre filtros desechables y manual del fabricante, con tres fuentes independientes.';
+ const {requestedResearchProcedure}=await import('../modules/terminal/qwen-general-evidence.js');
+ const obligation=requestedResearchProcedure(instruction);
+ assert.equal(obligation.steps,6);
+ assert.deepEqual(obligation.warnings,['disposable_filter','manufacturer_manual']);
+ const receipts=build(3);
+ const summary=await import('../modules/terminal/qwen-general-evidence.js');
+ const report={sources:independentResearchProofs(receipts,instruction).slice(0,3).map(source=>({url:source.url,title:source.title,date:null,quote:source.quotes[0]}))};
+ assert.ok(summary.summarizeGeneralEvidence(receipts,generalObjectives(instruction),instruction).reportSchema.properties.steps);
+ const result=await summary.verifyGeneralMission({instruction,receipts,proposedReport:JSON.stringify(report)});
+ assert.equal(result.ok,false);
+ assert.ok(result.objectives.some(x=>x.reason==='RESEARCH_PROCEDURE_STEPS_REQUIRED'));
+ assert.ok(result.objectives.some(x=>x.reason==='RESEARCH_PROCEDURE_WARNINGS_REQUIRED'));
+});
+test('six individually backed cleaning steps and two cited warnings pass, invented directions fail',async()=>{
+ const instruction='Investiga como limpiar filtros lavables de un minisplit. Entrega seis pasos numerados y advertencias sobre filtros desechables y manual del fabricante, con tres fuentes independientes.';
+ const sourceData=[
+  {host:'guide-one.org',quotes:[
+   'Before cleaning the washable air filter, switch off the unit and disconnect the power to prevent accidental operation of the equipment.',
+   'Remove the washable air filter from the front panel carefully before the scheduled cleaning begins and keep the clips safe.'
+  ]},
+  {host:'guide-two.edu',quotes:[
+   'Inspect the washable air filter for visible dust before cleaning it gently with a suitable soft vacuum attachment and protect its frame.',
+   'Wash the reusable air filter gently with water only when the manufacturer guide permits filter washing and check the original instructions.'
+  ]},
+  {host:'guide-three.gov',quotes:[
+   'Rinse the washable air filter thoroughly with clean water after washing and avoid harsh chemicals to prevent damage and deterioration.',
+   'Allow the washable air filter to dry completely before reinstalling the air filter into the indoor unit after cleaning.',
+   'Disposable air filters should be replaced instead of washed and you must never clean disposable air filters using water or detergent.',
+   'Consult the manufacturer manual before cleaning washable air filters because the manufacturer instructions may restrict your cleaning method.'
+  ]}
+ ];
+ const urls=sourceData.map(x=>'https://'+x.host+'/filters');
+ const receipts=[{name:'web.research',ok:true,observation:{ok:true,sources:urls.map(url=>({url}))}},
+  ...sourceData.map((src,i)=>({name:'browser.inspect',ok:true,args:{url:urls[i]},observation:{
+   ok:true,url:urls[i],dom:'<html><title>Washable air filters '+i+'</title><main>'+src.quotes.map(q=>'<p>'+q+'</p>').join('')+'</main></html>'
+  }}))];
+ const proofs=independentResearchProofs(receipts,instruction);
+ assert.equal(proofs.length,3,JSON.stringify(proofs.map(p=>({url:p.url,quotes:p.quotes}))));
+ const reports={sources:proofs.map(x=>({url:x.url,title:x.title,date:null,quote:x.quotes[0]}))};
+ const indexed=[
+  [0,0,'Apagar y desconectar el equipo antes de limpiar el filtro lavable.'],
+  [0,1,'Retirar el filtro lavable con cuidado antes de iniciar su limpieza.'],
+  [1,0,'Inspeccionar y aspirar suavemente el filtro antes de continuar.'],
+  [1,1,'Lavar el filtro reutilizable si las instrucciones permiten lavarlo.'],
+  [2,0,'Enjuagar el filtro lavable sin productos quimicos agresivos.'],
+  [2,1,'Secar el filtro por completo y reinstalarlo en la unidad.']
+ ];
+ reports.steps=indexed.map(([i,j,instruction],n)=>({number:n+1,instruction,sourceUrl:urls[i],
+  quote:sourceData[i].quotes[j].split(' ').slice(0,20).join(' ')}));
+ reports.warnings=[
+  {kind:'disposable_filter',text:'Los filtros desechables deben reemplazarse, no lavarse.',sourceUrl:urls[2],quote:sourceData[2].quotes[2].split(' ').slice(0,20).join(' ')},
+  {kind:'manufacturer_manual',text:'Consultar el manual del fabricante antes de limpiar filtros.',sourceUrl:urls[2],quote:sourceData[2].quotes[3].split(' ').slice(0,20).join(' ')}
+ ];
+ const {verifyGeneralMission,summarizeGeneralEvidence}=await import('../modules/terminal/qwen-general-evidence.js');
+ const schema=summarizeGeneralEvidence(receipts,generalObjectives(instruction),instruction).reportSchema;
+ assert.deepEqual(schema.required,['sources','steps','warnings']);
+ const result=await verifyGeneralMission({instruction,receipts,proposedReport:JSON.stringify(reports)});
+ assert.equal(result.ok,true,JSON.stringify(result.objectives));
+ const invented=structuredClone(reports);
+ invented.steps[4].instruction='Apagar el compresor, cortar cables y desmontar los devanados del motor electrico.';
+ assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:JSON.stringify(invented)})).ok,false);
+ const missing=structuredClone(reports);missing.warnings.pop();
+ assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:JSON.stringify(missing)})).ok,false);
+});
 test('unquoted third page cannot release a document to Qwen',()=>{
  const rows=build(3);
  rows.at(-1).observation.dom='<html><title>Empty government directory</title><main>Navigation only</main></html>';
