@@ -5169,8 +5169,28 @@ if (
         missionContractToolCalls.length > 0 &&
         missionContractToolCalls.every(call => call?.name === "system.capabilities") &&
         !missionContractEvidenceObjectives.some(goal => goal?.requiredEvidenceKind === "platform_records");
+    const validatedNonRecordReadContract =
+        lastMissionContractError === null &&
+        missionContractEvidenceObjectives.length > 0 &&
+        missionContractEvidenceObjectives.every(goal =>
+            typeof goal?.requiredEvidenceKind === "string" &&
+            goal.requiredEvidenceKind !== "platform_records"
+        ) &&
+        missionContractToolCalls.length > 0 &&
+        missionContractToolCalls.every(call => {
+            const tool = missionToolCatalog.find(item => item.name === call?.name);
+            return tool?.mutates === false && tool?.requiresApproval !== true &&
+                tool?.userArtifact !== true &&
+                !tool?.evidenceKinds?.includes("platform_records") &&
+                (tool?.investigationReadOnly === true || call.name === "conversation.respond");
+        });
+    // The same Qwen already selected and certified the current non-record
+    // obligations. Catalog availability alone cannot create a new population
+    // investigation. Keep the independent gate for missing/record objectives.
+    const skipRedundantRecordContract =
+        capabilityInventoryOnlyContract || validatedNonRecordReadContract;
     const initialCoverageContract = !pendingMissionId && !missionIsIsolated && !repositoryContractMission &&
-        !capabilityInventoryOnlyContract &&
+        !skipRedundantRecordContract &&
         missionToolCatalog.some(tool => tool.evidenceKinds?.includes("platform_records"))
         ? await buildMissionToolCallsWithTransientRetry(effectiveMissionInstruction, {
             ...context, throwOnUnavailable:true, toolCatalog:missionToolCatalog,

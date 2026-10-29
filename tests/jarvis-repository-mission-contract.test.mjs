@@ -66,6 +66,25 @@ test('capability-only owner mission does not invoke a redundant platform populat
  assert.ok(result.initialCoverageContract?.completionAssessment?.objectives?.length);
 });
 
+test('validated multi-read Qwen contract skips redundant platform phase; records remain mandatory',async()=>{
+ const catalog=[...tools,
+  {name:'system.capabilities',mutates:false,requiresApproval:false,investigationReadOnly:true,evidenceKinds:['tool_result']},
+  {name:'system.health',mutates:false,requiresApproval:false,investigationReadOnly:true,evidenceKinds:['tool_result']}];
+ const selected=[{name:'system.capabilities',args:{}},{name:'system.health',args:{}}];
+ const goals=[{objective:'Consulta capacidades y salud',requestQuote:'Consulta capacidades y salud',requiredEvidenceKind:'tool_result'}];
+ const safe=await contractPath(goals,selected,catalog,true);
+ assert.deepEqual(safe.phases,['MISSION_CONTRACT']);
+ assert.equal(safe.result.initialCoverageContract,null);
+ // A blank objective contract cannot suppress the independent evidence stage.
+ const empty=await contractPath([],selected,catalog,true);
+ assert.deepEqual(empty.phases,['MISSION_CONTRACT','OBJECTIVE_CONTRACT']);
+ const recordGoals=[{objective:'Consulta técnicos registrados',requiredEvidenceKind:'platform_records'}];
+ const records=await contractPath(recordGoals,selected,catalog,true);
+ assert.deepEqual(records.phases,['MISSION_CONTRACT','OBJECTIVE_CONTRACT']);
+ const recordsSelected=await contractPath(goals,[{name:'system.capabilities',args:{}},{name:'platform.query',args:{}}],catalog,true);
+ assert.deepEqual(recordsSelected.phases,['MISSION_CONTRACT','OBJECTIVE_CONTRACT']);
+});
+
 test('repository contract scope rejects writes, approval, artifact, unknown tools and unvalidated objectives',()=>{
  const narrow=(patch={})=>scope.scopeValidatedRepositoryMission({catalog:tools,toolCalls:calls,objectives,validated:true,...patch});
  assert.deepEqual(narrow().map(t=>t.name),['repo.read','repo.search']);
