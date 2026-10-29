@@ -72,6 +72,17 @@ if(!maintenance){
     const remoteHead=spawnSync(git,['rev-parse','refs/remotes/origin/v142-official'],{encoding:'utf8',windowsHide:true});
     if(remoteHead.status!==0||String(remoteHead.stdout||'').trim()!==localHead)
         throw Error('JARVIS_NORMAL_HEAD_NOT_REMOTE');
+    // The local Hosting server serves these ignored, generated artifacts.
+    // Prepare after verifying the official HEAD and clean worktree, before
+    // starting the Bridge; no Firebase deploy, branch change or source rewrite.
+    const release=spawnSync(process.execPath,['scripts/prepare-platform-release.mjs'],{
+        encoding:'utf8',windowsHide:true,timeout:15000
+    });
+    if(release.status!==0) {
+        console.error('[JARVIS_LOCAL_RELEASE_PREPARE_FAILED]',String(release.stderr||release.error?.message||'').slice(0,600));
+        throw Error('JARVIS_LOCAL_RELEASE_PREPARE_FAILED');
+    }
+    console.log('[JARVIS_LOCAL_RELEASE_PREPARED] head='+localHead);
 }
 let maintenanceIdentity=null;
 if(maintenance){

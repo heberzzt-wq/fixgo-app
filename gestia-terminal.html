@@ -214,16 +214,50 @@
             if (!SHA.test(sha)) throw new Error('TERMINAL_RELEASE_SHA_INVALID');
             return sha;
         };
-        // Fix an old bookmarked address on first load without reloading and
-        // without interrupting any mission. history.replaceState is URL-only.
-        readRelease().then(sha => {
-            refresh.dataset.releaseSha = sha;
-            refresh.title = 'Actualizar Terminal · versión ' + sha.slice(0, 8);
-            const current = new URL(window.location.href);
-            if (current.searchParams.get('mobile_release') !== sha)
-                window.history.replaceState(window.history.state, '', releaseUrl(sha));
-        }).catch(() => {
-            refresh.title = 'No se pudo verificar la versión instalada';
+        // Track the actual release loaded by this page. Poll the manifest, not
+        // GitHub or an invented URL: never reload in the middle of a mission.
+        let loadedSha = null;
+        let checking = false;
+        const busy = () => {
+            const cancel = document.getElementById('btn-stop-mission');
+            const draft = document.getElementById('gestia-input')?.value?.trim();
+            return Boolean((cancel && !cancel.hidden) || draft);
+        };
+        const pollRelease = async () => {
+            if (checking) return;
+            checking = true;
+            try {
+                const sha = await readRelease();
+                if (!loadedSha) {
+                    loadedSha = sha;
+                    refresh.dataset.releaseSha = sha;
+                    refresh.title = 'Actualizar Terminal · versión ' + sha.slice(0, 8);
+                    const current = new URL(window.location.href);
+                    if (current.searchParams.get('mobile_release') !== sha)
+                        window.history.replaceState(window.history.state, '', releaseUrl(sha));
+                } else if (sha !== loadedSha) {
+                    refresh.dataset.pendingSha = sha;
+                    refresh.title = busy() ?
+                        'Nueva versión disponible: se aplicará al terminar la misión o enviar el mensaje' :
+                        'Actualizando Terminal automáticamente';
+                    if (!busy()) window.location.replace(releaseUrl(sha, true));
+                } else {
+                    delete refresh.dataset.pendingSha;
+                }
+            } catch {
+                if (!loadedSha) refresh.title = 'No se pudo verificar la versión instalada';
+                // A network outage must never redirect or interrupt a mission.
+            } finally {
+                checking = false;
+            }
+        };
+        // Initial load and background refresh use the same verified release.
+        void pollRelease();
+        if (typeof window.setInterval === 'function')
+            window.setInterval(() => void pollRelease(), 15000);
+        window.addEventListener?.('focus', () => void pollRelease());
+        document.addEventListener?.('visibilitychange', () => {
+            if (!document.hidden) void pollRelease();
         });
         refresh.addEventListener('click', async () => {
             const cancel = document.getElementById('btn-stop-mission');

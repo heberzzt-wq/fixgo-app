@@ -25,9 +25,11 @@ test('maintenance preserves dirty, branch, repository, rebase and model rejectio
   assert.ok(r.calls.every(args=>['status','rev-parse','config'].includes(args[0])));
  }
 });
-test('ordinary startup retains synchronization behavior',()=>{
+test('ordinary startup retains synchronization and refreshes local release after matching HEAD',()=>{
  const r=preflight({args:[]});assert.equal(r.error,undefined);
  assert.ok(r.calls.some(a=>a[0]==='fetch'));assert.ok(r.calls.some(a=>a[0]==='rebase'));
+ const preparation=r.calls.findIndex(a=>a[0]==='scripts/prepare-platform-release.mjs');
+ assert.ok(preparation>r.calls.findIndex(a=>a.includes('refs/remotes/origin/v142-official')));
 });
 test('ordinary startup rejects an unpublished local HEAD before importing the publisher',()=>{
  const r=preflight({args:[],cachedHead:'b'.repeat(40)});
