@@ -140,3 +140,31 @@ test('known mobile and bridge errors use natural language without erasing their 
  assert.equal(render('El trabajo terminó y ya tienes el archivo listo.').renderedMessage,
   'El trabajo terminó y ya tienes el archivo listo.');
 });
+
+test('mobile clean Git reply reads like a frijolitos explanation while preserving original proof',()=>{
+ const msg='He consultado el estado del repositorio en la rama `v142-official`.\n'+
+   'No se detectaron archivos modificados.\nEl repositorio está limpio y sin cambios pendientes.';
+ const view=render(msg,'Jarvis');
+ assert.match(view.safeTitle,/Estado del proyecto: sin cambios pendientes/);
+ assert.match(view.renderedMessage,/data-jarvis-plain-git/);
+ assert.match(view.renderedMessage,/la bolsa de pendientes está vacía/);
+ assert.match(view.renderedMessage,/<strong>cero<\/strong>/);
+ assert.match(view.renderedMessage,/no que toda la plataforma funcione sin fallas/);
+ assert.match(view.renderedMessage,/Ver respuesta original/);
+ assert.match(view.renderedMessage,/v142-official/);
+ assert.match(page,/text-slate-300 text-sm leading-relaxed font-sans break-words/);
+ assert.doesNotMatch(page,/researchReport \|\| signedMissionMessage \|\| machineOnlyExplanation \? "font-sans" : "font-mono"/);
+});
+test('Git with pending files or a partial mission is never converted into zero frijolitos',()=>{
+ for(const msg of [
+  'He consultado el estado del repositorio en la rama `v142-official`.\nSe detectaron 3 archivos modificados.\nEl repositorio tiene cambios pendientes.',
+  'No hay evidencia suficiente para completar lo solicitado.\nEstado Git observado: ## v142-official; archivos reportados: 0; detalles omitidos: 0.',
+  'He consultado el estado del repositorio en la rama `v142-official`.\nNo se detectaron archivos modificados.\nEl repositorio está limpio y sin cambios pendientes.\nADVERTENCIA: LA MISIÓN NO TERMINÓ.'
+ ]){
+  const view=render(msg,'Jarvis');
+  assert.doesNotMatch(view.renderedMessage,/data-jarvis-plain-git/);
+  assert.doesNotMatch(view.renderedMessage,/bolsa de pendientes/);
+ }
+ const untouched=render('Te envié un reporte con 4 puntos.', 'Jarvis');
+ assert.equal(untouched.renderedMessage,'Te envié un reporte con 4 puntos.');
+});
