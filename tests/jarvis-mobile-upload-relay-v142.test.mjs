@@ -46,6 +46,11 @@ test('start request is limited to allowed content and a single bounded owner bat
 test('base64 chunk is fixed, bounded and cannot carry extra arguments or credentials',()=>{
  const p={uploadId:id,offset:0,dataBase64:base64};
  assert.equal(accepted('/upload/chunk',p).payload.dataBase64,base64);
+ const realChunk=Buffer.alloc(64*1024,0x65).toString('base64');
+ assert.equal(accepted('/upload/chunk',{...p,dataBase64:realChunk}).payload.dataBase64,realChunk);
+ const tooBig=Buffer.alloc(2*1024*1024,0x65).toString('base64');
+ assert.throws(()=>validateMobileRelayUploadOperation('/upload/chunk',{...p,dataBase64:tooBig}),/JARVIS_MOBILE_UPLOAD_BODY_TOO_LARGE/);
+ assert.throws(()=>accepted('/upload/chunk',{...p,dataBase64:tooBig}),/JARVIS_RELAY_PAYLOAD_TOO_LARGE/);
  for(const change of [{offset:-1},{offset:8*1024*1024},{dataBase64:'???'},
   {dataBase64:'a'.repeat(180000)},{uploadId:'../wrong'},{command:'push'},
   {password:'secret'}])
@@ -62,11 +67,12 @@ test('completion and cancellation accept upload ID only, no other filesystem req
  }
 });
 
-test('client uses 128KB relay chunks without replaying uncertain persisted writes',()=>{
+test('client uses bounded 64KB HTTPS chunks without replaying uncertain persisted writes',()=>{
  const attachments=readFileSync('modules/terminal/jarvis-attachments.js','utf8');
  const bootstrap=readFileSync('modules/terminal/nexo-bootstrap.js','utf8');
  const bridge=readFileSync('jarvis-fs-bridge.js','utf8');
- assert.match(attachments,/MOBILE_CHUNK_BYTES = 128 \* 1024/);
+ assert.match(attachments,/MOBILE_CHUNK_BYTES = 64 \* 1024/);
+ assert.match(attachments,/window\.location\?\.protocol === "https:"/);
  assert.match(attachments,/MOBILE_BATCH_BYTES = 16 \* 1024 \* 1024/);
  assert.match(attachments,/if \(isMobileRelayHost\(\)\) attempts = 1/);
  assert.match(attachments,/isMobileRelayHost\(\) \? MOBILE_CHUNK_BYTES : CHUNK_BYTES/);
@@ -132,9 +138,9 @@ test('fresh mobile browser uses new modules and retains the exact Firebase rules
  assert.match(receipt,/84fdac84-2c5f-4d7e-89a7-72877d819547/);
  assert.match(receipt,/Solo|Única modificación textual/);
  assert.match(receipt,/b76abec92fac1cd09866741a18058eaa2b471e57a26f86d03fb55d2d3d89b249/);
- assert.match(page,/jarvis-attachments\.js\?v=v142-mobile-video-economy-20261029-v1/);
- assert.match(page,/proposal-state\.js\?v=v142-owner-upload-heartbeat-20261029-v3/);
- assert.match(state,/nexo-bootstrap\.js\?v=v142-owner-upload-heartbeat-20261029-v3/);
+ assert.match(page,/jarvis-attachments\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
+ assert.match(page,/proposal-state\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
+ assert.match(state,/nexo-bootstrap\.js\?v=v142-mobile-upload-bounded-20261029-v5/);
  assert.match(proposal,/NO PUBLICADA/);
  for(const route of JARVIS_MOBILE_UPLOAD_ROUTES){
   assert.ok(proposal.includes("'"+route+"'"),route);

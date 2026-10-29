@@ -14,12 +14,12 @@ const CHUNK_BYTES = 2 * 1024 * 1024;
 const UPLOAD_CONCURRENCY = 3;
 // The Firestore owner relay has a bounded 384KB envelope. Never send the
 // 2MB desktop chunks through it, and do not expose arbitrary uploads.
+// Every HTTPS-hosted Terminal must use the bounded client upload profile,
+// regardless of Firebase preview hostname or an older origin cache. This
+// does not grant a relay: origin, owner and SHA are checked independently.
 const isMobileRelayHost = () => typeof window !== "undefined" &&
-    window.location?.protocol === "https:" &&
-    ["fixgo-44e4d.web.app","fixgo-44e4d.firebaseapp.com",
-     "fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app"]
-     .includes(window.location?.hostname);
-const MOBILE_CHUNK_BYTES = 128 * 1024;
+    window.location?.protocol === "https:";
+const MOBILE_CHUNK_BYTES = 64 * 1024;
 const MOBILE_FILE_BYTES = 8 * 1024 * 1024;
 const MOBILE_BATCH_BYTES = 16 * 1024 * 1024;
 const MOBILE_FILE_COUNT = 8;
@@ -251,8 +251,12 @@ async function prepareFile(file, existingItem = null) {
             }, { timeoutMs: 30000 });
             if (started?.ok !== true) throw new Error(started?.error || started?.status || "UPLOAD_START_FAILED");
             item.uploadId = started.uploadId;
-            const chunkSize = Math.min(Number(started.maxChunkBytes || CHUNK_BYTES),
-                isMobileRelayHost() ? MOBILE_CHUNK_BYTES : CHUNK_BYTES);
+            // A server may advertise the 2 MB desktop limit. Always apply
+            // the stricter 64 KB ceiling on HTTPS, even on new preview hosts.
+            const selectedCeiling = isMobileRelayHost() ? MOBILE_CHUNK_BYTES : CHUNK_BYTES;
+            const chunkSize = Math.min(Number(started.maxChunkBytes || selectedCeiling), selectedCeiling);
+            if (!Number.isSafeInteger(chunkSize) || chunkSize < 1)
+                throw new Error('UPLOAD_CHUNK_SIZE_INVALID');
             for (let offset = 0; offset < uploadFile.size; offset += chunkSize) {
                 const buffer = await uploadFile.slice(offset, Math.min(offset + chunkSize, uploadFile.size)).arrayBuffer();
                 const chunk = await requestChunkWithRetry({
@@ -302,6 +306,8 @@ async function prepareFile(file, existingItem = null) {
             item.error = isMobileRelayHost() &&
                 /(?:permission-denied|missing or insufficient permissions|JARVIS_RELAY_LOCAL_OPERATION_REQUIRED)/i.test(reason)
                 ? "El enlace móvil no tiene permiso de Firebase para recibir este archivo. No se guardó."
+                : isMobileRelayHost() && reason === 'JARVIS_MOBILE_UPLOAD_BODY_TOO_LARGE' ?
+                'El móvil intentó enviar un fragmento demasiado grande. Abre la versión actualizada de la Terminal.'
                 : isMobileRelayHost() && reason.startsWith('VIDEO_COMPRESSION_') ?
                 'No pude comprimir este video manteniendo su audio y duración. El original no se modificó ni se subió.' :
                 reason.slice(0,180);

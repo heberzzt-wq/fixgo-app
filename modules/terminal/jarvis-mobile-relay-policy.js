@@ -41,8 +41,13 @@ const mobileUploadAllowed=new Set([
 ]);
 const exactFields=(value,fields)=>Object.keys(value).every(key=>fields.includes(key));
 export function validateMobileRelayUploadOperation(route,payload={}){
- if(!JARVIS_MOBILE_UPLOAD_ROUTES.includes(route)||!cleanBody(payload))
+ if(!JARVIS_MOBILE_UPLOAD_ROUTES.includes(route))
    throw Error('JARVIS_MOBILE_UPLOAD_ROUTE_DENIED');
+ if(!payload||typeof payload!=='object'||Array.isArray(payload))
+   throw Error('JARVIS_MOBILE_UPLOAD_BODY_INVALID');
+ if(JSON.stringify(payload).length>250000)
+   throw Error('JARVIS_MOBILE_UPLOAD_BODY_TOO_LARGE');
+ if(!cleanBody(payload))throw Error('JARVIS_MOBILE_UPLOAD_BODY_INVALID');
  const id=String(payload.uploadId||'');
  if(route==='/upload/start'){
    const name=String(payload.name||''), mime=String(payload.mimeType||'');
