@@ -216,7 +216,16 @@ export function researchSourceProofs(receipts,instruction=''){
         const paragraphs=[...content.matchAll(/<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map(m=>researchText(m[2]));
         if(!paragraphs.length)paragraphs.push(researchText(content));
         const terms=title.toLowerCase().match(/[\p{L}\p{N}]{5,}/gu)||[];
-        const quotes=[...new Set(paragraphs.filter(p=>p.split(/\s+/).length>=8).map(p=>p.split(/\s+/).slice(0,20).join(' ')).filter(q=>q.length>=32&&researchText(content).includes(q)&&!/[{};]/.test(q)&&!/\.ast-|menu-item-|display:|line-height:|vertical-align:|@media|css\b/i.test(q)&&researchQuoteRelevant(q,instruction,title)))].slice(0,8);
+        const filterCleaning=/\b(?:limpi\w*|lav\w*|clean\w*|wash\w*)\b[^.!?]{0,90}\b(?:filtros?|filters?)\b|\b(?:filtros?|filters?)\b[^.!?]{0,90}\b(?:limpi\w*|lav\w*|clean\w*|wash\w*)\b/iu.test(String(instruction).normalize('NFD').replace(/\p{M}/gu,''));
+        const candidates=paragraphs.filter(p=>p.split(/\s+/).length>=8).flatMap(p=>{
+            const words=p.split(/\s+/),snippets=[words.slice(0,20).join(' ')];
+            if(filterCleaning)for(let index=0;index<words.length;index++){
+                if(/\b(?:filtros?|filters?)\b/iu.test(words[index]))
+                    snippets.push(words.slice(Math.max(0,index-7),Math.max(0,index-7)+20).join(' '));
+            }
+            return snippets;
+        });
+        const quotes=[...new Set(candidates.filter(q=>q.length>=32&&researchText(content).includes(q)&&!/[{};]/.test(q)&&!/\.ast-|menu-item-|display:|line-height:|vertical-align:|@media|css\b/i.test(q)&&researchQuoteRelevant(q,instruction,title)))].slice(0,8);
         const dates=[...new Set(dom.match(/\b20\d{2}[-/]\d{2}[-/]\d{2}\b/g)||[])].filter(d=>{const t=Date.parse(d);return Number.isFinite(t)&&t<=Date.now()+86400000&&Date.now()-t<=366*86400000;});
         return {url:r.observation.url,title,quotes,dates};
     }).filter(p=>p.title&&p.quotes.length);
@@ -664,6 +673,17 @@ export function researchQuoteRelevant(quote,instruction='',title=''){
    const subject=/\bwcag\b|accesib|accessib/iu.test(q);
    const actionable=/pautas?|criterios?|guideline|keyboard|teclado|foco|focus|contraste|labels?|etiquetas?|errores?|error|formularios?|formulario|perceptible|operable|comprensible|robusto|target size|reflow/iu.test(q);
    return subject&&actionable;
+ }
+ // If the owner explicitly asks how to CLEAN a filter, a broad HVAC
+ // efficiency or source-attribution paragraph is not practical evidence.
+ // Credit only a literal excerpt that discusses an action on the filter.
+ const filterCleaning=/\b(?:limpi\w*|lav\w*|clean\w*|wash\w*)\b[^.!?]{0,90}\b(?:filtros?|filters?)\b|\b(?:filtros?|filters?)\b[^.!?]{0,90}\b(?:limpi\w*|lav\w*|clean\w*|wash\w*)\b/iu.test(request);
+ if(filterCleaning){
+   const words=q.split(/\s+/u).map(w=>w.replace(/^[^a-z]+|[^a-z]+$/gu,''));
+   const positions=(pattern)=>words.flatMap((word,i)=>pattern.test(word)?[i]:[]);
+   const filters=positions(/^(?:filtros?|filters?)$/u);
+   const actions=positions(/^(?:limpi[a-z]*|lav[a-z]*|enjuag[a-z]*|aspir[a-z]*|sec[a-z]*|retir[a-z]*|reinstal[a-z]*|clean[a-z]*|wash[a-z]*|rins[a-z]*|vacuum[a-z]*|dry|dried|remove[d]?|reinstall[a-z]*)$/u);
+   return filters.some(i=>actions.some(j=>Math.abs(j-i)<=9));
  }
  if(/aire acondicionado|acondicionador|climatizacion|air condition|hvac/i.test(request)){
    const subject=/aire acondicionado|acondicionad|climatiz|air condition|hvac|cooling system|cooling equipment/i.test(q);

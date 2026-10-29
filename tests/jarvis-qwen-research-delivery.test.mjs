@@ -64,6 +64,35 @@ test('relevant HVAC list item is quotable while a menu list cannot impersonate a
  assert.match(proof[0].quotes[0],/condensate drain in your central air conditioner/);
  assert.ok(!proof[0].quotes[0].includes('Sign in'));
 });
+test('cleaning AC filters requires actionably relevant quotes, not generic HVAC source boilerplate',async()=>{
+ const instruction='Investiga cómo limpiar correctamente los filtros de un aire acondicionado residencial con tres fuentes independientes y citas literales.';
+ const examples=[
+  {host:'duct-cleaning.org',title:'HVAC Duct Efficiency Study',quote:'This research explores HVAC cleaning in large buildings and shows energy efficiency improvements from maintenance work.'},
+  {host:'general-guide.net',title:'AC Filter Maintenance Best Practices',quote:'Recommendations are based on manufacturer guidelines and contractor surveys about general home services and maintenance schedules.'},
+  {host:'aircare.edu',title:'Air Conditioner Filter Care',quote:'First turn off the air conditioner, remove its washable filter, clean the filter gently and let it dry before reinstalling.'}
+ ];
+ const receipts=[{ok:true,name:'web.research',observation:{ok:true,sources:examples.map(s=>({url:'https://'+s.host+'/article'}))}},
+   ...examples.map(s=>({ok:true,name:'browser.inspect',args:{url:'https://'+s.host+'/article'},observation:{ok:true,url:'https://'+s.host+'/article',dom:'<title>'+s.title+'</title><main><p>'+s.quote+'</p></main>'}}))];
+ assert.equal(researchSourceProofs(receipts,instruction).length,1,'unrelated duct cleaning and attribution boilerplate are not filter instructions');
+ assert.equal(independentResearchProofs(receipts,instruction).length,1);
+ const {verifyGeneralMission}=await import('../modules/terminal/qwen-general-evidence.js');
+ const report=JSON.stringify({sources:examples.map(s=>({url:'https://'+s.host+'/article',title:s.title,date:null,quote:s.quote}))});
+ assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:report})).ok,false,
+  'three inspected hosts are not automatically three sources supporting the requested instructions');
+});
+
+test('filter cleaning buried later in a real paragraph is quoted without fabricating sentences',()=>{
+ const instruction='Investiga cómo limpiar los filtros de un aire acondicionado residencial con fuentes verificables.';
+ const url='https://air-guide.edu/clean-filter',intro='Air conditioner equipment benefits from regular maintenance and routine inspection, which can help identify problems. General energy information about cooling equipment describes efficiency and weather factors affecting household energy consumption in different buildings.';
+ const actual='To clean the washable air filter, switch off the unit, remove the filter, rinse it gently and let it dry completely before reinstalling it.';
+ const dom='<title>Air conditioner filter care</title><main><p>'+intro+' '+actual+'</p></main>';
+ const receipts=[{name:'web.research',ok:true,observation:{ok:true,sources:[{url}]}},
+  {name:'browser.inspect',ok:true,observation:{ok:true,url,dom}}];
+ const proofs=researchSourceProofs(receipts,instruction);
+ assert.equal(proofs.length,1);
+ assert.ok(proofs[0].quotes.some(q=>q.includes('filter')&&q.includes('rinse')&&q.includes('dry')),JSON.stringify(proofs));
+ assert.ok(proofs[0].quotes.every(q=>dom.includes(q)));
+});
 test('unquoted third page cannot release a document to Qwen',()=>{
  const rows=build(3);
  rows.at(-1).observation.dom='<html><title>Empty government directory</title><main>Navigation only</main></html>';
