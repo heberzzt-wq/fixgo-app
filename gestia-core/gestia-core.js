@@ -83,7 +83,8 @@ import {
     simpleJarvisGreeting,
     scopeJarvisToolsForQuestion,
     scopeValidatedRepositoryMission,
-    jarvisRepositoryEvidenceRequest
+    jarvisRepositoryEvidenceRequest,
+    constrainExplicitGitStatusContract
 } from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
@@ -5008,6 +5009,22 @@ if (
             toolCalls: missionContractToolCalls,
             catalog: missionToolCatalog
         });
+    // Explicit "únicamente repo.gitStatus" means no unsolicited runtime
+    // telemetry objective. Reduce Qwen's proposed contract only when the
+    // original request, a real Git call and its evidence kind all agree.
+    // Never mark a goal satisfied here; the mission audit still checks receipts.
+    if (lastMissionContractError === null) {
+        const scopedGitStatus = constrainExplicitGitStatusContract({
+            instruction: effectiveMissionInstruction,
+            toolCalls: missionContractToolCalls,
+            objectives: missionContractEvidenceObjectives,
+            catalog: missionToolCatalog
+        });
+        if (scopedGitStatus.restricted) {
+            missionContractToolCalls = scopedGitStatus.toolCalls;
+            missionContractEvidenceObjectives = scopedGitStatus.objectives;
+        }
+    }
     const repositoryContractCatalog = scopeValidatedRepositoryMission({
         catalog: missionToolCatalog, toolCalls: missionContractToolCalls,
         objectives: missionContractEvidenceObjectives, validated: lastMissionContractError === null

@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { parse } from "acorn";
 import { missionEvidenceDecisionPhase } from '../gestia-core/jarvis/jarvis.mission.planner-state.js';
-import { scopeValidatedRepositoryMission } from '../gestia-core/jarvis/jarvis.current-turn-scope.js';
+import { scopeValidatedRepositoryMission, constrainExplicitGitStatusContract } from '../gestia-core/jarvis/jarvis.current-turn-scope.js';
 
 // Execute the real collection-identity helper with the extracted review;
 // keep test isolation without substituting its route-matching contract.
@@ -1245,7 +1245,7 @@ async function prepareContract(calls, catalog, options = {}) {
         effectiveMissionInstruction: options.instruction || "Revisa la interfaz", inputRaw: options.instruction || "Revisa la interfaz",
         conversationalPlan: { requiresFinalConversation: true },
         isBoundedReadOnlyMission, ensureExecutableArtifactDependencies, mergeEvidenceGroundedToolCalls,
-        scopeValidatedRepositoryMission,
+        scopeValidatedRepositoryMission, constrainExplicitGitStatusContract,
         buildJarvisMultifunctionToolCalls: async () => { expansions++; return options.expanded || calls; },
         compactJarvisSemanticMemoryForPlanner: () => null,
         resolveExplicitRepositoryTargets: () => [],

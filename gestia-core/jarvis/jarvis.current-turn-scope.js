@@ -51,3 +51,28 @@ export function scopeJarvisToolsForQuestion(tools = []) {
     // establishes a complete contract. Only validated contracts may narrow it.
     return Array.isArray(tools) ? tools.slice() : [];
 }
+
+/**
+ * Narrow an explicitly single-tool Git status request to its evidenced goal.
+ * This reduces a model-proposed contract; it never supplies missing evidence
+ * or certifies completion. Mixed requests retain the original contract.
+ */
+export function constrainExplicitGitStatusContract({instruction="",toolCalls=[],objectives=[],catalog=[]}={}) {
+    const s=fold(instruction);
+    const explicit=/\b(?:unicamente|solamente|solo)\s+(?:la\s+herramienta\s+)?repo\.gitstatus\b/u.test(s);
+    const asksMore=/\b(?:system\.(?:health|observability)|salud|telemetria|observabilidad|cpu|ram|temperatura|servicios|puertos)\b/u.test(s);
+    const gitTool=catalog.find(item=>item?.name==="repo.gitStatus");
+    const validTool=gitTool?.mutates===false && gitTool?.requiresApproval!==true &&
+        gitTool?.evidenceKinds?.includes("repository_search");
+    const statusCalls=toolCalls.filter(call=>call?.name==="repo.gitStatus" &&
+        (call.args==null || (typeof call.args==="object" && !Array.isArray(call.args) &&
+            Object.keys(call.args).every(key=>["cwd","timeoutMs"].includes(key)) &&
+            (call.args.cwd==null || call.args.cwd==="."))));
+    const repoGoals=objectives.filter(goal=>goal?.requiredEvidenceKind==="repository_search" &&
+        (goal.explicitTools===undefined || (Array.isArray(goal.explicitTools) &&
+            goal.explicitTools.includes("repo.gitStatus"))));
+    if(!explicit || asksMore || !validTool || statusCalls.length!==1 || repoGoals.length!==1) {
+        return {toolCalls,objectives,restricted:false};
+    }
+    return {toolCalls:statusCalls,objectives:repoGoals,restricted:true};
+}
