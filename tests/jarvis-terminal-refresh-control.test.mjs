@@ -135,3 +135,28 @@ test('auto-update does not lose a draft or bypass explicit manual warnings',asyn
  assert.equal(navigations(s).length,1);
  assert.equal(s.questions.length,0);
 });
+
+test('automatic update protects an in-flight mission even if Stop visibility is temporarily stale',async()=>{
+ const s=run({approve:false});await settled();
+ s.window.__JARVIS_MISSION_IN_FLIGHT__=true;
+ s.setSha('b'.repeat(40));
+ await s.timers[0].fn();await settled();
+ assert.equal(navigations(s).length,0);
+ assert.equal(s.refresh.dataset.pendingSha,'b'.repeat(40));
+ await s.handlers.click();
+ assert.equal(navigations(s).length,0);
+ assert.match(s.questions[0],/misión abierta/);
+ s.window.__JARVIS_MISSION_IN_FLIGHT__=false;
+ await s.timers[0].fn();await settled();
+ assert.equal(navigations(s).length,1);
+});
+
+test('progress and unexpected failures stay visible without claiming completion',()=>{
+ assert.match(html,/__JARVIS_MISSION_IN_FLIGHT__ = true/);
+ assert.match(html,/__JARVIS_MISSION_IN_FLIGHT__ = false/);
+ assert.match(html,/const missionClock = setInterval/);
+ assert.match(html,/sin nueva confirmación; puedes pulsar Detener/);
+ assert.match(html,/clearInterval\(missionClock\)/);
+ assert.match(html,/La solicitud terminó sin un resultado verificable/);
+ assert.match(html,/No se declara éxito ni se ejecuta otro modelo/);
+});

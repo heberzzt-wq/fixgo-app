@@ -221,7 +221,8 @@
         const busy = () => {
             const cancel = document.getElementById('btn-stop-mission');
             const draft = document.getElementById('gestia-input')?.value?.trim();
-            return Boolean((cancel && !cancel.hidden) || draft);
+            return Boolean(window.__JARVIS_MISSION_IN_FLIGHT__ === true ||
+                (cancel && !cancel.hidden) || draft);
         };
         const pollRelease = async () => {
             if (checking) return;
@@ -261,7 +262,8 @@
         });
         refresh.addEventListener('click', async () => {
             const cancel = document.getElementById('btn-stop-mission');
-            const active = cancel && !cancel.hidden;
+            const active = window.__JARVIS_MISSION_IN_FLIGHT__ === true ||
+                (cancel && !cancel.hidden);
             const draft = document.getElementById('gestia-input')?.value?.trim();
             if (active && !window.confirm(
                 'ADJUNTO tiene una misión abierta. Actualizar abandonará esta pantalla, pero no confirma que la ejecución remota se detenga. ¿Actualizar de todos modos?'
@@ -605,6 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const summaryIcon = wrapper.querySelector('[data-role="summary-icon"]');
             const countNode = wrapper.querySelector('[data-role="count"]');
             const rows = new Map();
+            const missionStartedAt = Date.now();
+            let lastCoreLabel = "";
             let finished = false;
             let boundTraceId = String(traceId || "");
             let sequence = 0;
@@ -619,6 +623,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const setRow = (id, label, state = "active") => {
                 if (finished || !stepsNode) return null;
                 const safeId = String(id || `step-${++sequence}`);
+                if (safeId === "core" && state === "active")
+                    lastCoreLabel = String(label).replace(/\s*·\s*\d+\s*s$/u, "");
                 let row = rows.get(safeId);
                 if (!row) {
                     row = document.createElement("div");
@@ -655,6 +661,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return row;
             };
 
+            // A progress frame may report 0s only once before Qwen starts.
+            // Show real wall-clock wait without claiming that work completed.
+            const missionClock = setInterval(() => {
+                if (finished || !lastCoreLabel) return;
+                const coreRow = rows.get("core");
+                if (!coreRow || coreRow.dataset.state !== "active") return;
+                const label = coreRow.querySelector("span:last-child");
+                if (!label) return;
+                const seconds = Math.floor((Date.now() - missionStartedAt) / 1000);
+                label.textContent = `${lastCoreLabel} · ${seconds} s` +
+                    (seconds >= 120 ? " · sin nueva confirmación; puedes pulsar Detener" : "");
+            }, 1000);
             const tracker = {
                 wrapper,
                 hasAttachments,
@@ -714,6 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dismiss() {
                     if (finished) return;
                     finished = true;
+                    clearInterval(missionClock);
                     try {
                         wrapper.remove();
                     }
@@ -732,6 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                     finished = true;
+                    clearInterval(missionClock);
                     if (summaryNode) summaryNode.textContent = label;
                     if (summaryIcon) summaryIcon.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i>';
                     if (details) details.open = true;
@@ -749,6 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         else setRow(id, row.textContent.trim(), "failed");
                     }
                     finished = true;
+                    clearInterval(missionClock);
                     if (summaryNode) summaryNode.textContent = label;
                     if (summaryIcon) summaryIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
                     if (details) details.open = true;
@@ -1981,6 +2002,9 @@ window.unlockJarvisVoice = function() {
                 : "trace_" + Date.now();
 
             isProcessing = true;
+            // One explicit mission lease protects the automatic release watcher
+            // even during brief UI transitions when the Stop button is hidden.
+            window.__JARVIS_MISSION_IN_FLIGHT__ = true;
             const localPilotActive=location.protocol==='http:'&&
                 ['localhost','127.0.0.1'].includes(location.hostname)&&
                 location.port==='5000'&&
@@ -5797,10 +5821,24 @@ const summary =
                         traceId: currentTraceId
                     }, "error");
                 }
+                const diagnostic = window.JarvisLocalBridge?.describeFailure?.(
+                    String(error?.code || error?.message || "MISSION_UNCONFIRMED").slice(0,160)
+                ) || {};
                 activeWorkTracker?.fail?.(
-                    "No pude completar la misión"
+                    diagnostic.title || "No pude completar la misión"
                 );
-                if (window.hablarJarvis) window.hablarJarvis("Error crítico en la ráfaga de comandos.");
+                window.renderJarvisResponse?.(
+                    diagnostic.title || "Misión no completada",
+                    [
+                        "La solicitud terminó sin un resultado verificable.",
+                        `Código de falla: ${diagnostic.code || "JAR-900"}`,
+                        diagnostic.detail || "La comunicación o el procesamiento se interrumpió.",
+                        `Qué revisar: ${diagnostic.action || "Consulta el expediente y comprueba el enlace privado. No se reintentó automáticamente."}`,
+                        "No se declara éxito ni se ejecuta otro modelo."
+                    ].join("\n"),
+                    "warning"
+                );
+                if (window.hablarJarvis) window.hablarJarvis("No pude completar la misión.");
             } finally {
                 if (
                     activeWorkTracker &&
@@ -5824,6 +5862,7 @@ const summary =
                 clearTimeout(missionCancelRecoveryTimer);
                 missionCancelRecoveryTimer=null;
                 localMissionAbortController=null;
+                window.__JARVIS_MISSION_IN_FLIGHT__ = false;
                 if(stopMissionButton){
                     delete stopMissionButton.dataset.cancelRecoveryReady;
                     stopMissionButton.title='Cancelar petición a Qwen local';

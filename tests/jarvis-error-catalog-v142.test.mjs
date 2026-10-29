@@ -16,6 +16,7 @@ test('codes are stable, unique, and contain a human action',()=>{
 });
 test('real incident signatures map to their owner-friendly fixed codes',()=>{
  const scenarios=[
+  ['LOCAL_SEMANTIC_REQUEST_ABORTED','JAR-103'],
   ['JARVIS_RELAY_WORKSTATION_UNAVAILABLE','JAR-201'],
   ['JARVIS_RELAY_LEASE_HELD','JAR-202'],
   ['JARVIS_RELAY_LOCAL_RELEASE_MISMATCH','JAR-203'],

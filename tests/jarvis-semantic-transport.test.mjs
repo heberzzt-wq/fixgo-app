@@ -744,7 +744,9 @@ test("terminal progress honors partial mission and failed composition inside a s
     };
     for (const failed of [true, false]) {
         const window = { addEventListener() {} };
-        runInNewContext(source, { window, document: { createElement: element }, output: element(), requestAnimationFrame: cb => cb() });
+        let clockCleared = false;
+        runInNewContext(source, { window, document: { createElement: element }, output: element(), requestAnimationFrame: cb => cb(),
+            setInterval: () => 71, clearInterval: id => { assert.equal(id, 71); clockCleared = true; } });
         const tracker = window.JarvisWorkTrace.start();
         tracker.resolveOutcome?.({ status: "success", result: {
             mission: { status: failed ? "PARTIAL" : "COMPLETED", completedTasks: [{ name: "repo.search" }] },
@@ -754,6 +756,7 @@ test("terminal progress honors partial mission and failed composition inside a s
         tracker.complete("evidence", "Evidencia integrada");
         tracker.complete("response", "Respuesta preparada");
         tracker.finish("Trabajo completado");
+        assert.equal(clockCleared, true, 'mission clock must stop after closing');
         const summary = tracker.wrapper.querySelector('[data-role="summary"]').textContent;
         const rows = tracker.wrapper.querySelector('[data-role="steps"]').children;
         if (failed) {
