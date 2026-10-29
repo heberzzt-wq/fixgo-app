@@ -4971,6 +4971,11 @@ JarvisToolRuntime.register({
                     result.stderr || "",
                 command:
                     result.command || "git status --short --branch",
+                // Only a physically verified SHA from the bounded status
+                // envelope counts as HEAD evidence, never a guessed commit.
+                headSha:
+                    result.ok === true && /^[a-f0-9]{40}$/i.test(String(result.headSha||""))
+                        ? String(result.headSha) : null,
                 branchLine:
                     String(result.stdout || "")
                         .split(/\r?\n/)

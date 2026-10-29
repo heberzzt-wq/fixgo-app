@@ -1080,7 +1080,10 @@ function observedRepositoryProgress(evidenceItems) {
         if (tool === "repo.gitStatus") {
             const git=observation.gitEvidence;
             if(git?.kind==='git_worktree' && typeof git.branchLine==='string' && Number.isInteger(git.totalFiles) && Number.isInteger(git.filesOmitted))
-                facts.push('Estado Git observado: '+git.branchLine+'; archivos reportados: '+git.totalFiles+'; detalles omitidos: '+git.filesOmitted+'.');
+                facts.push('Estado Git observado: '+git.branchLine+'; archivos reportados: '+git.totalFiles+'; detalles omitidos: '+git.filesOmitted+
+                    (typeof git.headSha==='string' && git.headSha.length===40 &&
+                    [...git.headSha.toLowerCase()].every(character=>'0123456789abcdef'.includes(character)) ?
+                    '; commit actual: '+git.headSha : '')+'.');
         }
         if (tool === "repo.read") {
             const read = observation.verifiedRead;

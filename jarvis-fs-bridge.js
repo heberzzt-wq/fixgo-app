@@ -7354,8 +7354,18 @@ export function createJarvisFsBridgeApp({
                 const result = await runGitWorkflowCommand({
                     args:["status","--short","--branch"],cwd:".",timeoutMs:10000,root
                 });
+                // The owner asked for the current commit alongside branch and
+                // working-tree status. Prove HEAD with a second fixed read-only
+                // command; never permit arbitrary /git actions on mobile.
+                const head = result.ok === true ? await runGitWorkflowCommand({
+                    args:["rev-parse","HEAD"],cwd:".",timeoutMs:10000,root
+                }) : null;
+                const headSha = String(head?.stdout || "").trim();
+                const headVerified = head?.ok === true && /^[a-f0-9]{40}$/i.test(headSha);
                 return res.json({...result,action:"status",
-                    status:result.ok === true ? "GIT_STATUS_OK" : "GIT_STATUS_FAILED",
+                    ok:result.ok === true && headVerified,
+                    status:result.ok === true && headVerified ? "GIT_STATUS_OK" : "GIT_STATUS_FAILED",
+                    ...(headVerified ? {headSha} : {error:"GIT_STATUS_HEAD_UNVERIFIED"}),
                     source:"repo_git_status_mobile_readonly_v142",readOnly:true});
             }
             const maxFiles = Math.max(1, Math.min(5000, Number(req.body?.maxFiles) || 2500));

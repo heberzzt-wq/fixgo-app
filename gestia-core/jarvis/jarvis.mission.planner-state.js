@@ -166,6 +166,8 @@ export function compactGitPlannerEvidence(observation = {}) {
         const names=Array.isArray(item.changedFiles)?item.changedFiles:
             String(item.stdout||'').split(/\r?\n/).filter(line=>line&&!line.startsWith('##'));
         return {kind:'git_worktree',branchLine:text(item.branchLine,180),
+            ...(typeof item.headSha==='string' && /^[a-f0-9]{40}$/i.test(item.headSha) ?
+                {headSha:item.headSha} : {}),
             files:names.slice(0,32).map(name=>text(name,280)),totalFiles:names.length,
             filesOmitted:Math.max(0,names.length-32),committedHistory:false};
     }

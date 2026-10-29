@@ -50,7 +50,7 @@ test('cannot scope without observed Git call, unique repository goal and safe to
  const variants=[
   {toolCalls:[calls[1]]},
   {objectives:[objectives[1]]},
-  {objectives:[objectives[0],{...objectives[0],objective:'Historial Git'}]},
+  {toolCalls:[{name:'repo.gitStatus',args:{cwd:'../otro'}}]},
   {catalog:[{...catalog[0],mutates:true}]},
   {toolCalls:[{name:'repo.gitStatus',args:{cwd:'../otro'}}]}
  ];
@@ -68,4 +68,36 @@ test('core scopes contract before launching evidence-backed mission; no fabricat
  assert.match(core.slice(scope,mission),/missionContractEvidenceObjectives = scopedGitStatus.objectives/);
  const helper=readFileSync(new URL('../gestia-core/jarvis/jarvis.current-turn-scope.js',import.meta.url),'utf8');
  assert.doesNotMatch(helper.slice(helper.indexOf('export function constrainExplicitGitStatusContract')),/satisfied:\s*true|missionComplete:\s*true/);
+});
+
+test('owner mobile status request keeps only its contracted Git receipt without weakening security',()=>{
+ const requested='Pariente, revisa el estado actual de nuestro repositorio heberzzt-wq/fixgo-app. Utiliza la herramienta repo.gitStatus y comprueba la rama activa, el commit actual y si existen archivos modificados. Explícame el resultado en español sencillo. No inventes resultados. No modifiques archivos, no hagas commits ni despliegues.';
+ const actualCalls=[{name:'repo.gitStatus',args:{cwd:'.'}},
+   {name:'repo.gitHistory',args:{limit:6}},{name:'repo.read',args:{file:'.git/HEAD'}}];
+ const goals=[
+   {objective:'Verificar rama activa, commit actual y archivos modificados',requiredEvidenceKind:'repository_search',explicitTools:['repo.gitStatus']},
+   {objective:'Leer historial adicional no solicitado',requiredEvidenceKind:'repository_search',explicitTools:['repo.gitHistory']},
+   {objective:'Leer .git/HEAD',requiredEvidenceKind:'repository_source',explicitTools:['repo.read']}
+ ];
+ const scoped=constrainExplicitGitStatusContract({instruction:requested,toolCalls:actualCalls,objectives:goals,catalog:[
+   ...catalog,
+   {name:'repo.gitHistory',mutates:false,requiresApproval:false,evidenceKinds:['repository_search']},
+   {name:'repo.read',mutates:false,requiresApproval:false,evidenceKinds:['repository_source']}
+ ]});
+ assert.equal(scoped.restricted,true);
+ assert.deepEqual(scoped.toolCalls,[actualCalls[0]]);
+ assert.deepEqual(scoped.objectives,[goals[0]]);
+ assert.equal(scoped.objectives[0].satisfied,undefined);
+});
+test('a request for extra Git history or a named file cannot be narrowed to status',()=>{
+ const supplied=[{name:'repo.gitStatus',args:{cwd:'.'}}];
+ for(const instruction of [
+  'Utiliza repo.gitStatus y repo.gitHistory para ver los últimos commits',
+  'Utiliza repo.gitStatus para comprobar el historial',
+  'Utiliza repo.gitStatus y lee archivos del proyecto',
+  'Consulta repo.gitStatus y system.health'
+ ]) {
+  assert.equal(constrainExplicitGitStatusContract({instruction,toolCalls:supplied,
+    objectives:[objectives[0]],catalog}).restricted,false,instruction);
+ }
 });

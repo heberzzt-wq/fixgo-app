@@ -59,8 +59,12 @@ export function scopeJarvisToolsForQuestion(tools = []) {
  */
 export function constrainExplicitGitStatusContract({instruction="",toolCalls=[],objectives=[],catalog=[]}={}) {
     const s=fold(instruction);
-    const explicit=/\b(?:unicamente|solamente|solo)\s+(?:la\s+herramienta\s+)?repo\.gitstatus\b/u.test(s);
-    const asksMore=/\b(?:system\.(?:health|observability)|salud|telemetria|observabilidad|cpu|ram|temperatura|servicios|puertos)\b/u.test(s);
+    const explicit=/\b(?:unicamente|solamente|solo|utiliza|usa|consulta|ejecuta|emplea|mediante)\s+(?:(?:la|el)\s+)?(?:(?:herramienta|comando)\s+)?repo\.gitstatus\b/u.test(s);
+    // HEAD, branch and worktree can be evidenced by one Git status receipt.
+    // Do not substitute history or read .git internals on mobile.
+    const asksMore=/\b(?:system\.(?:health|observability)|salud|telemetria|observabilidad|cpu|ram|temperatura|servicios|puertos|historial|commits?\s+recientes?|ultimos?\s+commits?|diferencias|diff)\b/u.test(s) ||
+        /\brepo\.(?!gitstatus\b)[a-z]+/u.test(s) ||
+        /\b(?:y|tambien|ademas)\s+(?:lee|leer|consulta|revisa)\s+archivos?\b/u.test(s);
     const gitTool=catalog.find(item=>item?.name==="repo.gitStatus");
     const validTool=gitTool?.mutates===false && gitTool?.requiresApproval!==true &&
         gitTool?.evidenceKinds?.includes("repository_search");
@@ -71,7 +75,7 @@ export function constrainExplicitGitStatusContract({instruction="",toolCalls=[],
     const repoGoals=objectives.filter(goal=>goal?.requiredEvidenceKind==="repository_search" &&
         (goal.explicitTools===undefined || (Array.isArray(goal.explicitTools) &&
             goal.explicitTools.includes("repo.gitStatus"))));
-    if(!explicit || asksMore || !validTool || statusCalls.length!==1 || repoGoals.length!==1) {
+    if(!explicit || asksMore || !validTool || statusCalls.length!==1 || repoGoals.length<1) {
         return {toolCalls,objectives,restricted:false};
     }
     return {toolCalls:statusCalls,objectives:repoGoals,restricted:true};

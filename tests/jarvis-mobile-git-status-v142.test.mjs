@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {JARVIS_PRIVATE_RELAY} from '../gestia-core/jarvis/jarvis.semantic.transport.js';
+import {compactGitPlannerEvidence} from '../gestia-core/jarvis/jarvis.mission.planner-state.js';
 const tools=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
 const bridge=readFileSync(new URL('../jarvis-fs-bridge.js',import.meta.url),'utf8');
 const begin=tools.indexOf('const JarvisGitWorkflowBridge =');
@@ -20,6 +21,18 @@ function client(host='fixgo-44e4d.web.app',protocol='https:'){
  vm.runInNewContext(source,{window});
  return {request:window.JarvisGitWorkflowBridge.request,calls};
 }
+test('verified mobile HEAD is carried through the bounded status evidence, never inferred',()=>{
+ const sha='a'.repeat(40);
+ const receipt=compactGitPlannerEvidence({tool:'repo.gitStatus',ok:true,status:'GIT_STATUS_OK',
+   stdout:'## v142-official\n',branchLine:'## v142-official',changedFiles:[],headSha:sha});
+ assert.equal(receipt.kind,'git_worktree');
+ assert.equal(receipt.headSha,sha);
+ assert.equal(receipt.totalFiles,0);
+ const missing=compactGitPlannerEvidence({tool:'repo.gitStatus',ok:true,status:'GIT_STATUS_OK',
+   stdout:'## v142-official\n',branchLine:'## v142-official',headSha:'unknown'});
+ assert.equal(Object.hasOwn(missing,'headSha'),false);
+ assert.equal(compactGitPlannerEvidence({tool:'repo.gitStatus',ok:false,status:'GIT_STATUS_FAILED',headSha:sha}),null);
+});
 test('mobile git status uses only the existing owner-relay read-only route',async()=>{
  assert.ok(JARVIS_PRIVATE_RELAY.routes.includes('/repo/graph'));
  assert.equal(JARVIS_PRIVATE_RELAY.routes.includes('/git'),false);
@@ -53,6 +66,10 @@ test('bridge Git status envelope pins read-only arguments and refuses extra fiel
  const body=bridge.slice(start,end);
  assert.match(body,/Object\.keys\(req\.body\)\.some\(key => key !== "source"\)/);
  assert.match(body,/args:\["status","--short","--branch"\],cwd:"\.",timeoutMs:10000,root/);
+ assert.match(body,/args:\["rev-parse","HEAD"\],cwd:"\.",timeoutMs:10000,root/);
+ assert.match(body,/headVerified/);
+ assert.match(body,/headSha/);
+ assert.match(body,/GIT_STATUS_HEAD_UNVERIFIED/);
  assert.doesNotMatch(body,/args:\["(?:push|commit|reset|checkout)"/);
  assert.match(body,/readOnly:true/);
 });

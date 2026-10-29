@@ -1138,3 +1138,23 @@ test('completed Git reply retains observed commit subjects and status instead of
         'Estado Git observado: ## v142-official; archivos reportados: 0; detalles omitidos: 0.'
     ]);
 });
+
+test('status-only evidence can state the physically verified current commit without history tool',async()=>{
+ const sha='f'.repeat(40);
+ let briefing;
+ const receipt={name:'repo.gitStatus',observation:{ok:true,executionOk:true,
+  gitEvidence:{kind:'git_worktree',branchLine:'## v142-official',headSha:sha,
+   totalFiles:0,filesOmitted:0,files:[],committedHistory:false}}};
+ const result=await composeEvidenceGroundedConversation({
+  instruction:'Indica rama, commit actual y archivos modificados usando solo repo.gitStatus.',
+  evidenceItems:[receipt],
+  executeConversation:async(_prompt,options)=>{
+    briefing=JSON.parse(options.responseBriefing);
+    return {ok:true,message:'La rama es v142-official, el commit está comprobado y no hay modificaciones.'};
+  }
+ });
+ assert.equal(result.ok,true);
+ assert.ok(briefing.repositoryProgress.some(line=>line.includes('commit actual: '+sha)));
+ assert.ok(briefing.repositoryProgress.some(line=>line.includes('archivos reportados: 0')));
+ assert.ok(!briefing.repositoryProgress.some(line=>line.includes('Commit observado')));
+});
