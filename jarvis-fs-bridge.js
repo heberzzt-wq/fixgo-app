@@ -7344,6 +7344,20 @@ export function createJarvisFsBridgeApp({
 
     app.post("/repo/graph", async (req, res) => {
         try {
+            // The owner-authenticated mobile relay already permits this read-only
+            // route. A dedicated exact envelope allows Git STATUS only, never
+            // the generic /git actions (commit, push, checkout, etc.).
+            if (req.body?.source === "repo_git_status_mobile_readonly_v142") {
+                if (Object.keys(req.body).some(key => key !== "source")) {
+                    return res.status(400).json({ok:false,status:"MOBILE_GIT_STATUS_ENVELOPE_INVALID"});
+                }
+                const result = await runGitWorkflowCommand({
+                    args:["status","--short","--branch"],cwd:".",timeoutMs:10000,root
+                });
+                return res.json({...result,action:"status",
+                    status:result.ok === true ? "GIT_STATUS_OK" : "GIT_STATUS_FAILED",
+                    source:"repo_git_status_mobile_readonly_v142",readOnly:true});
+            }
             const maxFiles = Math.max(1, Math.min(5000, Number(req.body?.maxFiles) || 2500));
             const maxFileSizeBytes = Math.max(1000, Math.min(2000000, Number(req.body?.maxFileSizeBytes) || 800000));
             const refresh = req.body?.refresh === true;

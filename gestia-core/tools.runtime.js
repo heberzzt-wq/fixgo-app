@@ -4868,13 +4868,23 @@ const JarvisGitWorkflowBridge =
             "http://localhost:3344/git",
         request:
             async payload => {
+                const host = String(window.location?.hostname || "").toLowerCase();
+                const publicMobile = window.location?.protocol === "https:" &&
+                    ["fixgo-44e4d.web.app","fixgo-44e4d.firebaseapp.com",
+                     "fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app"].includes(host);
+                if (publicMobile) {
+                    if (payload?.action !== "status" || (payload?.cwd && payload.cwd !== "."))
+                        throw Error("JARVIS_RELAY_LOCAL_OPERATION_REQUIRED");
+                    return window.JarvisLocalBridge.requestJson(
+                        "/repo/graph",
+                        {source:"repo_git_status_mobile_readonly_v142"},
+                        {timeoutMs:15000}
+                    );
+                }
                 return await window.JarvisLocalBridge.requestJson(
                     "/git",
                     payload || {},
-                    {
-                        timeoutMs:
-                            Number(payload?.timeoutMs || 120000) + 5000
-                    }
+                    {timeoutMs:Number(payload?.timeoutMs || 120000) + 5000}
                 );
             }
     };
