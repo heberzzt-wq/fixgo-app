@@ -24,7 +24,8 @@ const MOBILE_BATCH_BYTES = 16 * 1024 * 1024;
 const MOBILE_FILE_COUNT = 8;
 const MOBILE_EXTENSIONS = new Set([
  "jpg","jpeg","png","webp","gif","pdf",
- "txt","md","csv","json","docx","xlsx","pptx"
+ "txt","md","csv","json","docx","xlsx","pptx",
+ "mp4","webm","mov"
 ]);
 const STORAGE_KEY = "jarvis.multimodal.completed.v2";
 const TEXT_EXTENSIONS = new Set(["txt", "md", "csv", "json", "xml", "yaml", "yml", "js", "mjs", "cjs", "ts", "tsx", "jsx", "css", "html", "py", "sql"]);
@@ -314,7 +315,7 @@ async function acceptFiles(fileList) {
         };
         if (mobile && !MOBILE_EXTENSIONS.has(extensionOf(file.name))) {
             item.status = "failed";
-            item.error = "tipo de archivo no autorizado en el enlace móvil";
+            item.error = "Tipo de archivo no autorizado. En móvil se admiten imágenes, documentos y videos MP4, WEBM o MOV hasta 8 MB.";
         } else if (file.size < 1 || file.size > maxFileBytes) {
             item.status = "failed";
             item.error = `tamaño fuera del límite de ${formatBytes(maxFileBytes)}`;

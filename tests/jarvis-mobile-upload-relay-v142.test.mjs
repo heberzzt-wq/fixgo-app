@@ -30,6 +30,9 @@ test('mobile upload routes are the exact four, owner-only and no git/write route
 
 test('start request is limited to allowed content and a single bounded owner batch',()=>{
  assert.equal(accepted('/upload/start',payloadStart).payload.name,'captura.png');
+ for(const [name,mime] of [['clip.mp4','video/mp4'],['clip.webm','video/webm'],['clip.mov','video/quicktime']]) {
+  assert.equal(accepted('/upload/start',{...payloadStart,name,mimeType:mime,expectedBytes:4*1024*1024}).payload.name,name);
+ }
  for(const change of [
   {name:'../secret.png'},{name:'.env'},{name:'file.exe'},{name:'file.zip'},
   {name:'file.heic'},{name:'malicioso.png/../otro'},
@@ -120,14 +123,18 @@ test('physical server enforces mobile per-file and cumulative quotas even if cli
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 
-test('fresh mobile browser loads new upload modules and rules activation remains explicitly pending',()=>{
+test('fresh mobile browser uses new modules and retains the exact Firebase rules activation receipt',()=>{
  const page=readFileSync('gestia-terminal.html','utf8');
  const state=readFileSync('modules/terminal/proposal-state.js','utf8');
  const proposal=readFileSync('security/jarvis-mobile-upload-activation-proposal-20261029.md','utf8');
  const snapshot=readFileSync('security/firestore-console-snapshot-2026-07-30.rules.txt','utf8');
- assert.match(page,/jarvis-attachments\.js\?v=v142-owner-upload-20261029/);
- assert.match(page,/proposal-state\.js\?v=v142-owner-upload-20261029/);
- assert.match(state,/nexo-bootstrap\.js\?v=v142-owner-upload-20261029/);
+ const receipt=readFileSync('security/jarvis-mobile-upload-activation-receipt-20261029.md','utf8');
+ assert.match(receipt,/84fdac84-2c5f-4d7e-89a7-72877d819547/);
+ assert.match(receipt,/Solo|Única modificación textual/);
+ assert.match(receipt,/b76abec92fac1cd09866741a18058eaa2b471e57a26f86d03fb55d2d3d89b249/);
+ assert.match(page,/jarvis-attachments\.js\?v=v142-owner-upload-media-20261029-v2/);
+ assert.match(page,/proposal-state\.js\?v=v142-owner-upload-media-20261029-v2/);
+ assert.match(state,/nexo-bootstrap\.js\?v=v142-owner-upload-media-20261029-v2/);
  assert.match(proposal,/NO PUBLICADA/);
  for(const route of JARVIS_MOBILE_UPLOAD_ROUTES){
   assert.ok(proposal.includes("'"+route+"'"),route);

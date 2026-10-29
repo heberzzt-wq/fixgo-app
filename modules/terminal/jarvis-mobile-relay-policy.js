@@ -36,7 +36,8 @@ export const JARVIS_MOBILE_UPLOAD_ROUTES = Object.freeze([
 const mobileUploadIds=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const mobileUploadAllowed=new Set([
  '.jpg','.jpeg','.png','.webp','.gif',
- '.pdf','.txt','.md','.csv','.json','.docx','.xlsx','.pptx'
+ '.pdf','.txt','.md','.csv','.json','.docx','.xlsx','.pptx',
+ '.mp4','.webm','.mov'
 ]);
 const exactFields=(value,fields)=>Object.keys(value).every(key=>fields.includes(key));
 export function validateMobileRelayUploadOperation(route,payload={}){
