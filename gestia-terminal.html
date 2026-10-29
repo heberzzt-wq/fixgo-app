@@ -6178,14 +6178,14 @@ const summary =
                     ["respuesta", "summary", "message", "report", "description", "text"]
                         .map(key => parsed[key])
                         .find(item => typeof item === "string" && item.trim() &&
-                            !/\b(?:JARVIS_|QWEN_|BRIDGE_|LOCAL_SEMANTIC_|timeoutMs|SHA-256|VERIFIED_COMPLETE|PARTIAL)\b/u.test(item));
+                            !/\b(?:JARVIS_[A-Z0-9_]+|QWEN_[A-Z0-9_]+|BRIDGE_[A-Z0-9_]+|LOCAL_SEMANTIC_[A-Z0-9_]+|REMOTE_FETCH_FAILED|timeoutMs|SHA-256|VERIFIED_COMPLETE|PARTIAL)\b/u.test(item));
                 return readable ? "Esto es lo que informó Jarvis: " + readable.trim() :
                     "Recibí datos del trabajo, pero todavía no una explicación clara de lo que se consiguió.";
             }
             if (/(?:^|\n)\s*(?:QWEN_PILOT_PREFLIGHT_FAILED:)?JARVIS_RELAY_WORKSTATION_UNAVAILABLE\b/u.test(value))
-                return "No pude iniciar el trabajo porque se perdió la conexión privada con la laptop.";
+                return "No pude iniciar el trabajo porque el enlace privado con la laptop no estaba disponible.";
             if (/(?:^|\n)\s*JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST\b/u.test(value))
-                return "No pude terminar el trabajo porque la laptop no respondió dentro del tiempo previsto.";
+                return "No pude terminar el trabajo porque la comunicación con Jarvis local tardó más de lo permitido.";
             if (/^(?:(?:Error|ERROR):\s*)?(?:JARVIS_|QWEN_|BRIDGE_|LOCAL_SEMANTIC_|REMOTE_FETCH_FAILED\b)[A-Z0-9_:-]*/u.test(value))
                 return "El trabajo se detuvo por un problema técnico. Conservé el mensaje original para investigar la causa.";
             return null;

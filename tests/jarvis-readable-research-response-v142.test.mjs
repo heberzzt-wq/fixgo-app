@@ -118,6 +118,9 @@ test('ordinary technical JSON gets a clear explanation and retains the original 
  assert.match(unproven.renderedMessage,/Ver mensaje técnico original/);
  assert.match(unproven.renderedMessage,/&quot;status&quot;:&quot;PARTIAL&quot;/);
  assert.doesNotMatch(unproven.renderedMessage,/^\{&quot;status/);
+ const coded=render(JSON.stringify({message:'BRIDGE_IDENTITY_INVALID'}));
+ assert.match(coded.renderedMessage,/Recibí datos del trabajo/);
+ assert.doesNotMatch(coded.renderedMessage,/Esto es lo que informó Jarvis: BRIDGE/);
  const summary=render(JSON.stringify({summary:'Analicé dos archivos y encontré una tabla.',status:'ok'}));
  assert.match(summary.renderedMessage,/Esto es lo que informó Jarvis: Analicé dos archivos/);
  const untrusted=render(JSON.stringify({message:'<img src=x onerror=alert(1)>'}));
@@ -127,11 +130,11 @@ test('ordinary technical JSON gets a clear explanation and retains the original 
 
 test('known mobile and bridge errors use natural language without erasing their proof',()=>{
  const relay=render('QWEN_PILOT_PREFLIGHT_FAILED:JARVIS_RELAY_WORKSTATION_UNAVAILABLE');
- assert.match(relay.renderedMessage,/se perdió la conexión privada con la laptop/);
+ assert.match(relay.renderedMessage,/el enlace privado con la laptop no estaba disponible/);
  assert.match(relay.renderedMessage,/Ver mensaje técnico original/);
  assert.match(relay.renderedMessage,/QWEN_PILOT_PREFLIGHT_FAILED/);
  const timeout=render('JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST');
- assert.match(timeout.renderedMessage,/la laptop no respondió/);
+ assert.match(timeout.renderedMessage,/la comunicación con Jarvis local tardó más/);
  const other=render('BRIDGE_IDENTITY_INVALID');
  assert.match(other.renderedMessage,/problema técnico/);
  assert.equal(render('El trabajo terminó y ya tienes el archivo listo.').renderedMessage,
