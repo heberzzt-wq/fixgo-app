@@ -1,4 +1,5 @@
 import { externalInferenceBlocked } from './jarvis.local.policy.js';
+import {prepareOwnerUploadedMediaReview,verifyOwnerUploadedMediaReview} from './jarvis.local.media.contract.js';
 import {
     planMarketingRequest
 } from "./jarvis.marketing.engine.js?v=v142-adjunto-flow-alignment-20261001";
@@ -6325,6 +6326,25 @@ export function registerJarvisMultifunctionTools(runtime) {
                     : Array.isArray(args.attachments)
                         ? args.attachments.slice(0, 30)
                         : [];
+                // Host-supplied local-only vision, never authorized by user-supplied
+                // prompt metadata. This does NOT add a mobile relay route.
+                // The workstation must separately provide an approved callback.
+                const visualOnly = attachments.length > 0 &&
+                    attachments.every(attachment => /\.(?:jpe?g|png|webp|mp4|webm|mov)$/i.test(
+                        String(attachment?.artifact || attachment?.output || "")
+                    ));
+                if (visualOnly && typeof context.localUploadedMediaReview === "function") {
+                    try {
+                        const request = prepareOwnerUploadedMediaReview(attachments,instruction);
+                        const result = await context.localUploadedMediaReview(request);
+                        return verifyOwnerUploadedMediaReview(result,request);
+                    } catch (error) {
+                        return {ok:false,status:"LOCAL_MEDIA_REVIEW_NOT_VERIFIED",
+                            error:String(error?.message || "LOCAL_MEDIA_REVIEW_FAILED").slice(0,120),
+                            message:"La lectura visual no pudo comprobarse. Los archivos permanecen intactos.",
+                            localOnly:true,externalApiUsed:false,objectiveSatisfied:false};
+                    }
+                }
                 const persistedMedia = attachments.filter(attachment => attachment?.artifact);
                 const boundedMedia = persistedMedia.slice(0, 8);
                 const pendingMedia = persistedMedia.slice(8);
