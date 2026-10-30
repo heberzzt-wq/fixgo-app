@@ -57,6 +57,9 @@
         #gestia-output > div:not(.terminal-welcome) > div { min-width: 0; }
         #gestia-output { overflow-wrap: anywhere; }
         #gestia-output :is(p,li,a) { overflow-wrap: anywhere; }
+        #gestia-output :is(.terminal-welcome, .terminal-welcome-copy, .terminal-welcome-description, .terminal-memory-note) {
+            min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+        }
         #gestia-output :is(pre,table) { max-width: 100%; }
         #gestia-output pre { overflow-x: auto; }
         #gestia-output :is(img,video) { max-width: 100%; height: auto; }
@@ -105,7 +108,15 @@
             font-family: inherit; font-size: 16px; line-height: 24px; color: #eef5ff; background: transparent;
             border: 0; border-radius: 0; resize: none; outline: none; box-shadow: none; overflow-y: auto; }
         #gestia-input::placeholder { color: #a3b7d0; opacity: 1; }
-        #jarvis-attachment-tray { max-height: 100px; overflow-y: auto; }
+        #jarvis-attachment-tray { max-height: 100px; max-width: 100%; min-width: 0; overflow-y: auto; overflow-x: hidden; }
+        /* Long diagnostic codes must wrap inside the mobile composer, not widen or clip it. */
+        #jarvis-attachment-tray [data-jarvis-attachment-status="true"] {
+            min-width: 0; max-width: 100%; flex: 1 1 100%;
+            white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+        }
+        #jarvis-attachment-tray [data-jarvis-attachment-chip="true"] {
+            min-width: 0; max-width: 100%; overflow: hidden;
+        }
         #jarvis-attachment-tray[hidden], #jarvis-attach-menu[hidden] { display: none; }
         #jarvis-attach-menu { bottom: calc(100% + 16px); left: 0; width: 320px;
             max-width: calc(100vw - 44px); max-height: min(360px, calc(var(--terminal-viewport-height, 100dvh) - 130px));
