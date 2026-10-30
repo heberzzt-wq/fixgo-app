@@ -11,7 +11,11 @@ export const WEBTEST=Object.freeze({
   origin:'https://fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app',
   bridge:'http://127.0.0.1:3344'
 });
-const PRIVATE_FILES=['/jarvis-fs-bridge.js','/jarvis-github-worker.js','/functions/index.js'];
+const PRIVATE_FILES=[
+ '/jarvis-fs-bridge.js','/jarvis-github-worker.js','/functions/index.js',
+ '/jarvis-local-media-review.js','/jarvis-local-upload-vision.js',
+ '/jarvis-local-vision-session.js','/jarvis-local-media-owner-report.js'
+];
 export function buildFirebasePreviewCommand(firebaseCli){
   // cmd.exe /s strips executable quotes from a command passed by Node on
   // Windows. Restrict the CLI to a literal, safe, no-space .cmd path instead

@@ -18,6 +18,8 @@ test('FixGo hosting release excludes server-only local Jarvis files and leaves b
   'jarvis-qwen-evidence-checkpoint.js','jarvis-repomix-context.js',
   'jarvis-repo-intelligence.js',
   'jarvis-local-video-engine.js',
+  'jarvis-local-media-review.js','jarvis-local-upload-vision.js',
+  'jarvis-local-vision-session.js','jarvis-local-media-owner-report.js',
   'fixgo-core-backend.js','firebase-shim.js','firebase-node-adapter.js',
   'jarvis-workstation-health.js','jarvis-local-intrusion-guard.js',
   'jarvis-isolated-evidence-readback.js','jarvis-structured-artifact-recovery.js',

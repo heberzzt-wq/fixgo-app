@@ -23,7 +23,9 @@ function fixture({origin=WEBTEST.origin,bridge=identity,spoof=403,auth=409,
     if(url===WEBTEST.origin+'/release-manifest.json')return response(200,{git_sha:servedSha});
     if(url===WEBTEST.origin+'/gestia-terminal.html')return response(200);
     if(url===WEBTEST.origin+'/jarvis-runtime-contract.json')return response(200);
-    if(['/jarvis-fs-bridge.js','/jarvis-github-worker.js','/functions/index.js']
+    if(['/jarvis-fs-bridge.js','/jarvis-github-worker.js','/functions/index.js',
+      '/jarvis-local-media-review.js','/jarvis-local-upload-vision.js',
+      '/jarvis-local-vision-session.js','/jarvis-local-media-owner-report.js']
       .some(path=>url===WEBTEST.origin+path))return response(privateStatus);
     throw Error('UNEXPECTED_TEST_URL');
   };
@@ -33,7 +35,7 @@ test('valid same-version private preview is verifiable without claiming an authe
   const {fetchImpl,seen}=fixture();
   const result=await inspectWebtest(sha,{fetchImpl});
   assert.equal(Object.values(result).every(Boolean),true);
-  assert.equal(seen.length,10);
+  assert.equal(seen.length,14);
   assert.ok(seen.some(item=>item.method==='GET'&&item.url.endsWith('/workstation/health')));
   assert.ok(seen.some(item=>item.method==='POST'&&item.url.endsWith('/workstation/health')));
   assert.equal(seen[0].headers.Origin,WEBTEST.origin);
