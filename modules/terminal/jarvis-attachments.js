@@ -318,12 +318,16 @@ async function prepareFile(file, existingItem = null) {
                 reason.slice(0,180);
             if (isMobileRelayHost()) {
                 const routeError = /^JARVIS_MOBILE_UPLOAD_ROUTE_DENIED$/.test(reason);
+                const boundary = error?.requestId ? 'con solicitud registrada' : 'sin recibo del enlace';
                 const label = routeError ?
-                    `Ruta rechazada en ${uploadStage}; versión ${VERSION}` :
-                    `Error durante ${uploadStage}; versión ${VERSION}`;
+                    `Ruta rechazada en ${uploadStage} (${boundary}); versión ${VERSION}` :
+                    `Error durante ${uploadStage} (${boundary}); versión ${VERSION}`;
                 item.error = `${label}. ${item.error}`;
                 setComposerMessage(item.error, "error");
-                console.warn('[JARVIS_MOBILE_UPLOAD_DIAGNOSTIC]',{stage:uploadStage,code:reason.slice(0,80),version:VERSION});
+                console.warn('[JARVIS_MOBILE_UPLOAD_DIAGNOSTIC]',{
+                    stage:uploadStage,code:reason.slice(0,80),version:VERSION,
+                    requestRecorded:Boolean(error?.requestId),executionStarted:error?.executionStarted===true
+                });
             }
         }
         renderTray();

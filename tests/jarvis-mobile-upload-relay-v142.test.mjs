@@ -77,6 +77,11 @@ test('client uses bounded 64KB HTTPS chunks without replaying uncertain persiste
  assert.match(attachments,/if \(isMobileRelayHost\(\)\) attempts = 1/);
  assert.match(attachments,/isMobileRelayHost\(\) \? MOBILE_CHUNK_BYTES : CHUNK_BYTES/);
  assert.match(bootstrap,/JARVIS_MOBILE_UPLOAD_ROUTES\.includes\(path\) \? 1 : maximumAttempts/);
+ // The browser checks the owner and exact route; the signed worker/Bridge,
+ // not a duplicate client preflight, enforce the upload body schema.
+ assert.match(bootstrap,/if \(!policy\.routes\.includes\(route\)\)/);
+ assert.doesNotMatch(bootstrap,/if \(JARVIS_MOBILE_UPLOAD_ROUTES\.includes\(route\)\)\s*validateMobileRelayUploadOperation\(route,payload\)/);
+ assert.match(readFileSync('gestia-core/jarvis/jarvis.semantic.transport.js','utf8'),/validateMobileRelayUploadOperation\(request\.route,payload\)/);
  assert.match(bootstrap,/JARVIS_MOBILE_UPLOAD_ROUTES\.includes\(path\) \?\s*\{"X-Jarvis-Private-Relay": "owner-upload-v142"\}/);
  assert.match(bridge,/const authorizeMobileAttachment = createWorkstationAuthorization/);
  assert.match(bridge,/validateMobileRelayUploadOperation\(req\.path,req\.body\|\|\{\}\)/);
@@ -138,9 +143,9 @@ test('fresh mobile browser uses new modules and retains the exact Firebase rules
  assert.match(receipt,/84fdac84-2c5f-4d7e-89a7-72877d819547/);
  assert.match(receipt,/Solo|Única modificación textual/);
  assert.match(receipt,/b76abec92fac1cd09866741a18058eaa2b471e57a26f86d03fb55d2d3d89b249/);
- assert.match(page,/jarvis-attachments\.js\?v=v142-upload-diagnostics-20261029-v6/);
- assert.match(page,/proposal-state\.js\?v=v142-upload-diagnostics-20261029-v6/);
- assert.match(state,/nexo-bootstrap\.js\?v=v142-upload-diagnostics-20261029-v6/);
+ assert.match(page,/jarvis-attachments\.js\?v=v142-owner-upload-preflight-20261029-v7/);
+ assert.match(page,/proposal-state\.js\?v=v142-owner-upload-preflight-20261029-v7/);
+ assert.match(state,/nexo-bootstrap\.js\?v=v142-owner-upload-preflight-20261029-v7/);
  assert.match(proposal,/NO PUBLICADA/);
  for(const route of JARVIS_MOBILE_UPLOAD_ROUTES){
   assert.ok(proposal.includes("'"+route+"'"),route);

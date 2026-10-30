@@ -170,8 +170,11 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
             if (['/research','/browser','/read','/qwen-pilot/preflight','/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route) ||
                 route === '/semantic/plan' && payload?.missionState?.phase === 'DIRECT_READ_ONLY_ACTION')
                 validateMobileRelayReadOperation(route,payload);
-            if (JARVIS_MOBILE_UPLOAD_ROUTES.includes(route))
-                validateMobileRelayUploadOperation(route,payload);
+            // Upload authorization is not granted by a mobile-side validator.
+            // The explicit route allowlist above is still enforced, and the
+            // workstation worker and Bridge independently validate the full
+            // payload after receiving the request. Avoid an older browser
+            // module falsely rejecting a permitted route before queueing.
             signal?.throwIfAborted();
             const parent = sdk.doc(db, policy.collection, policy.ownerUid);
             // The desktop tab can briefly relinquish the owner lease during a
