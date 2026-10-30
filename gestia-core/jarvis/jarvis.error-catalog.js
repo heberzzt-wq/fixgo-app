@@ -78,7 +78,10 @@ const rows = [
     'Comprueba las instrucciones y advertencias pendientes contra las páginas inspeccionadas; conserva PARTIAL si faltan citas.', 'evidencia'],
   ['JAR-601', ['ARTIFACT_READ_FAILED','ARTIFACT_WRITE_FAILED','FILE_NOT_FOUND'],
     'Archivo no disponible', 'No se confirmó lectura o entrega del artefacto.',
-    'Comprueba el identificador y el recibo del archivo, sin inventar una descarga.', 'archivos']
+    'Comprueba el identificador y el recibo del archivo, sin inventar una descarga.', 'archivos'],
+  ['JAR-602', ['JARVIS_MOBILE_UPLOAD_ROUTE_DENIED'],
+    'Ruta de subida móvil rechazada', 'Una validación rechazó la ruta de recepción del archivo. La etapa y el recibo deben revisarse para identificar dónde ocurrió.',
+    'Comprueba la etapa, la versión del navegador y el recibo del enlace. No reintentes ni cambies permisos hasta conocer la causa.', 'archivos']
 ];
 const catalog=rows.map(([code, signatures, title, cause, action, family])=>
   Object.freeze({code,signatures:Object.freeze(signatures),title,cause,action,family}));

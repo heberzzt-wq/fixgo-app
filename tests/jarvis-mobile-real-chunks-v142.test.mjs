@@ -89,7 +89,8 @@ test('an upload route rejection reports the exact failing stage and client revis
  assert.equal(called,1);
  const result=JarvisAttachments.inspectAttachmentBatch();
  assert.equal(result.incompleteFiles,1);
- assert.match(result.incomplete[0].error,/Ruta rechazada en inicio/);
+ assert.match(result.incomplete[0].error,/JAR-602 · Ruta rechazada en inicio/);
+ assert.match(result.incomplete[0].error,/Sin recibo: no se confirmó el inicio de la subida/);
  assert.match(result.incomplete[0].error,/2\.5\.1-mobile-upload-stage-diagnostics-v142/);
  assert.match(result.incomplete[0].error,/JARVIS_MOBILE_UPLOAD_ROUTE_DENIED/);
  assert.ok(!result.incomplete[0].error.includes('dataBase64'));

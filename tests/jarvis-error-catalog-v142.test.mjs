@@ -32,6 +32,7 @@ test('real incident signatures map to their owner-friendly fixed codes',()=>{
   ['SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED','JAR-403'],
   ['LOCAL_SEMANTIC_PLAN_REQUIRED','JAR-404'],
   ['PLANNER_RECOVERY_EXHAUSTED','JAR-405'],
+  ['JARVIS_MOBILE_UPLOAD_ROUTE_DENIED','JAR-602'],
   ['EVIDENCE_SEGMENTATION_REQUIRED','JAR-501'],
   ['ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED','JAR-502'],
   ['THREE_OPENED_CITED_URLS_REQUIRED','JAR-502'],
@@ -63,6 +64,12 @@ test('presentation retains familiar titles and adds code, action and technical i
  assert.equal(unavailable.title,'La laptop no está enlazada');
  assert.equal(unavailable.code,'JAR-201');
  assert.match(unavailable.action,/Terminal local/);
+ const upload=diagnoseJarvisError('JARVIS_MOBILE_UPLOAD_ROUTE_DENIED',{phase:'inicio'});
+ assert.equal(upload.code,'JAR-602');
+ assert.equal(upload.family,'archivos');
+ assert.equal(upload.phase,'inicio');
+ assert.equal(upload.certified,false);
+ assert.match(jarvisErrorPublicMessage('JARVIS_MOBILE_UPLOAD_ROUTE_DENIED'),/JAR-602/);
  const tooLarge=semanticFailurePresentation('JARVIS_RELAY_RESPONSE_TOO_LARGE');
  assert.equal(tooLarge.code,'JAR-204');
  const partial=jarvisErrorPublicMessage('PUBLIC_HTML_ACCESS_DENIED');

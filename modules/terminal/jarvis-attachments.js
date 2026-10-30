@@ -4,6 +4,7 @@ import {
 import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
+import {diagnoseJarvisError} from "../../gestia-core/jarvis/jarvis.error-catalog.js";
 import {optimizeSelectedMobileVideo,mobileVideoCompressionDecision} from './jarvis-video-economy.js';
 
 const VERSION = "2.5.1-mobile-upload-stage-diagnostics-v142";
@@ -317,15 +318,19 @@ async function prepareFile(file, existingItem = null) {
                 'No pude comprimir este video manteniendo su audio y duración. El original no se modificó ni se subió.' :
                 reason.slice(0,180);
             if (isMobileRelayHost()) {
-                const routeError = /^JARVIS_MOBILE_UPLOAD_ROUTE_DENIED$/.test(reason);
-                const boundary = error?.requestId ? 'con solicitud registrada' : 'sin recibo del enlace';
-                const label = routeError ?
-                    `Ruta rechazada en ${uploadStage} (${boundary}); versión ${VERSION}` :
-                    `Error durante ${uploadStage} (${boundary}); versión ${VERSION}`;
-                item.error = `${label}. ${item.error}`;
+                const diagnostic = diagnoseJarvisError(reason,{phase:uploadStage});
+                const boundary = error?.requestId ?
+                    'Solicitud registrada; consulta el recibo antes de repetir.' :
+                    'Sin recibo: no se confirmó el inicio de la subida.';
+                if (diagnostic.code === 'JAR-602') {
+                    item.error = `JAR-602 · Ruta rechazada en ${uploadStage}. ${boundary} Versión: ${VERSION}. Detalle: ${diagnostic.technicalCode}.`;
+                } else {
+                    item.error = `${diagnostic.code} · Error en ${uploadStage}. ${boundary} ${item.error}`;
+                }
                 setComposerMessage(item.error, "error");
                 console.warn('[JARVIS_MOBILE_UPLOAD_DIAGNOSTIC]',{
-                    stage:uploadStage,code:reason.slice(0,80),version:VERSION,
+                    stage:uploadStage,technicalCode:diagnostic.technicalCode,
+                    code:diagnostic.code,version:VERSION,
                     requestRecorded:Boolean(error?.requestId),executionStarted:error?.executionStarted===true
                 });
             }
