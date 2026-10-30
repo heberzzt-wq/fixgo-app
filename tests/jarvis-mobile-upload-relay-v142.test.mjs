@@ -144,7 +144,7 @@ test('fresh mobile browser uses new modules and retains the exact Firebase rules
  assert.match(receipt,/84fdac84-2c5f-4d7e-89a7-72877d819547/);
  assert.match(receipt,/Solo|Única modificación textual/);
  assert.match(receipt,/b76abec92fac1cd09866741a18058eaa2b471e57a26f86d03fb55d2d3d89b249/);
- assert.match(page,/jarvis-attachments\.js\?v=v142-owner-visual-review-20261029-v8/);
+ assert.match(page,/jarvis-attachments\.js\?v=v142-owner-visual-batch-20261029-v9/);
  assert.match(page,/proposal-state\.js\?v=v142-owner-upload-preflight-20261029-v7/);
  assert.match(state,/nexo-bootstrap\.js\?v=v142-owner-upload-preflight-20261029-v7/);
  assert.match(proposal,/NO PUBLICADA/);

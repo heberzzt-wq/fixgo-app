@@ -82,4 +82,28 @@ test('real Terminal delivers mobile-width owner photo review without giant Qwen 
  assert.equal(actual?.audit?.files,1);
  assert.equal(actual?.rendered,true);
  assert.equal(actual?.active,false);
+
+ // A fifth uploaded visual file must not silently fall into Qwen's general
+ // planner. Check the actual mobile-width Terminal submission and persistence.
+ await pause(180);
+ const limited = "(()=>{" +
+  "window.__overLimitAudit={clear:0,remote:0};" +
+  "window.JarvisAttachments.prepareVisualReview=()=>({status:'LOCAL_MEDIA_REVIEW_BATCH_LIMIT',received:5,maximum:4});" +
+  "window.JarvisAttachments.clear=()=>window.__overLimitAudit.clear++;" +
+  "window.JarvisLocalBridge={requestJson:async()=>{window.__overLimitAudit.remote++;throw Error('REMOTE_SHOULD_NOT_RUN')}};" +
+  "const input=document.getElementById('gestia-input');input.value='¿Qué ves en estas cinco fotos?';" +
+  "document.getElementById('gestia-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));return true;})()";
+ assert.equal(await evalInBrowser(limited),true);
+ let blocked;
+ for(let i=0;i<45;i++){
+  await pause(100);
+  blocked=await evalInBrowser("({message:document.getElementById('gestia-output')?.textContent?.includes('Recibí 5 imágenes o videos'),audit:window.__overLimitAudit,input:document.getElementById('gestia-input')?.value,active:window.__JARVIS_MISSION_IN_FLIGHT__})");
+  if(blocked?.message&&blocked?.active===false)break;
+ }
+ console.log('FIVE_VISUAL_BATCH_REJECTED_IN_TERMINAL',JSON.stringify(blocked));
+ assert.equal(blocked?.message,true);
+ assert.equal(blocked?.audit?.remote,0);
+ assert.equal(blocked?.audit?.clear,0);
+ assert.equal(blocked?.input,'¿Qué ves en estas cinco fotos?');
+ assert.equal(blocked?.active,false);
 });

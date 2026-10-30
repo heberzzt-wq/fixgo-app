@@ -78,6 +78,7 @@ export function buildDailyReport({manifest,head,previous=null,filesChanged=[],
    id:item.id,name:item.name,status:item.status,evidenceCommit:item.evidenceCommit,
    proof:item.proof,remaining:item.remaining
   })),
+  mobileVisualBatchGuard:manifest.mobileVisualBatchGuard20261029,
   services:Object.fromEntries(PORTS.map(p=>[
    p,services[p]===true?'LISTENING':services[p]===false?'OFFLINE':'NOT_CHECKED'])),
   tests:tests||{status:'NOT_EXECUTED'},
@@ -126,6 +127,10 @@ export function renderDailyReport(report,manifest){
   'Actualizar y Detener son botones presentes. Las cargas y la lectura visual Android ya fueron verificadas.',
   'No interpretar un cambio reciente de archivo como pérdida de una capacidad comprobada.',
   'La cancelación de herramientas largas, el audio y el trabajo general siguen independientes.','',
+  '**Límite de revisión visual:** '+report.mobileVisualBatchGuard.maximumVisualFilesPerQuestion+
+   ' archivos por pregunta. '+safe(report.mobileVisualBatchGuard.implemented),
+  '**Evidencia:** '+safe(report.mobileVisualBatchGuard.status)+
+   '. No certifica Android físico nuevo.','',
   '## Servicios locales','',
   '| Puerto | Estado |','|---|---|');
  for(const port of PORTS)lines.push('| '+port+' | '+report.services[port]+' |');

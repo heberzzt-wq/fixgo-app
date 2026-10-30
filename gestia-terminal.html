@@ -514,7 +514,7 @@ fetch("/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001")
 <script type="module" src="/firebase.js"></script>
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=v142-owner-upload-preflight-20261029-v7"></script>
-<script type="module" src="/modules/terminal/jarvis-attachments.js?v=v142-owner-visual-review-20261029-v8"></script>
+<script type="module" src="/modules/terminal/jarvis-attachments.js?v=v142-owner-visual-batch-20261029-v9"></script>
 <script type="module" src="/gestia-core/gestia-core.js?v=v142-local-mission-cancel-20261021-v1"></script>
 <script type="module" src="/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001"></script>
 <script
@@ -2051,6 +2051,7 @@ window.unlockJarvisVoice = function() {
             }
             const btnGenerate = document.getElementById("btn-generate");
             let handled = false;
+            let keepReadyAttachments = false;
             let activeWorkTracker = null;
             let lastCoreResult = null;
 
@@ -2084,6 +2085,20 @@ window.unlockJarvisVoice = function() {
                 // use the existing registered media.analyze tool and authorized
                 // local semantic response, avoiding a giant Qwen planning context.
                 const visualReview = window.JarvisAttachments?.prepareVisualReview?.(rawCommand);
+                if (visualReview?.status === "LOCAL_MEDIA_REVIEW_BATCH_LIMIT") {
+                    keepReadyAttachments = true;
+                    const maximum = 4;
+                    window.renderJarvisResponse?.(
+                        "Revisión visual por grupos",
+                        "Recibí " + visualReview.received + " imágenes o videos, pero Qwen local revisa hasta " +
+                        maximum + " archivos visuales por pregunta. Los originales siguen guardados. " +
+                        "Quita de esta selección los archivos sobrantes y envía primero un grupo de hasta " +
+                        maximum + ". Después puedes revisar los restantes. No inicié una misión ni inventé un análisis.",
+                        "warning"
+                    );
+                    handled = true;
+                    return;
+                }
                 if (visualReview) {
                     const transport = window.JarvisLocalBridge;
                     const tools = window.ToolsBridge;
@@ -5957,12 +5972,12 @@ const summary =
                     btnGenerate.disabled = false;
                     btnGenerate.classList.remove("animate-pulse");
                 }
-                if (textarea) {
+                if (textarea && !keepReadyAttachments) {
                     textarea.value = "";
                     textarea.style.height = "";
                     textarea.dispatchEvent(new Event("input", { bubbles: true }));
                 }
-                window.JarvisAttachments?.clear?.();
+                if (!keepReadyAttachments) window.JarvisAttachments?.clear?.();
             }
         });
     }

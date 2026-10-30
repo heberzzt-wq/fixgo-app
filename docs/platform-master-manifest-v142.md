@@ -324,6 +324,13 @@ distingue botones disponibles, entrega comprobada en Android y capacidades pendi
 Las funciones móviles verificadas NO quedan pendientes por tocar su archivo en un commit posterior.
 JARVIS-12 sigue abierto solo para interrupción efectiva de herramientas largas; no por ausencia del botón Detener.
 
+### Límite explícito de lote visual - Chrome de tamaño móvil
+
+**Estado:** `VERIFICADO_CHROME_SIMULACION_MOVIL`.
+**Máximo:** 4 fotos/videos por pregunta visual.
+**Qué se corrigió:** Terminal muestra limite claro, conserva mensaje y archivos originales, no llama al planificador ni a Qwen cuando hay cinco o mas adjuntos visuales.
+**Alcance:** Prueba de navegacion en Chrome a 375px; no certifica dispositivo Android fisico nuevo, ni cambia el limite total del relay.
+
 ## Decision estrategica del propietario - ADJUNTO privado (2026-10-23)
 
 **Identidad y posicionamiento:** ADJUNTO es infraestructura operativa privada de Peninsula Tech, no un producto IA para vender al publico ni un competidor de ChatGPT/Gemini/Claude.

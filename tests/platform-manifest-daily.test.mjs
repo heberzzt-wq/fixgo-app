@@ -27,6 +27,14 @@ test('daily report presents mobile achievements with their commits on every cut'
  assert.match(markdown,/interrupción de herramientas largas|herramientas largas/i);
  assert.doesNotMatch(markdown,/MOB-REFRESH[^\n]*pendiente sin prueba/i);
 });
+test('daily manifest records four-file visual guard separately from Android physical claims',()=>{
+ const result=report();
+ assert.equal(result.mobileVisualBatchGuard.maximumVisualFilesPerQuestion,4);
+ const rendered=renderDailyReport(result,data);
+ assert.match(rendered,/Límite de revisión visual/);
+ assert.match(rendered,/4 archivos por pregunta/);
+ assert.match(rendered,/No certifica Android físico nuevo/);
+});
 test('daily inventory enumerates all 57 real fronts while distinguishing code changes from readiness',()=>{
  const result=report();
  assert.equal(result.dateLocal,'2026-10-21');

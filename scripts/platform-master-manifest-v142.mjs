@@ -40,6 +40,13 @@ export function validateManifest(m,{rootDir=root}={}){
       errors.push('MOBILE_EVIDENCE_INVALID:'+item?.id);
  }
  if(mobileIds.size)errors.push('MOBILE_EVIDENCE_MISSING');
+ const guard=m.mobileVisualBatchGuard20261029;
+ if(!guard||guard.status!=='VERIFICADO_CHROME_SIMULACION_MOVIL'||
+    guard.maximumVisualFilesPerQuestion!==4||
+    !Array.isArray(guard.evidence)||guard.evidence.length!==2||
+    guard.evidence.some(file=>typeof file!=='string'||!file.startsWith('tests/')||!existsSync(resolve(rootDir,file)))||
+    !guard.reason||!guard.implemented||!guard.scope)
+   errors.push('MOBILE_VISUAL_BATCH_GUARD_INVALID');
  const capabilityIds=new Set();
  for(const c of general?.capabilities||[]){
   const receiptValid=r=>r&&['SOURCE_AUDIT','AUTOMATED_TEST','UI_MISSION','UI_TURN','AUXILIARY_EXECUTION'].includes(r.kind)&&r.path&&r.outcome&&r.scope;
@@ -447,6 +454,12 @@ export function renderManifest(m){
  '',
  'Las funciones móviles verificadas NO quedan pendientes por tocar su archivo en un commit posterior.',
  'JARVIS-12 sigue abierto solo para interrupción efectiva de herramientas largas; no por ausencia del botón Detener.',
+ '',
+ '### Límite explícito de lote visual - Chrome de tamaño móvil','',
+ '**Estado:** '+code(m.mobileVisualBatchGuard20261029.status)+'.',
+ '**Máximo:** '+m.mobileVisualBatchGuard20261029.maximumVisualFilesPerQuestion+' fotos/videos por pregunta visual.',
+ '**Qué se corrigió:** '+esc(m.mobileVisualBatchGuard20261029.implemented),
+ '**Alcance:** '+esc(m.mobileVisualBatchGuard20261029.scope),
  '',
  ...renderPrivateProductStrategy(m),
  ...renderOwnerNorthStar(m),

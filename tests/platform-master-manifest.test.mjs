@@ -27,6 +27,19 @@ test('mobile capabilities are reconciled to commit receipts, not reset to pendin
  fake.mobileVerifiedCapabilities20261029[0].evidenceCommit='invalid';
  assert.equal(validateManifest(fake).ok,false);
 });
+test('visual mobile batch guard has verified 4-file limit without claiming physical Android certification',()=>{
+ const guard=data.mobileVisualBatchGuard20261029;
+ assert.equal(guard.maximumVisualFilesPerQuestion,4);
+ assert.equal(guard.status,'VERIFICADO_CHROME_SIMULACION_MOVIL');
+ assert.equal(guard.evidence.length,2);
+ const view=renderManifest(data);
+ assert.match(view,/Límite explícito de lote visual/);
+ assert.match(view,/Chrome de tamaño móvil/);
+ assert.match(view,/no (?:llama|inici)/i);
+ const forged=structuredClone(data);
+ forged.mobileVisualBatchGuard20261029.maximumVisualFilesPerQuestion=8;
+ assert.equal(validateManifest(forged).ok,false);
+});
 test('general-purpose objective separates planned, implemented and UI-demonstrated capabilities',()=>{
  const objective=data.generalPurposeAssistant;
  assert.ok(objective, 'owner general-purpose objective must be recorded');

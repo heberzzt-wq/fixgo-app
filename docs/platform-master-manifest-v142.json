@@ -42,6 +42,17 @@
       "remaining": "No se transcribio audio; interpretacion IA sin verificacion independiente, y queda corregir el texto historico que dice que no se completo el chat movil"
     }
   ],
+  "mobileVisualBatchGuard20261029": {
+    "status": "VERIFICADO_CHROME_SIMULACION_MOVIL",
+    "maximumVisualFilesPerQuestion": 4,
+    "reason": "La carga movil admite hasta ocho archivos, pero la lectura visual de Qwen verifica cuatro por solicitud; cinco o mas no deben caer al planner general ni saturar contexto.",
+    "implemented": "Terminal muestra limite claro, conserva mensaje y archivos originales, no llama al planificador ni a Qwen cuando hay cinco o mas adjuntos visuales.",
+    "evidence": [
+      "tests/jarvis-mobile-visual-batch-guard-v142.test.mjs",
+      "tests/jarvis-owner-visual-mobile-ui-v142.test.mjs"
+    ],
+    "scope": "Prueba de navegacion en Chrome a 375px; no certifica dispositivo Android fisico nuevo, ni cambia el limite total del relay."
+  },
   "deferredOwnerDecisions20261028": [
     {
       "id": "ICOM_IC_F4003_LAPTOP_MAINTENANCE",

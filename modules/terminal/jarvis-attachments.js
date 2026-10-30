@@ -679,13 +679,18 @@ function prepareVisualReview(question = "") {
     if (source && !/(?:que ves|que observas|que hay en|que contiene|describe|describeme|analiza|analizar|revisa|revisar|explica|muestra|mira)/.test(normalized)) {
         return null;
     }
-    if (!state.items.length || state.items.length > 4 ||
-        state.items.some(item =>
+    if (!state.items.length || state.items.some(item =>
             item.status !== "ready" ||
             !/^\.jarvis-artifacts\/uploads\/[a-z0-9._/-]+$/i.test(String(item.output || "")) ||
             !/^[a-f0-9]{64}$/i.test(String(item.saved?.sha256 || "")) ||
             !/\.(?:jpe?g|png|webp|mp4|webm|mov)$/i.test(String(item.output || ""))
         )) return null;
+    // Mobile can receive up to eight uploads, but Qwen's source-bound visual
+    // contract handles four. Never send the fifth file to the giant planner.
+    if (state.items.length > 4) return {
+        status: "LOCAL_MEDIA_REVIEW_BATCH_LIMIT",
+        received: state.items.length, maximum: 4
+    };
     return {
         question: source.slice(0, 1000) || "Que ves en los archivos adjuntos?",
         attachments: state.items.map(item => ({
