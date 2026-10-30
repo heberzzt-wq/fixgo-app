@@ -4,6 +4,29 @@ import {readFileSync} from 'node:fs';
 import {validateManifest,renderManifest} from '../scripts/platform-master-manifest-v142.mjs';
 const data=JSON.parse(readFileSync(new URL('../docs/platform-master-manifest-v142.json',import.meta.url),'utf8'));
 
+test('mobile capabilities are reconciled to commit receipts, not reset to pending by old snapshots',()=>{
+ const verified=data.mobileVerifiedCapabilities20261029;
+ assert.equal(verified.length,5);
+ assert.deepEqual(verified.map(x=>x.id),[
+  'MOB-REFRESH','MOB-STOP-BUTTON','MOB-PHOTO-UPLOAD',
+  'MOB-VIDEO-UPLOAD','MOB-LOCAL-QWEN-VISION'
+ ]);
+ assert.deepEqual(verified.map(x=>x.status),[
+  'VERIFICADO_EN_UI','VERIFICADO_EN_UI',
+  'VERIFICADO_ANDROID','VERIFICADO_ANDROID','VERIFICADO_ANDROID'
+ ]);
+ assert.ok(verified.every(x=>/^[a-f0-9]{40}$/.test(x.evidenceCommit)));
+ assert.match(verified[1].remaining,/herramientas largas/);
+ assert.match(verified[4].remaining,/audio/);
+ const view=renderManifest(data);
+ assert.match(view,/Móvil V142/);
+ assert.match(view,/Boton Actualizar Terminal/);
+ assert.match(view,/Lectura local de imagen/);
+ assert.match(view,/JARVIS-12 sigue abierto/);
+ const fake=structuredClone(data);
+ fake.mobileVerifiedCapabilities20261029[0].evidenceCommit='invalid';
+ assert.equal(validateManifest(fake).ok,false);
+});
 test('general-purpose objective separates planned, implemented and UI-demonstrated capabilities',()=>{
  const objective=data.generalPurposeAssistant;
  assert.ok(objective, 'owner general-purpose objective must be recorded');

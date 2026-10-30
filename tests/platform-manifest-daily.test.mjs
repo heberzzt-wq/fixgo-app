@@ -14,6 +14,19 @@ const report=()=>buildDailyReport({manifest:data,head:HEAD,
  dirty:false,services:{5000:true,3344:true,3345:true,11434:true},
  tests:{status:'DIRECTED_SUITE_PASSED',passed:13,failed:0},date:day});
 
+test('daily report presents mobile achievements with their commits on every cut',()=>{
+ const result=report();
+ assert.equal(result.mobileVerified.length,5);
+ assert.equal(result.mobileVerified.filter(x=>x.status==='VERIFICADO_ANDROID').length,3);
+ const markdown=renderDailyReport(result,data);
+ assert.match(markdown,/Móvil - funciones verificadas por commit/);
+ assert.match(markdown,/Boton Actualizar Terminal desde movil/);
+ assert.match(markdown,/Boton Detener mision visible y activado/);
+ assert.match(markdown,/Video MP4 subido desde Android/);
+ assert.match(markdown,/Lectura local de imagen y tres fotogramas/);
+ assert.match(markdown,/interrupción de herramientas largas|herramientas largas/i);
+ assert.doesNotMatch(markdown,/MOB-REFRESH[^\n]*pendiente sin prueba/i);
+});
 test('daily inventory enumerates all 57 real fronts while distinguishing code changes from readiness',()=>{
  const result=report();
  assert.equal(result.dateLocal,'2026-10-21');

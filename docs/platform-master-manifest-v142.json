@@ -1,5 +1,47 @@
 {
   "schemaVersion": "platform-master-v142-1",
+  "mobileVerifiedCapabilities20261029": [
+    {
+      "id": "MOB-REFRESH",
+      "name": "Boton Actualizar Terminal desde movil",
+      "status": "VERIFICADO_EN_UI",
+      "evidenceCommit": "257a9e5de8df986f38b455bb7c43fc82c96de069",
+      "proof": "Boton #btn-refresh-terminal, actualizacion con release SHA, pruebas tests/jarvis-terminal-refresh-control.test.mjs y confirmacion del propietario",
+      "remaining": "No confundir recargar una pagina con cancelar una operacion remota en curso"
+    },
+    {
+      "id": "MOB-STOP-BUTTON",
+      "name": "Boton Detener mision visible y activado",
+      "status": "VERIFICADO_EN_UI",
+      "evidenceCommit": "87b64ac989bd1b148ee1e0fb7e618b9ec917f998",
+      "proof": "Boton #btn-stop-mission visible durante mision, pruebas de interfaz y confirmacion del propietario",
+      "remaining": "Aun falta garantizar la cancelacion efectiva de herramientas largas y la recuperacion sin busy; JARVIS-12 sigue abierto en ese alcance"
+    },
+    {
+      "id": "MOB-PHOTO-UPLOAD",
+      "name": "Imagen subida desde Android y persistida con SHA",
+      "status": "VERIFICADO_ANDROID",
+      "evidenceCommit": "5ad8278faea56c6725cb8031e6791ea8d2d001d9",
+      "proof": "Subida /upload/complete con recibos; fotografia real de 310662 bytes, SHA256 ca70a5845d12f6f09eba9278ba1340d8a7d99dafa7ed59553cbf1df592bd8d56",
+      "remaining": "No equivale a certificacion de todos los formatos ni lecturas de documentos extensos"
+    },
+    {
+      "id": "MOB-VIDEO-UPLOAD",
+      "name": "Video MP4 subido desde Android y persistido con SHA",
+      "status": "VERIFICADO_ANDROID",
+      "evidenceCommit": "38a0d1147316bba82d4c0cc25bc014bb7e86d61b",
+      "proof": "Archivo MP4 real 3994263 bytes, SHA256 948b40946db61b9cee33ccdc9d531706acbb095fefab4df40d673fc021ef96f2",
+      "remaining": "Compresion y carga acotadas; no implica transcripcion de audio"
+    },
+    {
+      "id": "MOB-LOCAL-QWEN-VISION",
+      "name": "Lectura local de imagen y tres fotogramas con respuesta en Android",
+      "status": "VERIFICADO_ANDROID",
+      "evidenceCommit": "61f1501928c8a5c58c9a8a64b215147ef0e0ff8d",
+      "proof": "Entrega real ADJUNTO - lectura visual local en Android y cierre fechado de manifiesto; Qwen3.5:9b interpreto imagen y tres fotogramas del video",
+      "remaining": "No se transcribio audio; interpretacion IA sin verificacion independiente, y queda corregir el texto historico que dice que no se completo el chat movil"
+    }
+  ],
   "deferredOwnerDecisions20261028": [
     {
       "id": "ICOM_IC_F4003_LAPTOP_MAINTENANCE",

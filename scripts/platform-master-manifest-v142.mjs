@@ -24,6 +24,22 @@ export function validateManifest(m,{rootDir=root}={}){
     !Array.isArray(general.checkpointPolicy?.requiredFields)||general.checkpointPolicy.requiredFields.length<9||
     !Array.isArray(general.capabilities)||general.capabilities.length!==generalCapabilityIds.length)
   errors.push('GENERAL_PURPOSE_OBJECTIVE_INVALID');
+ // Completed mobile capabilities carry exact source commits and limited,
+ // independently described evidence. A button does not certify cancellation.
+ const mobileIds=new Set(['MOB-REFRESH','MOB-STOP-BUTTON','MOB-PHOTO-UPLOAD',
+   'MOB-VIDEO-UPLOAD','MOB-LOCAL-QWEN-VISION']);
+ const mobile=m.mobileVerifiedCapabilities20261029;
+ if(!Array.isArray(mobile)||mobile.length!==mobileIds.size)
+   errors.push('MOBILE_EVIDENCE_INCOMPLETE');
+ else for(const item of mobile){
+   if(!mobileIds.delete(item?.id)||!item?.name||
+     !['VERIFICADO_EN_UI','VERIFICADO_ANDROID'].includes(item?.status)||
+     !/^[a-f0-9]{40}$/.test(String(item.evidenceCommit||''))||
+     typeof item.proof!=='string'||item.proof.length<24||
+     typeof item.remaining!=='string'||item.remaining.length<16)
+      errors.push('MOBILE_EVIDENCE_INVALID:'+item?.id);
+ }
+ if(mobileIds.size)errors.push('MOBILE_EVIDENCE_MISSING');
  const capabilityIds=new Set();
  for(const c of general?.capabilities||[]){
   const receiptValid=r=>r&&['SOURCE_AUDIT','AUTOMATED_TEST','UI_MISSION','UI_TURN','AUXILIARY_EXECUTION'].includes(r.kind)&&r.path&&r.outcome&&r.scope;
@@ -420,6 +436,18 @@ export function renderManifest(m){
  '> ni autorización de despliegue. Los reportes históricos no demuestran el estado productivo actual.',
  '',
  ...renderLatestHandoff(m),
+ '## Móvil V142 — avances comprobados y registrados por commit','',
+ 'El historial de commits conserva las funciones implementadas. Este registro',
+ 'distingue botones disponibles, entrega comprobada en Android y capacidades pendientes.','',
+ '| Función | Estado comprobado | Commit de evidencia | Límite pendiente |',
+ '|---|---|---|---|',
+ ...m.mobileVerifiedCapabilities20261029.map(x=>
+   '| '+esc(x.name)+' | '+code(x.status)+' | '+code(x.evidenceCommit.slice(0,8))+
+   ' | '+esc(x.remaining)+' |'),
+ '',
+ 'Las funciones móviles verificadas NO quedan pendientes por tocar su archivo en un commit posterior.',
+ 'JARVIS-12 sigue abierto solo para interrupción efectiva de herramientas largas; no por ausencia del botón Detener.',
+ '',
  ...renderPrivateProductStrategy(m),
  ...renderOwnerNorthStar(m),
  ...renderGeneralPurposeAssistant(m),

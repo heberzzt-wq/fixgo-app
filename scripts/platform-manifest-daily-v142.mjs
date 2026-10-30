@@ -74,6 +74,10 @@ export function buildDailyReport({manifest,head,previous=null,filesChanged=[],
   platform:{total:check.total,p0:check.p0,domainCounts:check.counts,
    statusCounts:stateCount,touchedByDomain:counts,
    workstreamsTouched:affected.map(w=>w.id)},
+  mobileVerified:manifest.mobileVerifiedCapabilities20261029.map(item=>({
+   id:item.id,name:item.name,status:item.status,evidenceCommit:item.evidenceCommit,
+   proof:item.proof,remaining:item.remaining
+  })),
   services:Object.fromEntries(PORTS.map(p=>[
    p,services[p]===true?'LISTENING':services[p]===false?'OFFLINE':'NOT_CHECKED'])),
   tests:tests||{status:'NOT_EXECUTED'},
@@ -112,6 +116,16 @@ export function renderDailyReport(report,manifest){
  lines.push('','**Total:** '+report.platform.total+' frentes, '+
   report.platform.p0+' P0. No se convierten cambios en porcentajes ni aprobaciones.',
   '',
+  '## Móvil - funciones verificadas por commit','',
+  '| Función | Resultado | Commit | Alcance restante |',
+  '|---|---|---|---|',
+  ...report.mobileVerified.map(item=>
+   '| '+safe(item.name)+' | '+q+item.status+q+' | '+q+item.evidenceCommit.slice(0,8)+q+
+   ' | '+safe(item.remaining)+' |'),
+  '',
+  'Actualizar y Detener son botones presentes. Las cargas y la lectura visual Android ya fueron verificadas.',
+  'No interpretar un cambio reciente de archivo como pérdida de una capacidad comprobada.',
+  'La cancelación de herramientas largas, el audio y el trabajo general siguen independientes.','',
   '## Servicios locales','',
   '| Puerto | Estado |','|---|---|');
  for(const port of PORTS)lines.push('| '+port+' | '+report.services[port]+' |');
@@ -126,7 +140,7 @@ export function renderDailyReport(report,manifest){
  }
  for(const id of report.platform.workstreamsTouched){
   const w=manifest.workstreams.find(x=>x.id===id);
-  lines.push('- '+id+' ['+w.priority+'] '+safe(w.title)+': **pendiente** '+
+  lines.push('- '+id+' ['+w.priority+'] '+safe(w.title)+': **pendiente solo el alcance restante** '+
    safe(w.gap));
  }
  if(!report.platform.workstreamsTouched.length)
@@ -152,6 +166,12 @@ export async function updateDailyManifest({root=REPO_ROOT,destination=REPORT_DIR
  const branch=git(['branch','--show-current'],root);
  if(branch!==manifest.branch)throw Error('OFFICIAL_BRANCH_REQUIRED');
  const head=git(['rev-parse','HEAD'],root);
+ // A verified mobile row is valid only if its cited commit is reachable
+ // from the actual official HEAD. Never promote a forged or future SHA.
+ for(const item of manifest.mobileVerifiedCapabilities20261029||[]){
+  if(git(['merge-base','--is-ancestor',item.evidenceCommit,head],root)===null)
+   throw Error('MOBILE_EVIDENCE_COMMIT_NOT_ANCESTOR:'+item.id);
+ }
  const previous=readJson(join(destination,'ultimo.json'));
  // Multiple updates on the same day accumulate all changes from that day's
  // first baseline rather than replacing them with only the last few commits.
