@@ -39,8 +39,14 @@ export function readBoundedLocalImage({output='',root=process.cwd(),expectedSha2
    throw fail('LOCAL_VISION_SHA256_MISMATCH');
  return {output:name,mimeType,sha256,bytes,byteCount:bytes.length};
 }
-export async function analyzeLocalUploadedImage({output,root,expectedSha256='',question='',fetchImpl=globalThis.fetch,signal,timeoutMs=105000}={}){
- const image=readBoundedLocalImage({output,root,expectedSha256});
+export async function analyzeLocalImageBytes({imageBytes,mimeType='image/jpeg',expectedSha256='',question='',fetchImpl=globalThis.fetch,signal,timeoutMs=105000}={}){
+ const imageBuffer=Buffer.isBuffer(imageBytes)?imageBytes:Buffer.from(imageBytes||[]);
+ const extension=Object.entries(IMAGE_EXTENSIONS).find(([,mime])=>mime===mimeType)?.[0]||'';
+ if(!extension||imageBuffer.length<32||imageBuffer.length>MAX_BYTES||
+    !hasImageSignature(imageBuffer,extension))throw fail('LOCAL_VISION_IMAGE_BYTES_INVALID');
+ const sha256=createHash('sha256').update(imageBuffer).digest('hex');
+ if(expectedSha256 && (!/^[a-f0-9]{64}$/i.test(expectedSha256)||sha256!==expectedSha256.toLowerCase()))
+    throw fail('LOCAL_VISION_SHA256_MISMATCH');
  if(typeof fetchImpl!=='function')throw fail('LOCAL_VISION_FETCH_UNAVAILABLE');
  const instruction=String(question||'').trim().slice(0,900);
  const prompt=[
@@ -55,7 +61,7 @@ export async function analyzeLocalUploadedImage({output,root,expectedSha256='',q
  const activeSignal=signal?AbortSignal.any([signal,timeout]):timeout;
  const body={model:MODEL,stream:false,think:false,keep_alive:'45s',
    options:{num_ctx:8192,num_predict:420,temperature:0},
-   messages:[{role:'user',content:prompt,images:[image.bytes.toString('base64')]}]};
+   messages:[{role:'user',content:prompt,images:[imageBuffer.toString('base64')]}]};
  let response;
  try{response=await fetchImpl('http://127.0.0.1:11434/api/chat',{
      method:'POST',headers:{'Content-Type':'application/json'},
@@ -69,11 +75,17 @@ export async function analyzeLocalUploadedImage({output,root,expectedSha256='',q
  if(!description||result?.done!==true||result?.model!==MODEL)throw fail('LOCAL_VISION_RESPONSE_UNVERIFIED');
  return {
    ok:true,status:'LOCAL_QWEN_IMAGE_DESCRIPTION_READY',
-   source:'USER_UPLOADED_IMAGE_LOCAL',output:image.output,mimeType:image.mimeType,
-   bytes:image.byteCount,sha256:image.sha256,description,model:MODEL,
+   source:'USER_SUPPLIED_IMAGE_BYTES_LOCAL',mimeType,
+   bytes:imageBuffer.length,sha256,description,model:MODEL,
    localOnly:true,externalApiUsed:false,visualInferenceCompleted:true,
    independentlyVerified:false,semanticVisualAnalysisVerified:false,
    claimScope:'model_observation_not_independent_fact',sourceIdentityVerified:true,
    sha256Verified:true
  };
+}
+export async function analyzeLocalUploadedImage({output,root,expectedSha256='',question='',fetchImpl=globalThis.fetch,signal,timeoutMs=105000}={}){
+ const image=readBoundedLocalImage({output,root,expectedSha256});
+ const result=await analyzeLocalImageBytes({imageBytes:image.bytes,mimeType:image.mimeType,
+   expectedSha256:image.sha256,question,fetchImpl,signal,timeoutMs});
+ return {...result,source:'USER_UPLOADED_IMAGE_LOCAL',output:image.output};
 }

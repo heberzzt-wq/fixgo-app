@@ -7,7 +7,7 @@
  * 4xx planner/tools, 5xx evidence, 6xx artifacts, 9xx unknown.
  * Published codes are stable even when the underlying error text changes.
  */
-export const JARVIS_ERROR_CATALOG_VERSION = 'v142-2026-10-28';
+export const JARVIS_ERROR_CATALOG_VERSION = 'v142-2026-10-29';
 const rows = [
   ['JAR-101', ['JARVIS_LOCAL_BRIDGE_TRANSPORT_STALLED','JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST'],
     'El Bridge dejó de responder', 'Se interrumpió la comunicación local.',
@@ -18,6 +18,9 @@ const rows = [
   ['JAR-103', ['SEMANTIC_PROVIDER_TIMEOUT','LOCAL_SEMANTIC_TIMEOUT','LOCAL_SEMANTIC_STREAM_INCOMPLETE','LOCAL_SEMANTIC_REQUEST_ABORTED'],
     'La inferencia no terminó correctamente', 'La solicitud se interrumpió, agotó su espera o perdió la transmisión.',
     'Consulta la actividad y el recibo antes de repetir; podría haberse ejecutado parcialmente.', 'modelo'],
+  ['JAR-104', ['LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION'],
+    'Qwen necesita dividir el contexto', 'El material enviado a una operación de Qwen superó el límite de contexto local configurado.',
+    'Procesa archivos o segmentos por separado y conserva las huellas originales. No declares analizado lo que aún no se inspeccionó.', 'modelo'],
   ['JAR-201', ['JARVIS_RELAY_WORKSTATION_UNAVAILABLE','JARVIS_RELAY_LOCAL_HEALTH_REQUIRED'],
     'La laptop no está enlazada', 'Firebase no detecta una estación autorizada activa.',
     'En la laptop abre una sola Terminal local y verifica que la cadena de enlace esté verde.', 'relay'],
