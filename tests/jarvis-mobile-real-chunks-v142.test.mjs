@@ -95,3 +95,34 @@ test('an upload route rejection reports the exact failing stage and client revis
  assert.match(result.incomplete[0].error,/JARVIS_MOBILE_UPLOAD_ROUTE_DENIED/);
  assert.ok(!result.incomplete[0].error.includes('dataBase64'));
 });
+
+test('failed Bridge result with Firebase receipt must say registered request, not no receipt',async t=>{
+ const prior={window:globalThis.window,document:globalThis.document,localStorage:globalThis.localStorage};
+ const store=new Map();
+ const node=()=>({dataset:{},children:[],hidden:false,appendChild(x){this.children.push(x);return x},
+   remove(){},querySelectorAll(){return []},querySelector(){return null},addEventListener(){},textContent:''});
+ globalThis.document={getElementById:k=>k==='jarvis-attachment-tray'?node():null,createElement:()=>node()};
+ globalThis.localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
+ const receipt='11111111-2222-4333-8444-555555555555';
+ let calls=0;
+ globalThis.window={location:{protocol:'https:',hostname:'approved-preview.web.app'},
+   JarvisLocalBridge:{requestJson:async(route)=>{
+    assert.equal(route,'/upload/start');calls++;
+    return {ok:false,status:'JARVIS_MOBILE_UPLOAD_ROUTE_DENIED',
+      httpStatus:400,relay:{requestId:receipt,executionStarted:true}};
+   }}};
+ t.after(()=>{
+  try{JarvisAttachments.clear()}catch{}
+  for(const [key,value] of Object.entries(prior)){
+   if(value===undefined)delete globalThis[key];else globalThis[key]=value;
+  }
+ });
+ await JarvisAttachments.acceptFiles([new File([new Uint8Array(5120)],'pic.png',{type:'image/png'})]);
+ assert.equal(calls,1);
+ const state=JarvisAttachments.inspectAttachmentBatch();
+ assert.equal(state.incompleteFiles,1);
+ assert.match(state.incomplete[0].error,/JAR-602/);
+ assert.match(state.incomplete[0].error,/Solicitud registrada/);
+ assert.doesNotMatch(state.incomplete[0].error,/Sin recibo/);
+ assert.doesNotMatch(state.incomplete[0].error,/11111111-2222/);
+});

@@ -84,7 +84,8 @@ test('client uses bounded 64KB HTTPS chunks without replaying uncertain persiste
  assert.match(readFileSync('gestia-core/jarvis/jarvis.semantic.transport.js','utf8'),/validateMobileRelayUploadOperation\(request\.route,payload\)/);
  assert.match(bootstrap,/JARVIS_MOBILE_UPLOAD_ROUTES\.includes\(path\) \?\s*\{"X-Jarvis-Private-Relay": "owner-upload-v142"\}/);
  assert.match(bridge,/const authorizeMobileAttachment = createWorkstationAuthorization/);
- assert.match(bridge,/validateMobileRelayUploadOperation\(req\.path,req\.body\|\|\{\}\)/);
+ assert.match(bridge,/validateMobileRelayUploadOperation\(req\.baseUrl,req\.body\|\|\{\}\)/);
+ assert.doesNotMatch(bridge,/validateMobileRelayUploadOperation\(req\.path,req\.body\|\|\{\}\)/);
  assert.match(bridge,/if\(!await authorizeMobileAttachment\(req,res\)\)return/);
  assert.match(bridge,/if\(!marker\)return next\(\)/);
  assert.match(bridge,/marker!=="owner-upload-v142"/);

@@ -9925,7 +9925,10 @@ export function createJarvisFsBridgeApp({
         if(marker!=="owner-upload-v142")
             return res.status(403).json({ok:false,status:"JARVIS_MOBILE_UPLOAD_MARKER_INVALID"});
         if(!await authorizeMobileAttachment(req,res))return;
-        try{validateMobileRelayUploadOperation(req.path,req.body||{});}
+        // Express strips the mounted prefix from req.path inside app.use.
+        // req.baseUrl is the exact matched /upload/... endpoint, not '/'.
+        // Keep the authenticated owner check above and bounded body gate.
+        try{validateMobileRelayUploadOperation(req.baseUrl,req.body||{});}
         catch(error){return res.status(400).json({ok:false,status:String(error.message||"JARVIS_MOBILE_UPLOAD_INVALID")});}
         res.locals.jarvisMobileUpload=true;
         return next();

@@ -252,7 +252,16 @@ async function prepareFile(file, existingItem = null) {
                 caseId: ensureCase().caseId,
                 objectiveId: ensureCase().objectiveId
             }, { timeoutMs: 30000 });
-            if (started?.ok !== true) throw new Error(started?.error || started?.status || "UPLOAD_START_FAILED");
+            if (started?.ok !== true) {
+                // The private relay may have completed transport successfully
+                // while the local upload endpoint returned a rejected result.
+                // Preserve the receipt instead of falsely saying "no receipt".
+                const failure = new Error(started?.error || started?.status || "UPLOAD_START_FAILED");
+                if (typeof started?.relay?.requestId === "string")
+                    failure.requestId = started.relay.requestId;
+                failure.executionStarted = started?.relay?.executionStarted === true;
+                throw failure;
+            }
             item.uploadId = started.uploadId;
             // A server may advertise the 2 MB desktop limit. Always apply
             // the stricter 64 KB ceiling on HTTPS, even on new preview hosts.
