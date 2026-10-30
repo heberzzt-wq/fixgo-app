@@ -15,7 +15,7 @@
       "status": "VERIFICADO_EN_UI",
       "evidenceCommit": "87b64ac989bd1b148ee1e0fb7e618b9ec917f998",
       "proof": "Boton #btn-stop-mission visible durante mision, pruebas de interfaz y confirmacion del propietario",
-      "remaining": "Aun falta garantizar la cancelacion efectiva de herramientas largas y la recuperacion sin busy; JARVIS-12 sigue abierto en ese alcance"
+      "remaining": "Recuperacion en primer plano con temporizador suspendido probada localmente; falta cancelacion efectiva de herramientas largas y relanzar sin busy; JARVIS-12 sigue abierto"
     },
     {
       "id": "MOB-PHOTO-UPLOAD",
@@ -1838,9 +1838,10 @@
       "priority": "P1",
       "anchors": [
         "gestia-terminal.html",
-        "tests/jarvis-qwen-mission-cancel.test.mjs"
+        "tests/jarvis-qwen-mission-cancel.test.mjs",
+        "tests/jarvis-mobile-cancel-foreground-recovery-v142.test.mjs"
       ],
-      "gap": "Interrumpir también herramientas largas sin efectos secundarios.",
+      "gap": "Botón Detener y recuperación visual al volver al primer plano tras temporizador suspendido probados localmente; falta cancelar herramientas remotas largas sin efectos secundarios y relanzar sin busy.",
       "acceptance": "UI cancelar y poder relanzar sin busy ni operación fantasma."
     },
     {

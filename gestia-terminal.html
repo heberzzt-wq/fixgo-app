@@ -1761,7 +1761,27 @@ window.unlockJarvisVoice = function() {
     let isProcessing = false;
     let localMissionAbortController = null;
     let missionCancelRecoveryTimer = null;
+    let missionCancelRecoveryDueAt = 0;
     const stopMissionButton = document.getElementById('btn-stop-mission');
+    // A backgrounded Android tab can throttle its 8s timeout indefinitely.
+    // On focus/visibility return, offer the SAME owner-controlled recovery,
+    // but never auto-reload or claim that a remote worker was cancelled.
+    const offerStoppedMissionRecovery = (force = false) => {
+        if(!isProcessing||!localMissionAbortController||
+           !localMissionAbortController.signal.aborted||
+           !missionCancelRecoveryDueAt||
+           (!force && Date.now()<missionCancelRecoveryDueAt)||
+           !stopMissionButton)return false;
+        stopMissionButton.dataset.cancelRecoveryReady='true';
+        stopMissionButton.textContent='Recargar Terminal';
+        stopMissionButton.title='Sin confirmación de cancelación. Recarga para liberar la interfaz; no acredita detener una ejecución remota.';
+        stopMissionButton.disabled=false;
+        return true;
+    };
+    window.addEventListener('focus', () => offerStoppedMissionRecovery());
+    document.addEventListener?.('visibilitychange', () => {
+        if(!document.hidden)offerStoppedMissionRecovery();
+    });
     // A cancel click interrupts the current authenticated Qwen fetch; it
     // cannot authorize writes or claim that a mission was completed.
     if(stopMissionButton&&!stopMissionButton.dataset.jarvisStopBound){
@@ -1777,6 +1797,7 @@ window.unlockJarvisVoice = function() {
                 return;
             }
             const cancellingController=localMissionAbortController;
+            missionCancelRecoveryDueAt=Date.now()+8000;
             cancellingController.abort('USER_REQUESTED_STOP');
             window.dispatchEvent(new CustomEvent('jarvis:mission-cancel-requested', {detail:{reason:'USER_REQUESTED_STOP'}}));
             stopMissionButton.disabled=true;
@@ -1785,10 +1806,7 @@ window.unlockJarvisVoice = function() {
             missionCancelRecoveryTimer=setTimeout(()=>{
                 if(!isProcessing||localMissionAbortController!==cancellingController||
                    !cancellingController.signal.aborted)return;
-                stopMissionButton.dataset.cancelRecoveryReady='true';
-                stopMissionButton.textContent='Recargar Terminal';
-                stopMissionButton.title='Sin confirmación de cancelación. Recarga para liberar la interfaz; no acredita detener una ejecución remota.';
-                stopMissionButton.disabled=false;
+                offerStoppedMissionRecovery(true);
             },8000);
         });
     }
@@ -5922,6 +5940,7 @@ const summary =
                 // Release the abort controller only after the active request returned.
                 clearTimeout(missionCancelRecoveryTimer);
                 missionCancelRecoveryTimer=null;
+                missionCancelRecoveryDueAt=0;
                 localMissionAbortController=null;
                 window.__JARVIS_MISSION_IN_FLIGHT__ = false;
                 if(stopMissionButton){
