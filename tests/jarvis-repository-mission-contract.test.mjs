@@ -19,6 +19,7 @@ async function contractPath(goals=objectives,selected=calls,registered=tools,for
   registeredMissionTools:registered,context:{},semanticMemoryContext:null,effectiveMissionInstruction:instruction,inputRaw:instruction,
   conversationalPlan:{requiresFinalConversation:true},isBoundedReadOnlyMission:forceUnbounded?()=>false:isBoundedReadOnlyMission,
   scopeValidatedRepositoryMission:scope.scopeValidatedRepositoryMission,
+  constrainExplicitGitStatusContract:scope.constrainExplicitGitStatusContract,
   ensureExecutableArtifactDependencies:({toolCalls})=>toolCalls,mergeEvidenceGroundedToolCalls:a=>a,
   compactJarvisSemanticMemoryForPlanner:()=>null,resolveExplicitRepositoryTargets:()=>[],normalizeObservationFilePath:x=>x,
   appendExplicitReadOnlySourceCalls:({toolCalls})=>toolCalls,addRepositoryDiscoveryPreflights:({toolCalls})=>toolCalls,

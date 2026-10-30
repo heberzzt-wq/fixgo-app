@@ -881,3 +881,36 @@ La auditoría integral de seguridad queda para la quinta etapa, antes de la aper
 - **Verificador:** `node scripts/platform-master-manifest-v142.mjs --check`.
 - Cada frente debe conservar prueba concreta, pendiente, criterio de cierre y estado productivo.
 - Actualizar evidencias públicas después de cada release AUTORIZADO; este manifiesto es una instantánea.
+
+## Seguimiento familiar documental — Adrian Mendoza Alvarez / PEMEX (2026-10-30)
+
+**Tipo:** seguimiento administrativo familiar; no funcion de Jarvis certificada ni cambio productivo. **Instruccion del propietario:** conservar continuidad en el manifiesto maestro; no repetir solicitudes documentales ya enviadas. Limitar acceso a identificaciones y datos personales; no insertar CURP/NSS/INE ni expedientes medicos completos en el repositorio.
+
+**Objetivo:** determinar el historial laboral real de Adrian Mendoza Alvarez en PEMEX, su fecha de baja o eventual reinstalacion, que ocurrio con el juicio laboral 138/87, si hubo pagos y a quien, y si existen derechos a prestaciones, pension, SAR 92 o AFORE que pudieran corresponder legalmente a beneficiarios; NO presumir dinero adeudado.
+
+**Identificadores y pruebas:**
+- PEMEX, ficha historica **952924**; **tarjeta de trabajo 80527** (identificadores diferentes). Centro de trabajo mencionado: Estacion Juarez, Chiapas.
+- Original escaneado familiar **CCF_000001.pdf**, pagina 1 (12 paginas en total); extraccion seleccionada **01_Tarjeta_contratacion_PEMEX_1983.pdf**. Se verifico visualmente en esta sesion la tarjeta 80527, la ficha 952924, la fecha 05-jul-1983, contratacion transitoria y una anotacion manuscrita inferior que parece decir **"Solicito mi reinstalacion"**. **Alcance:** prueba una solicitud/anotacion, NO orden judicial, alta posterior ni reincorporacion efectiva. Fecha y autor de la nota manuscrita no establecidos.
+- Expediente **138/87**, Junta Especial 12; escrito fechado **08-oct-1990** alude a laudo **07-nov-1988** e incidente de liquidacion; se menciono 20% de incapacidad permanente parcial en el escrito. Falta obtener laudo original, resolucion del incidente y constancias de cumplimiento.
+- Adrián fallecio en **2021**, segun informacion familiar aportada el 30-oct-2026. Ultimo periodo trabajado es **desconocido**: se ha mencionado tentativamente 1993-1995 y posibilidad de que continuara en PEMEX, sin prueba de reincorporacion o fecha de baja.
+- **Lucia Hernandez Rincon**, viuda, es interesada potencial para solicitudes legales. Se deben confirmar interes juridico y requisitos de acceso a datos de persona fallecida por canal oficial; no colocar su INE ni datos sensibles en el repositorio.
+
+**Gestiones realizadas segun el propietario y correos revisados:**
+- **PEMEX:** folio PNT **340023800388726**. Prevencion recibida el 22-oct-2026 solicitando mejores elementos; el propietario confirma **enviado el 30-oct-2026** correo de respuesta con anexos historicos seleccionados (tarjeta de contratacion, actuaciones 138/87, oficio PROFEDET 1996). No se envio INE ni documentos medicos en esa seleccion. Esperar respuesta, conservar acuse y verificar plazo/canal formal.
+- **JFCA:** solicitud de localizacion documental enviada **18-oct-2026**. Respuesta de Unidad de Transparencia del **22-oct-2026** la trato como asesoria juridica y remitio a PROFEDET, **sin informar ubicacion del expediente, laudo ni pagos**. Se preparo borrador aclarando expresamente que se solicitan **ARCHIVOS, no ASESORIA**: custodio del expediente, laudo, incidente de liquidacion, actuaciones finales, comprobantes de posible cumplimiento 1992-1995 y requisitos de acceso. Propietario confirma **enviado el 30-oct-2026**. No se presume saldo ni se afirma que la Junta nego la existencia del expediente.
+- **PROFEDET:** oficio historico de 1996 dentro de anexos; canal de asesoria sugerido por JFCA. No consta en este corte nueva solicitud o respuesta especifica.
+- **SAR/AFORE:** investigar por canales oficiales CONSAR/AforeWeb/SARTEL si existen cuentas, SAR 92, recursos transferidos o regimen de jubilacion propio de PEMEX. La creacion de SAR 92 no demuestra que Adrián haya cotizado; requiere NSS/CURP y procedimiento legitimo para beneficiarios, sin publicar identificadores personales.
+
+**Documentos seleccionados conocidos:** `01_Tarjeta_contratacion_PEMEX_1983.pdf`, `02_Antecedentes_expediente_laboral_138-87.pdf`, `03_Oficio_PROFEDET_1996.pdf`, `ANEXOS_PEMEX_Adrian_Mendoza_para_revision.pdf` (5 paginas). En el original de 12 paginas quedaron reservados para cotejo documento sindical p.2, documento medico p.7, INE de Lucia p.8 y actuaciones 2020 pp.9-12; no inferir irrelevancia definitiva.
+
+**Siguientes pasos:** 1) esperar y registrar respuestas de PEMEX/JFCA y numero de expediente/acuse; 2) solicitar historial real de altas, bajas, reinstalacion, antiguedad y regimen de retiro; 3) obtener copia integra de laudo y constancias de cumplimiento/beneficiarios; 4) revisar documentalmente posibles aportaciones SAR 92/AFORE y tramite de beneficiarios; 5) evaluar con profesional competente vigencia y legitimacion de cualquier reclamacion, sin prometer recuperacion. Mantener separadas acciones realizadas, evidencias directas, hipotesis y pendientes.
+
+**Integridad:** anotacion documental local del 30-oct-2026; sin correos enviados por esta actualizacion, sin cambios en Jarvis funcional, sin despliegue.
+
+## Correccion de regresiones CI 2026-10-30 — Jarvis V142
+
+- GitHub Actions run 41002914571, HEAD db3cb7abb229: 5 fallos identicos en Windows y Ubuntu; 4 por `constrainExplicitGitStatusContract is not defined` en contexto aislado de prueba y 1 por discrepancia de etiqueta de caché del grafo critico.
+- Diagnostico: `constrainExplicitGitStatusContract` SI existe y se importa en produccion; faltaba inyectarla al `runInNewContext` de `tests/jarvis-repository-mission-contract.test.mjs`. Corregida la prueba, sin eliminar la restriccion de herramientas.
+- `tests/jarvis-mobile-web-research-recovery-v142.test.mjs`: se enumeraron estrictamente las excepciones reales para `/modules/terminal/proposal-state.js` (`v142-owner-upload-preflight-20261029-v7`) y `/modules/terminal/jarvis-attachments.js` (`v142-owner-visual-batch-20261029-v9`), conservando validacion de todas las demas rutas.
+- Evidencia focal local: `node --test tests/jarvis-repository-mission-contract.test.mjs tests/jarvis-mobile-web-research-recovery-v142.test.mjs` = **29 PASS, 0 FAIL, 0 SKIP**; `git diff --check` sin errores. Ninguna prueba E2E fisica ni CI completa demostrada por estas pruebas locales.
+- Estado: cambios locales, pendientes commit/push y nueva certificacion Windows/Ubuntu; no desplegar produccion por implicacion.

@@ -83,6 +83,8 @@ test("v142 critical ADJUNTO boot graph is release-aligned and cannot bypass the 
     // any import merely because another import happens to use that version.
     const versionedEntries = new Map([
         ["../gestia-terminal.html|/gestia-core/gestia-core.js", "v142-local-mission-cancel-20261021-v1"],
+        ["../gestia-terminal.html|/modules/terminal/proposal-state.js", "v142-owner-upload-preflight-20261029-v7"],
+        ["../gestia-terminal.html|/modules/terminal/jarvis-attachments.js", "v142-owner-visual-batch-20261029-v9"],
         ["../gestia-core/jarvis/jarvis.actuator.pack.js|./jarvis.image.adapter.js", "v142-local-ad-composition-20261002"]
     ]);
     const seenEntries = new Set();
