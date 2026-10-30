@@ -461,6 +461,21 @@ export function renderManifest(m){
  '**Qué se corrigió:** '+esc(m.mobileVisualBatchGuard20261029.implemented),
  '**Alcance:** '+esc(m.mobileVisualBatchGuard20261029.scope),
  '',
+ '### Cierre nocturno 2026-10-29 - continuidad verificable','',
+ '**Estado del cierre:** '+code(m.nightHandoff20261029.status)+'.',
+ '**Equipo principal:** '+code(m.nightHandoff20261029.authorizedDevice)+
+   ' / **auxiliar:** '+code(m.nightHandoff20261029.secondaryDevice)+
+   ' / **rama:** '+code(m.nightHandoff20261029.branch)+'.',
+ '**HEAD previo:** '+code(m.nightHandoff20261029.verifiedHeadBeforeHandoff.slice(0,8))+
+   ' / **arbol previo:** '+code(m.nightHandoff20261029.verifiedWorkingTreeBeforeHandoff)+'.',
+ '**Puertos locales comprobados:** '+m.nightHandoff20261029.localPortsObserved.map(code).join(', ')+'.','',
+ '**Avances registrados:**','',
+ ...m.nightHandoff20261029.done.map(x=>'- '+esc(x)),
+ '', '**Pendientes reales:**','',
+ ...m.nightHandoff20261029.notProven.map(x=>'- '+esc(x)),
+ '', '**Proximo paso unico:** '+esc(m.nightHandoff20261029.nextSingleStep),
+ '**Autoridad:** '+esc(m.nightHandoff20261029.authority),
+ '**Al dormir:** '+esc(m.nightHandoff20261029.sleepProcedure),'',
  ...renderPrivateProductStrategy(m),
  ...renderOwnerNorthStar(m),
  ...renderGeneralPurposeAssistant(m),

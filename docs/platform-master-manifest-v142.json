@@ -1,5 +1,31 @@
 {
   "schemaVersion": "platform-master-v142-1",
+  "nightHandoff20261029": {
+    "date": "2026-10-29",
+    "status": "MANIFIESTO_VERIFICADO_LOCALMENTE_23_PASS_0_FAIL",
+    "authorizedDevice": "adjunto-jarvis",
+    "secondaryDevice": "Heberto-Mendoza-Laptop",
+    "branch": "v142-official",
+    "verifiedHeadBeforeHandoff": "db3cb7abb229bda134102a87003bb76b0b17dd46",
+    "verifiedWorkingTreeBeforeHandoff": "CLEAN",
+    "localPortsObserved": ["5000", "3344", "3345", "11434"],
+    "done": [
+      "MOB-REFRESH boton Actualizar registrado y confirmado previamente por propietario; no reabrir como ausente.",
+      "MOB-STOP-BUTTON visible y activado; recuperacion de primer plano corregida en db5fca06; no confundir con cancelacion completa de herramientas largas.",
+      "MOB-PHOTO-UPLOAD y MOB-VIDEO-UPLOAD registrados con SHA; lectura Qwen local de imagen y tres fotogramas ya entregada en Android.",
+      "Proteccion de lotes visuales superiores a cuatro archivos implementada en db3cb7ab, con prueba Chrome a 375px; no es prueba fisica Android nueva.",
+      "Repositorio v142-official limpio y ambos equipos accesibles al corte; los cuatro puertos locales de adjunto-jarvis escuchaban."
+    ],
+    "notProven": [
+      "No se ha certificado una mision movil completa de extremo a extremo para todas las clases de archivo.",
+      "No se ha demostrado cancelacion efectiva de herramientas remotas largas ni relanzamiento sin busy en Android fisico.",
+      "No se ha comprobado publicacion de HEAD en Firebase Hosting; no desplegar implicitamente.",
+      "La expresion solo lectura del chat anterior no prueba bloqueo del repositorio; el catalogo movil tiene permisos de herramienta mas acotados."
+    ],
+    "nextSingleStep": "En la proxima sesion probar una sola mision movil autenticada desde Android con imagen o video, verificar respuesta y recuperacion de Detener sin inventar VERIFIED_COMPLETE; diagnosticar el codigo concreto de falla antes de modificar.",
+    "authority": "Un solo escritor; Qwen3.5:9b local; sin proveedores externos, sin ramas adicionales y sin despliegue de produccion automatico.",
+    "sleepProcedure": "Al indicar el propietario que va a dormir: registrar manifiesto, verificar commit y arbol limpio y ordenar apagado controlado de adjunto-jarvis; mantener Heberto-Mendoza-Laptop encendida y no deshabilitar el autoarranque diario."
+  },
   "mobileVerifiedCapabilities20261029": [
     {
       "id": "MOB-REFRESH",

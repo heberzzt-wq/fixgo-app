@@ -331,6 +331,32 @@ JARVIS-12 sigue abierto solo para interrupción efectiva de herramientas largas;
 **Qué se corrigió:** Terminal muestra limite claro, conserva mensaje y archivos originales, no llama al planificador ni a Qwen cuando hay cinco o mas adjuntos visuales.
 **Alcance:** Prueba de navegacion en Chrome a 375px; no certifica dispositivo Android fisico nuevo, ni cambia el limite total del relay.
 
+### Cierre nocturno 2026-10-29 - continuidad verificable
+
+**Estado del cierre:** `MANIFIESTO_VERIFICADO_LOCALMENTE_23_PASS_0_FAIL`.
+**Equipo principal:** `adjunto-jarvis` / **auxiliar:** `Heberto-Mendoza-Laptop` / **rama:** `v142-official`.
+**HEAD previo:** `db3cb7ab` / **arbol previo:** `CLEAN`.
+**Puertos locales comprobados:** `5000`, `3344`, `3345`, `11434`.
+
+**Avances registrados:**
+
+- MOB-REFRESH boton Actualizar registrado y confirmado previamente por propietario; no reabrir como ausente.
+- MOB-STOP-BUTTON visible y activado; recuperacion de primer plano corregida en db5fca06; no confundir con cancelacion completa de herramientas largas.
+- MOB-PHOTO-UPLOAD y MOB-VIDEO-UPLOAD registrados con SHA; lectura Qwen local de imagen y tres fotogramas ya entregada en Android.
+- Proteccion de lotes visuales superiores a cuatro archivos implementada en db3cb7ab, con prueba Chrome a 375px; no es prueba fisica Android nueva.
+- Repositorio v142-official limpio y ambos equipos accesibles al corte; los cuatro puertos locales de adjunto-jarvis escuchaban.
+
+**Pendientes reales:**
+
+- No se ha certificado una mision movil completa de extremo a extremo para todas las clases de archivo.
+- No se ha demostrado cancelacion efectiva de herramientas remotas largas ni relanzamiento sin busy en Android fisico.
+- No se ha comprobado publicacion de HEAD en Firebase Hosting; no desplegar implicitamente.
+- La expresion solo lectura del chat anterior no prueba bloqueo del repositorio; el catalogo movil tiene permisos de herramienta mas acotados.
+
+**Proximo paso unico:** En la proxima sesion probar una sola mision movil autenticada desde Android con imagen o video, verificar respuesta y recuperacion de Detener sin inventar VERIFIED_COMPLETE; diagnosticar el codigo concreto de falla antes de modificar.
+**Autoridad:** Un solo escritor; Qwen3.5:9b local; sin proveedores externos, sin ramas adicionales y sin despliegue de produccion automatico.
+**Al dormir:** Al indicar el propietario que va a dormir: registrar manifiesto, verificar commit y arbol limpio y ordenar apagado controlado de adjunto-jarvis; mantener Heberto-Mendoza-Laptop encendida y no deshabilitar el autoarranque diario.
+
 ## Decision estrategica del propietario - ADJUNTO privado (2026-10-23)
 
 **Identidad y posicionamiento:** ADJUNTO es infraestructura operativa privada de Peninsula Tech, no un producto IA para vender al publico ni un competidor de ChatGPT/Gemini/Claude.
