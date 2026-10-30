@@ -777,6 +777,7 @@ export function installJarvisLocalBridgeTransport() {
                                     {"X-Jarvis-Private-Relay": "owner-upload-v142"} : {}),
                                 ...(((path === "/semantic/plan" &&
                                     payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION") ||
+                                    (path === "/semantic/respond" && payload?.semanticStage === "OWNER_UPLOADED_MEDIA_REVIEW") ||
                                     path === "/workstation/health" ||
                                     path === "/qwen-isolated/evidence" ||
                                     path === "/qwen-isolated/verify" ||

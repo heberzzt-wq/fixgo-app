@@ -18,6 +18,7 @@ import {createQwenArtifactPreview} from './jarvis-qwen-artifact-preview.js';
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
 import { createQwenDecisionHandler } from "./jarvis-qwen-decision-http.js";
 import {localAsrHealth} from "./jarvis-qwen-local-asr.js";
+import {analyzeLocalUploadedMediaBatch} from "./jarvis-local-media-review.js";
 import {createLocalCandidateRanker} from './gestia-core/jarvis/jarvis.local.retrieval.js';
 import {inspectPublicHtmlSource} from './jarvis-public-html-inspect.js';
 import { JARVIS_LOCAL_MODEL } from './gestia-core/jarvis/jarvis.local.policy.js';
@@ -1907,7 +1908,31 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, semanticStage, onProgress = () => {}, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = true, signal } = {}) {
+        async respond({ input, maxOutputTokens = 160, semanticStage, localMediaReview = null, onProgress = () => {}, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = true, signal } = {}) {
+            if (semanticStage === "OWNER_UPLOADED_MEDIA_REVIEW") {
+                if (!localMediaReview || typeof input !== "string" ||
+                    input.length > 1000 || !Array.isArray(localMediaReview.attachments) ||
+                    localMediaReview.attachments.length < 1 || localMediaReview.attachments.length > 4) {
+                    throw new Error("LOCAL_MEDIA_REVIEW_REQUEST_INVALID");
+                }
+                const attachments = localMediaReview.attachments.map(item => ({
+                    output: item?.output,
+                    sha256: item?.sha256
+                }));
+                const result = await analyzeLocalUploadedMediaBatch({
+                    root, attachments, question: input, signal,
+                    extractTemporal: extractTemporalMediaArtifact,
+                    readArtifact: readArtifactPayload,
+                    onProgress: data => onProgress({
+                        stage: "local_media_review", ...data
+                    })
+                });
+                return {
+                    ...result, localSemanticInferenceUsed: true,
+                    cloudSemanticInferenceUsed: false,
+                    verifiedSourceDataOnly: true
+                };
+            }
             const effectiveTimeoutMs = noDeadline === true
                 ? null
                 : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
@@ -7263,7 +7288,16 @@ export function createJarvisFsBridgeApp({
             ? qwenDecision(req, res)
             : legacySemanticPlan(req, res));
 
-    app.post("/semantic/respond", semanticResponseHandler(semanticEngine));
+    const authorizeOwnerVisualSemantic = createWorkstationAuthorization({
+        identity: requestIdentity, verifyIdToken: verifyBrowserIdToken,
+        ownerUid: workstationRelay.ownerUid
+    });
+    app.post("/semantic/respond", async (req, res, next) => {
+        if (req.body?.semanticStage === "OWNER_UPLOADED_MEDIA_REVIEW") {
+            if (!(await authorizeOwnerVisualSemantic(req, res))) return;
+        }
+        next();
+    }, semanticResponseHandler(semanticEngine));
 
     app.post("/observability/snapshot", (req, res) => {
         try {

@@ -671,10 +671,34 @@ function initialize() {
     input.addEventListener("change", async () => { await acceptFiles(input.files); input.value = ""; });
 }
 
+function prepareVisualReview(question = "") {
+    const source = String(question || "").trim();
+    const normalized = source.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    // The owner explicitly asked to examine the selected image/video files.
+    // Other requests keep the existing Qwen mission planner unchanged.
+    if (source && !/(?:que ves|que observas|que hay en|que contiene|describe|describeme|analiza|analizar|revisa|revisar|explica|muestra|mira)/.test(normalized)) {
+        return null;
+    }
+    if (!state.items.length || state.items.length > 4 ||
+        state.items.some(item =>
+            item.status !== "ready" ||
+            !/^\.jarvis-artifacts\/uploads\/[a-z0-9._/-]+$/i.test(String(item.output || "")) ||
+            !/^[a-f0-9]{64}$/i.test(String(item.saved?.sha256 || "")) ||
+            !/\.(?:jpe?g|png|webp|mp4|webm|mov)$/i.test(String(item.output || ""))
+        )) return null;
+    return {
+        question: source.slice(0, 1000) || "Que ves en los archivos adjuntos?",
+        attachments: state.items.map(item => ({
+            name: itemName(item), mimeType: itemType(item),
+            artifact: item.output, sha256: item.saved.sha256
+        }))
+    };
+}
 export const JarvisAttachments = {
     version: VERSION,
     acceptFiles,
     composePrompt,
+    prepareVisualReview,
     inspectAttachmentBatch,
     clear,
     hasFiles: () => state.items.length > 0,

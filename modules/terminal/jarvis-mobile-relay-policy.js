@@ -186,5 +186,6 @@ export function boundMobileRelayRepoAuditGraph(route,payload,value,{maxBytes=384
 
 export function mobileRelayNeedsFreshOwnerToken(route,payload){
  return JARVIS_MOBILE_UPLOAD_ROUTES.includes(route) || route==='/semantic/plan'&&payload?.missionState?.phase==='DIRECT_READ_ONLY_ACTION'||
+  route==='/semantic/respond'&&payload?.semanticStage==='OWNER_UPLOADED_MEDIA_REVIEW'||
   ['/qwen-isolated/evidence','/qwen-isolated/verify'].includes(route);
 }

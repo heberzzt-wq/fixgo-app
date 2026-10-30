@@ -514,7 +514,7 @@ fetch("/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001")
 <script type="module" src="/firebase.js"></script>
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=v142-owner-upload-preflight-20261029-v7"></script>
-<script type="module" src="/modules/terminal/jarvis-attachments.js?v=v142-owner-upload-preflight-20261029-v7"></script>
+<script type="module" src="/modules/terminal/jarvis-attachments.js?v=v142-owner-visual-review-20261029-v8"></script>
 <script type="module" src="/gestia-core/gestia-core.js?v=v142-local-mission-cancel-20261021-v1"></script>
 <script type="module" src="/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001"></script>
 <script
@@ -2057,6 +2057,56 @@ window.unlockJarvisVoice = function() {
                             `Ejecuciones efectivas de marketing.plan: ${Number(localResult.executionCount || 0)}`
                         ].join("\n"),
                         localResult.status === "MARKETING_INPUT_REQUIRED" ? "warning" : "success"
+                    );
+                    handled = true;
+                    return;
+                }
+
+                // Read-only visual inspection of explicit owner uploads:
+                // use the existing registered media.analyze tool and authorized
+                // local semantic response, avoiding a giant Qwen planning context.
+                const visualReview = window.JarvisAttachments?.prepareVisualReview?.(rawCommand);
+                if (visualReview) {
+                    const transport = window.JarvisLocalBridge;
+                    const tools = window.ToolsBridge;
+                    if (typeof transport?.requestJson !== "function" ||
+                        typeof tools?.executeMany !== "function") {
+                        throw new Error("LOCAL_MEDIA_REVIEW_HOST_NOT_CONNECTED");
+                    }
+                    const observations = await tools.executeMany([{
+                        name: "media.analyze",
+                        args: { attachments: visualReview.attachments },
+                        approved: false
+                    }], {
+                        rawInput: rawCommand,
+                        writeAllowed: false, approved: false,
+                        localUploadedMediaReview: async request => {
+                            // A fresh owner token is used only for the local
+                            // workstation HTTP request. The private relay
+                            // obtains its own owner token, never from Firestore.
+                            const idToken = await window.auth?.currentUser?.getIdToken?.();
+                            return transport.requestJson("/semantic/respond", {
+                                input: request.question,
+                                semanticStage: "OWNER_UPLOADED_MEDIA_REVIEW",
+                                localMediaReview: { attachments: request.attachments }
+                            }, {
+                                signal: localMissionAbortController?.signal,
+                                ...(idToken ? { idToken } : {})
+                            });
+                        }
+                    });
+                    const verified = observations?.[0]?.observations?.[0]?.data || null;
+                    if (verified?.status !== "LOCAL_MEDIA_REVIEW_PARTIAL_UNVERIFIED" ||
+                        verified?.localOnly !== true ||
+                        verified?.objectiveSatisfied !== false ||
+                        typeof verified?.message !== "string") {
+                        throw new Error(verified?.error || verified?.status ||
+                            "LOCAL_MEDIA_REVIEW_NOT_VERIFIED");
+                    }
+                    window.renderJarvisResponse?.(
+                        "ADJUNTO - lectura visual local",
+                        verified.message,
+                        "info"
                     );
                     handled = true;
                     return;
