@@ -43,6 +43,8 @@ test('a single image gets an independent Qwen call with SHA proof and no cloud e
  assert.equal(results.independentlyVerified,false);
  assert.equal(results.objectiveSatisfied,false);
  assert.equal(results.externalApiUsed,false);
+ assert.equal(results.ownerReport.status,'LOCAL_MEDIA_OWNER_REPORT_PARTIAL');
+ assert.match(results.ownerReport.text,/En la fotografía, Qwen describe/);
 });
 test('video gets individually bounded Qwen frame calls and reports audio unknown, not invented',async t=>{
  const f=makeFixture(t);
@@ -73,6 +75,8 @@ test('video gets individually bounded Qwen frame calls and reports audio unknown
  assert.equal(source.fullVideoSemanticVerification,false);
  assert.equal(results.objectiveSatisfied,false);
  assert.equal(source.frames[2].timestampSeconds,2.1);
+ assert.match(results.ownerReport.text,/Fotograma a 2\.10 segundos/);
+ assert.match(results.ownerReport.text,/no fue transcrito ni analizado/);
 });
 test('video fail-closed on forged temporal outputs and SHA mismatches',async t=>{
  const f=makeFixture(t);
@@ -117,4 +121,28 @@ test('video source bytes and duration must be physical and bounded',async t=>{
   readArtifact:async()=>{throw Error('SHOULD_NOT_READ')},
   fetchImpl:async()=>{throw Error('SHOULD_NOT_FETCH')}
  }),/LOCAL_VISION_DURATION_OUT_OF_RANGE/);
+});
+
+test('uploaded image batch requires a certified source SHA before Qwen is called',async t=>{
+ const f=makeFixture(t);let fetches=0;
+ await assert.rejects(()=>analyzeLocalUploadedMediaBatch({root:f.root,
+   attachments:[{output:f.image}],extractTemporal:async()=>{throw Error('NO_VIDEO')},
+   readArtifact:async()=>{throw Error('NO_ARTIFACT')},
+   fetchImpl:async()=>{fetches++;throw Error('SHOULD_NOT_FETCH')}
+ }),/LOCAL_VISION_SOURCE_HASH_REQUIRED/);
+ assert.equal(fetches,0);
+});
+test('video sample timestamps must be distinct, ordered and within its actual duration',async t=>{
+ const f=makeFixture(t),prefix='.jarvis-artifacts/media-evidence/'+f.videoHash.slice(0,20)+'/';
+ const makeSamples=times=>times.map((v,i)=>({output:prefix+'frame-'+String(i+1).padStart(3,'0')+'.jpg',
+   mimeType:'image/jpeg',sha256:f.imageHash,timestampSeconds:v}));
+ for(const times of [[1,1],[1,0.5],[0,3],[0,-1]]){
+  await assert.rejects(()=>analyzeLocalUploadedMediaBatch({
+   root:f.root,attachments:[{output:f.video,sha256:f.videoHash}],
+   extractTemporal:async()=>({ok:true,output:f.video,sha256:f.videoHash,
+     temporal:{durationSeconds:2.34,samples:makeSamples(times)}}),
+   readArtifact:async()=>{throw Error('SHOULD_NOT_READ')},
+   fetchImpl:async()=>{throw Error('SHOULD_NOT_FETCH')}
+  }),/LOCAL_VISION_TEMPORAL_FRAME_PROOF_INVALID/);
+ }
 });

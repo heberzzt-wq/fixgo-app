@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {readBoundedLocalImage,analyzeLocalImageBytes} from './jarvis-local-upload-vision.js';
+import {formatLocalMediaOwnerReport} from './jarvis-local-media-owner-report.js';
 
 const UPLOAD_PREFIX='.jarvis-artifacts/uploads/';
 const MAX_VIDEO_BYTES=8*1024*1024;
@@ -53,7 +54,9 @@ function validateTemporalSamples(extracted,source){
  for(const [i,sample] of samples.entries()){
    if(sample.output!==allowedPrefix+'frame-'+String(i+1).padStart(3,'0')+'.jpg'||
       sample.mimeType!=='image/jpeg'||!/^[a-f0-9]{64}$/i.test(String(sample.sha256||''))||
-      !Number.isFinite(sample.timestampSeconds)||sample.timestampSeconds<0)
+      !Number.isFinite(sample.timestampSeconds)||sample.timestampSeconds<0||
+      sample.timestampSeconds>duration||
+      (i>0 && sample.timestampSeconds<=samples[i-1].timestampSeconds))
       throw error('LOCAL_VISION_TEMPORAL_FRAME_PROOF_INVALID');
  }
  return samples;
@@ -73,6 +76,7 @@ export async function analyzeLocalUploadedMediaBatch({
    const expectedSha256=String(attachment?.sha256||'');
    const name=path.basename(output);
    if(imageType(output)){
+     if(!/^[a-f0-9]{64}$/i.test(expectedSha256))throw error('LOCAL_VISION_SOURCE_HASH_REQUIRED');
      const source=readBoundedLocalImage({root,output,expectedSha256});
      const inspected=await analyzeLocalImageBytes({imageBytes:source.bytes,
        mimeType:source.mimeType,expectedSha256:source.sha256,
@@ -112,11 +116,12 @@ export async function analyzeLocalUploadedMediaBatch({
        visualInferenceCompleted:true,independentlyVerified:false,sourceIdentityVerified:true});
    } else throw error('LOCAL_VISION_UNSUPPORTED_ATTACHMENT');
  }
- return {ok:true,status:'LOCAL_MEDIA_BATCH_INTERPRETATIONS_PARTIAL',
+ const result={ok:true,status:'LOCAL_MEDIA_BATCH_INTERPRETATIONS_PARTIAL',
    model:'qwen3.5:9b',sourceCount:descriptions.length,sources:descriptions,
    completeFileReceiptCount:descriptions.length,
    sourceIdentityVerified:true,visualInferenceCompleted:true,
    independentlyVerified:false,objectiveSatisfied:false,
    noFalseAudioClaims:true,externalApiUsed:false,
    note:'Descripción interpretativa por imagen o fotograma; no revisión visual independiente ni transcripción del audio.'};
+ return {...result,ownerReport:formatLocalMediaOwnerReport(result)};
 }
