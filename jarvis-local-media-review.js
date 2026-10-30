@@ -6,6 +6,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {readBoundedLocalImage,analyzeLocalImageBytes} from './jarvis-local-upload-vision.js';
 import {formatLocalMediaOwnerReport} from './jarvis-local-media-owner-report.js';
+import {requireLocalVisionSession} from './jarvis-local-vision-session.js';
 
 const UPLOAD_PREFIX='.jarvis-artifacts/uploads/';
 const MAX_VIDEO_BYTES=8*1024*1024;
@@ -63,8 +64,9 @@ function validateTemporalSamples(extracted,source){
 }
 export async function analyzeLocalUploadedMediaBatch({
  root=process.cwd(),attachments=[],question='',extractTemporal,readArtifact,
- fetchImpl=globalThis.fetch,signal,onProgress=()=>{}
+ fetchImpl=globalThis.fetch,signal,onProgress=()=>{},reviewSession=null
 }={}){
+ const session=requireLocalVisionSession(reviewSession);
  if(!Array.isArray(attachments)||attachments.length<1||attachments.length>4)
    throw error('LOCAL_VISION_BATCH_SIZE_INVALID');
  if(typeof extractTemporal!=='function'||typeof readArtifact!=='function')
@@ -78,9 +80,12 @@ export async function analyzeLocalUploadedMediaBatch({
    if(imageType(output)){
      if(!/^[a-f0-9]{64}$/i.test(expectedSha256))throw error('LOCAL_VISION_SOURCE_HASH_REQUIRED');
      const source=readBoundedLocalImage({root,output,expectedSha256});
-     const inspected=await analyzeLocalImageBytes({imageBytes:source.bytes,
-       mimeType:source.mimeType,expectedSha256:source.sha256,
-       question,fetchImpl,signal});
+     const observationMeta={output,sha256:source.sha256,question:String(question||'')};
+     const inspected=session?await session.observe(observationMeta,
+       ()=>analyzeLocalImageBytes({imageBytes:source.bytes,mimeType:source.mimeType,
+       expectedSha256:source.sha256,question,fetchImpl,signal})):
+       await analyzeLocalImageBytes({imageBytes:source.bytes,mimeType:source.mimeType,
+       expectedSha256:source.sha256,question,fetchImpl,signal});
      descriptions.push({sourceIndex:fileIndex+1,sourceName:name,kind:'image',
        output,sha256:source.sha256,observation:inspected.description,
        independentlyVerified:false,visualInferenceCompleted:true,
@@ -99,10 +104,14 @@ export async function analyzeLocalUploadedMediaBatch({
        // The existing extractor supplies frames with independently checked
        // physical identity. Qwen's natural-language observations remain unverified.
        const bytes=Buffer.from(String(artifact.dataBase64||''),'base64');
-       const inspected=await analyzeLocalImageBytes({imageBytes:bytes,
-         mimeType:'image/jpeg',expectedSha256:frame.sha256,
-         question:'Un fotograma a '+frame.timestampSeconds+' segundos. '+String(question||'').slice(0,750),
-         fetchImpl,signal});
+       const frameQuestion='Un fotograma a '+frame.timestampSeconds+' segundos. '+String(question||'').slice(0,750);
+       const frameMeta={output:frame.output,sha256:frame.sha256,
+         question:frameQuestion,frameTimestamp:frame.timestampSeconds};
+       const inspected=session?await session.observe(frameMeta,
+         ()=>analyzeLocalImageBytes({imageBytes:bytes,mimeType:'image/jpeg',
+         expectedSha256:frame.sha256,question:frameQuestion,fetchImpl,signal})):
+         await analyzeLocalImageBytes({imageBytes:bytes,mimeType:'image/jpeg',
+         expectedSha256:frame.sha256,question:frameQuestion,fetchImpl,signal});
        frames.push({timestampSeconds:frame.timestampSeconds,
          frameSha256:frame.sha256,observation:inspected.description,
          independentlyVerified:false});
@@ -123,5 +132,6 @@ export async function analyzeLocalUploadedMediaBatch({
    independentlyVerified:false,objectiveSatisfied:false,
    noFalseAudioClaims:true,externalApiUsed:false,
    note:'Descripción interpretativa por imagen o fotograma; no revisión visual independiente ni transcripción del audio.'};
- return {...result,ownerReport:formatLocalMediaOwnerReport(result)};
+ return {...result,ownerReport:formatLocalMediaOwnerReport(result),
+   ...(session?{reviewProgress:session.snapshot()}: {})};
 }
