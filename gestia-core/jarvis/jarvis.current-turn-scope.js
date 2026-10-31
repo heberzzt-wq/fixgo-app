@@ -71,6 +71,33 @@ export function explicitSingleRepositoryReadScope(instruction = "") {
     return {file, startLine, endLine};
 }
 
+/** Read-only audit of the canonical mission ledger; never invent a tool run. */
+export function auditExplicitRepositoryRead({instruction="",completedTasks=[],blockedTasks=[]}={}) {
+    const scope=explicitSingleRepositoryReadScope(instruction);
+    if(!scope)return null;
+    const attempts=[...completedTasks,...blockedTasks].filter(task=>task?.name==="repo.read");
+    const correct=task=>{
+        const file=String(task.args?.file||task.args?.path||"").split(String.fromCharCode(92)).join("/");
+        return file===scope.file && Number(task.args?.startLine)===scope.startLine &&
+            Number(task.args?.endLine)===scope.endLine;
+    };
+    const verified=task=>{
+        const r=task.observation?.verifiedRead;
+        return correct(task) && task.observation?.ok===true &&
+            task.observation?.executionOk!==false && task.observation?.blocked!==true &&
+            r?.file===scope.file && Number(r.startLine)<=scope.startLine &&
+            Number(r.endLine)>=scope.endLine && typeof r.content==="string" &&
+            r.content.length>0 && r.contentTruncated!==true && r.truncated!==true;
+    };
+    const withinScope=attempts.filter(correct);
+    const outside=attempts.length-withinScope.length;
+    return {file:scope.file,startLine:scope.startLine,endLine:scope.endLine,
+        recordedReadAttempts:attempts.length,insideScope:withinScope.length,
+        outsideScope:outside,verifiedRequestedWindow:withinScope.some(verified),
+        exactlyOneRecordedRead:attempts.length===1 && outside===0 &&
+            withinScope.some(verified)};
+}
+
 /** Narrow an explicit Git status request without adding evidence. */
 export function constrainExplicitGitStatusContract({instruction="",toolCalls=[],objectives=[],catalog=[]}={}) {
     const s=fold(instruction);

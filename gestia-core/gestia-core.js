@@ -85,6 +85,7 @@ import {
     scopeValidatedRepositoryMission,
     jarvisRepositoryEvidenceRequest,
     explicitSingleRepositoryReadScope,
+    auditExplicitRepositoryRead,
     constrainExplicitGitStatusContract
 } from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
@@ -7253,6 +7254,13 @@ if (
             })()
             : null;
 
+    // Canonical read count comes from the executed mission ledger, not
+    // Qwen's prose. Expose it only for an explicitly bounded source request.
+    const boundedReadAudit = auditExplicitRepositoryRead({
+        instruction: inputRaw,
+        completedTasks: missionResult.completedTasks,
+        blockedTasks: missionResult.blockedTasks
+    });
     const finalResponse =
         marketingDeliverableFinalResponse ||
         semanticMissionFinalResponse ||
@@ -7261,6 +7269,17 @@ if (
         directActuatorFinalResponse ||
         missionFinalResponse ||
         null;
+    const auditExplanation = boundedReadAudit ? [
+        "Registro de esta misión (operaciones ejecutadas, no tráfico de red):",
+        "Lecturas repo.read registradas: " + boundedReadAudit.recordedReadAttempts + ".",
+        "Lecturas fuera del archivo o rango solicitado: " + boundedReadAudit.outsideScope + ".",
+        "Intervalo " + boundedReadAudit.file + " " + boundedReadAudit.startLine +
+            "-" + boundedReadAudit.endLine + " respaldado por el recibo: " +
+            (boundedReadAudit.verifiedRequestedWindow ? "sí" : "no") + "."
+    ].join("\n") : "";
+    if (auditExplanation && finalResponse && typeof finalResponse.text === "string") {
+        finalResponse.text += "\n\n" + auditExplanation;
+    }
 
     if (
         followUpPlan.primaryConfidence?.confident === true &&
@@ -7418,6 +7437,7 @@ if (
                 blockedTasks: missionResult.blockedTasks,
                 errors: missionResult.errors,
                 durationMs: missionResult.durationMs,
+                boundedReadAudit,
                 writeAllowed: false,
                 approvalRequiredForWrite: true
             },
