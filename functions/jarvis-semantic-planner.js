@@ -3729,6 +3729,7 @@ async function runModelSemanticPlanner({
                     "CONTRATO_DE_MISION: construye un plan completo para todos los objetivos explicitos de la instruccion usando exclusivamente el catalogo runtime.",
                     "Las HERRAMIENTAS_INICIALES son evidencia de una seleccion previa del mismo LLM; usalas como contexto, no como una lista fija ni como permiso para agregar capacidades no solicitadas.",
                     "Descompone la instruccion por significado en objetivos independientes y asigna a cada uno solamente las herramientas cuya descripcion y schema demuestren que satisfacen ese objetivo.",
+                    "El nombre de archivo, la rama y el intervalo de lineas delimitan una sola lectura, no son metas independientes. Si el usuario pide solo ese rango, no explores el resto del archivo. Un aviso condicional como si falla informa el error no obliga a fabricar ni investigar una falla cuando la lectura tuvo exito; no conviertas esa condicion en un objetivo adicional.",
                     "Conserva el orden de dependencias que resulte de los schemas y de los argumentos requeridos. No inventes rutas, archivos, identificadores, fuentes, artefactos ni observaciones.",
                     "Si la instruccion prohibe mutaciones, no incluyas herramientas mutantes. Las herramientas userArtifact solo son validas cuando el usuario pidio ese entregable.",
                     "Puedes repetir una herramienta cuando objetivos diferentes requieran argumentos diferentes. No dupliques la misma obligacion con los mismos argumentos.",

@@ -53,10 +53,25 @@ export function scopeJarvisToolsForQuestion(tools = []) {
 }
 
 /**
- * Narrow an explicitly single-tool Git status request to its evidenced goal.
+ * Preserve an explicit one-file source window without silently broadening it.
  * This reduces a model-proposed contract; it never supplies missing evidence
  * or certifies completion. Mixed requests retain the original contract.
  */
+/** A literal single-file window is an upper limit, not an extra task. */
+export function explicitSingleRepositoryReadScope(instruction = "") {
+    const s = fold(instruction);
+    const match = s.match(/\b(?:lee|leer|consulta|consultar|revisa|revisar)\s+(?:unicamente|solamente|solo)\s+(?:las?\s+)?lineas?\s+(\d{1,6})\s*(?:a|hasta|-)\s*(\d{1,6})\s+del?\s+archivo\s+([a-z0-9_./-]+\.(?:js|mjs|ts|cjs|py))\b/u);
+    if (!match) return null;
+    const startLine = Number(match[1]), endLine = Number(match[2]), file = match[3];
+    if (!Number.isSafeInteger(startLine) || !Number.isSafeInteger(endLine) ||
+        startLine < 1 || endLine < startLine || endLine - startLine > 999 ||
+        file.startsWith("/") || file.split("/").some(part => part === ".." || part === ".")) return null;
+    const allFiles = [...s.matchAll(/\b[a-z0-9_./-]+\.(?:js|mjs|ts|cjs|py)\b/gu)].map(found => found[0]);
+    if (allFiles.some(name => name !== file)) return null;
+    return {file, startLine, endLine};
+}
+
+/** Narrow an explicit Git status request without adding evidence. */
 export function constrainExplicitGitStatusContract({instruction="",toolCalls=[],objectives=[],catalog=[]}={}) {
     const s=fold(instruction);
     const explicit=/\b(?:unicamente|solamente|solo|utiliza|usa|consulta|ejecuta|emplea|mediante)\s+(?:(?:la|el)\s+)?(?:(?:herramienta|comando)\s+)?repo\.gitstatus\b/u.test(s);

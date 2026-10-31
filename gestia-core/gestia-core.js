@@ -84,6 +84,7 @@ import {
     scopeJarvisToolsForQuestion,
     scopeValidatedRepositoryMission,
     jarvisRepositoryEvidenceRequest,
+    explicitSingleRepositoryReadScope,
     constrainExplicitGitStatusContract
 } from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
@@ -5025,6 +5026,38 @@ if (
             missionContractEvidenceObjectives = scopedGitStatus.objectives;
         }
     }
+    // The owner requested one literal source window. Keep the same model's
+    // evidence obligations, but prohibit unsolicited expansion of that read.
+    const explicitNarrowReadScope = lastMissionContractError === null
+        ? explicitSingleRepositoryReadScope(effectiveMissionInstruction) : null;
+    const narrowReadAllowed = explicitNarrowReadScope &&
+        missionToolCatalog.some(tool => tool?.name === "repo.read" &&
+            tool.mutates === false && tool.requiresApproval !== true) &&
+        missionContractToolCalls.some(call => call?.name === "repo.read" &&
+            normalizeObservationFilePath(call?.args?.file || call?.args?.path || "") === explicitNarrowReadScope.file);
+    if (narrowReadAllowed) {
+        missionContractToolCalls = [{
+            name: "repo.read", args: {...explicitNarrowReadScope},
+            approved: false, reason: "USER_EXPLICIT_SOURCE_WINDOW"
+        }];
+    }
+    const singleSourceWindow = narrowReadAllowed ? explicitNarrowReadScope : null;
+    const allowedSingleSourceAction = call => !singleSourceWindow ||
+        (call?.name === "repo.read" &&
+         normalizeObservationFilePath(call?.args?.file || call?.args?.path || "") === singleSourceWindow.file &&
+         Number(call?.args?.startLine) === singleSourceWindow.startLine &&
+         Number(call?.args?.endLine) === singleSourceWindow.endLine);
+    const alreadyReadSingleSource = mission => Boolean(singleSourceWindow &&
+        mission?.completedTasks?.some(task => {
+            const read = task?.observation?.verifiedRead;
+            return task.name === "repo.read" && task.observation?.ok === true &&
+                task.observation?.executionOk !== false &&
+                read?.file === singleSourceWindow.file &&
+                Number(read?.startLine) <= singleSourceWindow.startLine &&
+                Number(read?.endLine) >= singleSourceWindow.endLine &&
+                read?.contentTruncated !== true && read?.truncated !== true &&
+                typeof read?.content === "string" && read.content.length > 0;
+        }));
     const repositoryContractCatalog = scopeValidatedRepositoryMission({
         catalog: missionToolCatalog, toolCalls: missionContractToolCalls,
         objectives: missionContractEvidenceObjectives, validated: lastMissionContractError === null
@@ -5376,6 +5409,8 @@ if (
 
                             const nextCompletionAuditToolCall =
                                 completionAuditToolCalls.find(call =>
+                                    allowedSingleSourceAction(call) &&
+                                    !alreadyReadSingleSource(mission) &&
                                     !resolvedAuditSignatures.has(
                                         `${call.name}:${JSON.stringify(call.args || {})}`
                                     )
@@ -5508,7 +5543,8 @@ if (
                             }
                         );
                     return {
-                        toolCalls: nextToolCalls.slice(0, 1),
+                        toolCalls: alreadyReadSingleSource(mission) ? [] :
+                            nextToolCalls.filter(allowedSingleSourceAction).slice(0, 1),
                         missionComplete: nextToolCalls.missionComplete === true,
                         completionAssessment: nextToolCalls.completionAssessment || null
                     };
@@ -6378,6 +6414,15 @@ if (
                         // Resolve the same production handoff after deferred format
                         // arguments have arrived, not only before their completion.
                         async () => {
+                            // A later argument-completion pass cannot widen a
+                            // single file/range explicitly limited by the owner.
+                            if (!allowedSingleSourceAction(executionCall)) return [{
+                                ok: false, executionOk: true, blocked: true,
+                                retryable: false, objectiveSatisfied: false,
+                                status: "EXPLICIT_REPOSITORY_READ_SCOPE_DENIED",
+                                error: "La operación excede el archivo o rango solicitado.",
+                                missionExecution: {name: call.name, args: executionCall.args}
+                            }];
                             if (call.name === "document.create") {
                                 const marketingArgs = marketingArtifactArgsFromCompletedTasks(missionContext.completedTasks, executionCall.args);
                                 if (marketingArgs) {

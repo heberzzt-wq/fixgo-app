@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 import { isBoundedReadOnlyMission } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 import { ensureExecutableArtifactDependencies } from "../gestia-core/jarvis/jarvis.mission.dependencies.js";
 import { mergeEvidenceGroundedToolCalls } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
-import { scopeValidatedRepositoryMission, constrainExplicitGitStatusContract } from "../gestia-core/jarvis/jarvis.current-turn-scope.js";
+import { scopeValidatedRepositoryMission, constrainExplicitGitStatusContract, explicitSingleRepositoryReadScope } from "../gestia-core/jarvis/jarvis.current-turn-scope.js";
 import { compactMissionPlannerObservation, missionEvidenceDecisionPhase } from "../gestia-core/jarvis/jarvis.mission.planner-state.js";
 import {
     recoverJarvisMission,
@@ -46,7 +46,7 @@ test("responsive repair executes the semantic inspection seed before planning re
         inputRaw: "Revisa esta interfaz y prepara una corrección responsive dentro de la autorización.",
         conversationalPlan: { requiresFinalConversation: true },
         isBoundedReadOnlyMission, ensureExecutableArtifactDependencies, mergeEvidenceGroundedToolCalls, compactMissionPlannerObservation, missionEvidenceDecisionPhase,
-        scopeValidatedRepositoryMission, constrainExplicitGitStatusContract,
+        scopeValidatedRepositoryMission, constrainExplicitGitStatusContract, explicitSingleRepositoryReadScope,
         buildJarvisMultifunctionToolCalls: async (_instruction, options) => {
             phases.push(options.missionState.phase);
             // This is the observed failure: a second contract replaces the
