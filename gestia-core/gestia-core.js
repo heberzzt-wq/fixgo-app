@@ -86,6 +86,7 @@ import {
     jarvisRepositoryEvidenceRequest,
     explicitSingleRepositoryReadScope,
     auditExplicitRepositoryRead,
+    stripModelRepositoryReadReceipt,
     constrainExplicitGitStatusContract
 } from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
@@ -6678,6 +6679,13 @@ if (
             : "Escrituras y publicaciones automaticas: no ejecutadas.";
 
     let semanticMissionFinalResponse = null;
+    // Supply canonical execution counts before Qwen drafts prose. Evidence
+    // projections may include the same read as both task and runtime result.
+    const boundedReadAudit = auditExplicitRepositoryRead({
+        instruction: inputRaw,
+        completedTasks: missionResult.completedTasks,
+        blockedTasks: missionResult.blockedTasks
+    });
     const missionEvidenceItems = buildMissionConversationEvidence(missionResult, toolObservations);
     const missionEvidenceReceipt =
         buildMissionEvidenceReceipt(
@@ -6718,6 +6726,7 @@ if (
                                 : null,
                             completionAssessment: missionResult.completionAssessment || null,
                             blocked: missionResult.blockedTasks.length > 0,
+                            boundedReadAudit,
                             verifiedArtifactDelivery
                         }
                     }, ...missionEvidenceItems],
@@ -7256,11 +7265,6 @@ if (
 
     // Canonical read count comes from the executed mission ledger, not
     // Qwen's prose. Expose it only for an explicitly bounded source request.
-    const boundedReadAudit = auditExplicitRepositoryRead({
-        instruction: inputRaw,
-        completedTasks: missionResult.completedTasks,
-        blockedTasks: missionResult.blockedTasks
-    });
     const finalResponse =
         marketingDeliverableFinalResponse ||
         semanticMissionFinalResponse ||
@@ -7278,7 +7282,8 @@ if (
             (boundedReadAudit.verifiedRequestedWindow ? "sí" : "no") + "."
     ].join("\n") : "";
     if (auditExplanation && finalResponse && typeof finalResponse.text === "string") {
-        finalResponse.text += "\n\n" + auditExplanation;
+        finalResponse.text = stripModelRepositoryReadReceipt(finalResponse.text, boundedReadAudit) +
+            "\n\n" + auditExplanation;
     }
 
     if (

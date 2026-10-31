@@ -1332,6 +1332,7 @@ export async function composeEvidenceGroundedConversation({
         (Array.isArray(evidenceItems) ? evidenceItems : [])
             .find(item => String(item?.name || item?.tool || "") === "mission.outcome")
             ?.observation;
+    const countedReadAudit = missionOutcomeObservation?.boundedReadAudit || null;
     const attemptedOperations = authoritativeOutcomes.filter(item => item.tool !== "mission.outcome");
     if (attemptedOperations.length > 0 && attemptedOperations.every(item => !item.ok || !item.executionOk || item.blocked || item.requiresInput)) {
         const details = [...new Set(attemptedOperations.map(item => item.tool + " — " + (item.error || item.status || "No se obtuvo un resultado verificable.") + (item.requestedFile ? "; archivo solicitado: " + item.requestedFile : "")))];
@@ -1403,6 +1404,10 @@ export async function composeEvidenceGroundedConversation({
         hasCapabilities ? `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}` : "",
         `RESULTADOS_HERRAMIENTAS_AUTORITATIVOS=${JSON.stringify(authoritativeOutcomes)}`,
         `EVIDENCIA_ESTRUCTURADA=${evidence}`,
+        countedReadAudit ?
+            "CONTEO_CANONICO_REPO_READ=" + JSON.stringify(countedReadAudit) +
+            ". Este conteo procede de tareas ejecutadas del expediente. Una misma lectura puede aparecer en evidencias y resultados runtime: no la cuentes dos veces. Si el usuario pide un recibo técnico, explica brevemente el fragmento; el sistema agregará el recibo canónico, así que no redactes ni estimes un segundo recibo numérico."
+            : "",
         // Keep the observed outcome after the requested success format and the
         // evidence, so a long request cannot become the completion instruction.
         missionOutcomeInstruction,

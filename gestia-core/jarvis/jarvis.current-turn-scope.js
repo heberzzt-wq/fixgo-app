@@ -98,6 +98,25 @@ export function auditExplicitRepositoryRead({instruction="",completedTasks=[],bl
             withinScope.some(verified)};
 }
 
+/** Strip Qwen's unaudited numerical receipt; the host appends the ledger receipt. */
+export function stripModelRepositoryReadReceipt(text="",audit=null) {
+    if(!audit || typeof text!=="string") return text;
+    const lines=text.split("\n"),kept=[];
+    let inReceipt=false;
+    for(const line of lines) {
+        if(/^\s*(?:\*\*)?recibo t[eé]cnico(?: de la misi[oó]n)?\s*:?\s*(?:\*\*)?\s*$/iu.test(line)){
+            inReceipt=true;continue;
+        }
+        if(inReceipt && (/^\s*(?:\d+[.)]|[-*])\s+/u.test(line) || !line.trim()))continue;
+        if(inReceipt)inReceipt=false;
+        // Explicit numerical repo.read claims must come from the canonical
+        // mission ledger, not from duplicated evidence observed by the model.
+        if(/\brepo\.read\b/iu.test(line) && /\b(?:operaciones?|lecturas?|registrad[ao]s?|ejecutad[ao]s?)\b/iu.test(line))continue;
+        kept.push(line);
+    }
+    return kept.join("\n").trim();
+}
+
 /** Narrow an explicit Git status request without adding evidence. */
 export function constrainExplicitGitStatusContract({instruction="",toolCalls=[],objectives=[],catalog=[]}={}) {
     const s=fold(instruction);

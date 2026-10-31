@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {explicitSingleRepositoryReadScope,auditExplicitRepositoryRead} from '../gestia-core/jarvis/jarvis.current-turn-scope.js';
+import {explicitSingleRepositoryReadScope,auditExplicitRepositoryRead,stripModelRepositoryReadReceipt} from '../gestia-core/jarvis/jarvis.current-turn-scope.js';
+import {composeEvidenceGroundedConversation} from '../gestia-core/jarvis/jarvis.conversation.composer.js';
 
 const instruction = 'Lee únicamente las líneas 1 a 40 del archivo app-main.js del repositorio fixgo-app, rama v142-official. Indica qué contiene el fragmento y confirma cuántas líneas pudiste leer. No modifiques archivos ni ejecutes comandos. Si falla, informa el código exacto del error y no repitas la operación.';
 
@@ -42,6 +43,44 @@ test('bounded source audit counts only actually recorded repo reads', () => {
   assert.equal(failed.verifiedRequestedWindow,false);
   assert.equal(auditExplicitRepositoryRead({instruction:'Lee todo app-main.js',
     completedTasks:[receipt]}),null);
+});
+
+test('exact Android contradiction is eliminated without removing Qwen source explanation', () => {
+  const audit={file:'app-main.js',startLine:1,endLine:40,recordedReadAttempts:1,
+    insideScope:1,outsideScope:0,verifiedRequestedWindow:true};
+  const original=[
+    'El fragmento contiene encabezados del controlador.',
+    'Recibo técnico de la misión:',
+    '1. Se registraron 2 operaciones repo.read.',
+    '2. No se realizaron lecturas fuera del archivo.',
+    '3. Las líneas 1 a 40 tienen evidencia.'
+  ].join(String.fromCharCode(10));
+  const stripped=stripModelRepositoryReadReceipt(original,audit);
+  assert.match(stripped,/El fragmento contiene encabezados/);
+  assert.doesNotMatch(stripped,/Se registraron 2|Recibo técnico de la misión/);
+  assert.equal(stripModelRepositoryReadReceipt(original,null),original);
+  const other=['Se registraron 2 operaciones repo.read.','El controlador existe.'].join(String.fromCharCode(10));
+  assert.equal(stripModelRepositoryReadReceipt(other,audit),'El controlador existe.');
+});
+
+test('Qwen receives the canonical audit before drafting and cannot treat duplicated evidence as multiple calls',async()=>{
+  const audit={file:'app-main.js',startLine:1,endLine:40,recordedReadAttempts:1,
+    insideScope:1,outsideScope:0,verifiedRequestedWindow:true};
+  let prompt='';
+  const result=await composeEvidenceGroundedConversation({
+    instruction,
+    evidenceItems:[
+      {name:'mission.outcome',observation:{status:'COMPLETED',ok:true,boundedReadAudit:audit}},
+      {name:'repo.read',args:{file:'app-main.js',startLine:1,endLine:40},observation:{
+        ok:true,executionOk:true,status:'SUCCESS',verifiedRead:{tool:'repo.read',file:'app-main.js',
+        startLine:1,endLine:40,totalLines:1674,partial:true,content:'/**\\n * header\\n'}}}
+    ],
+    executeConversation:async p=>{prompt=p;return {ok:true,data:{ok:true,message:'El fragmento contiene imports y versiones.'}};}
+  });
+  assert.equal(result.ok,true);
+  assert.match(prompt,/CONTEO_CANONICO_REPO_READ/);
+  assert.match(prompt,/"recordedReadAttempts":1/);
+  assert.match(prompt,/no la cuentes dos veces/);
 });
 
 test('final message displays mission read audit without claiming network telemetry', () => {
