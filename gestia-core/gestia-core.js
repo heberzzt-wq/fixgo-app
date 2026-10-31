@@ -5026,19 +5026,27 @@ if (
             missionContractEvidenceObjectives = scopedGitStatus.objectives;
         }
     }
-    // The owner requested one literal source window. Keep the same model's
-    // evidence obligations, but prohibit unsolicited expansion of that read.
-    const explicitNarrowReadScope = lastMissionContractError === null
-        ? explicitSingleRepositoryReadScope(effectiveMissionInstruction) : null;
-    const narrowReadAllowed = explicitNarrowReadScope &&
+    // Preserve the owner's literal file window despite a wider Qwen plan.
+    // The independent semantic audit still decides whether evidence suffices.
+    const explicitNarrowReadScope = explicitSingleRepositoryReadScope(inputRaw);
+    // A model-proposed wider contract or a recovered initial plan may never
+    // remove a literal owner-imposed line boundary. This is an execution
+    // limit, not a second semantic planner or evidence of completion.
+    const narrowReadAllowed = Boolean(explicitNarrowReadScope &&
         missionToolCatalog.some(tool => tool?.name === "repo.read" &&
-            tool.mutates === false && tool.requiresApproval !== true) &&
-        missionContractToolCalls.some(call => call?.name === "repo.read" &&
-            normalizeObservationFilePath(call?.args?.file || call?.args?.path || "") === explicitNarrowReadScope.file);
+            tool.mutates === false && tool.requiresApproval !== true &&
+            tool.userArtifact !== true));
     if (narrowReadAllowed) {
         missionContractToolCalls = [{
             name: "repo.read", args: {...explicitNarrowReadScope},
             approved: false, reason: "USER_EXPLICIT_SOURCE_WINDOW"
+        }];
+        // Preserve the literal owner's bounded objective, rather than a
+        // model-added requirement to inspect the entire source file.
+        missionContractEvidenceObjectives = [{
+            objective: inputRaw.trim().split("\n")[0].split(". ")[0].slice(0, 240),
+            requiredEvidenceKind: "repository_source",
+            explicitTools: ["repo.read"]
         }];
     }
     const singleSourceWindow = narrowReadAllowed ? explicitNarrowReadScope : null;
@@ -5047,20 +5055,17 @@ if (
          normalizeObservationFilePath(call?.args?.file || call?.args?.path || "") === singleSourceWindow.file &&
          Number(call?.args?.startLine) === singleSourceWindow.startLine &&
          Number(call?.args?.endLine) === singleSourceWindow.endLine);
-    const alreadyReadSingleSource = mission => Boolean(singleSourceWindow &&
-        mission?.completedTasks?.some(task => {
-            const read = task?.observation?.verifiedRead;
-            return task.name === "repo.read" && task.observation?.ok === true &&
-                task.observation?.executionOk !== false &&
-                read?.file === singleSourceWindow.file &&
-                Number(read?.startLine) <= singleSourceWindow.startLine &&
-                Number(read?.endLine) >= singleSourceWindow.endLine &&
-                read?.contentTruncated !== true && read?.truncated !== true &&
-                typeof read?.content === "string" && read.content.length > 0;
-        }));
+    // A read that is partial relative to a 1674-line file may still cover
+    // the full 40-line request. Do not automatically expand or repeat it.
+    const singleSourceReadAttempted = mission => Boolean(singleSourceWindow &&
+        [...(mission?.completedTasks || []), ...(mission?.blockedTasks || [])].some(task =>
+            task?.name === "repo.read" &&
+            normalizeObservationFilePath(task?.args?.file || "") === singleSourceWindow.file &&
+            Number(task?.args?.startLine) === singleSourceWindow.startLine &&
+            Number(task?.args?.endLine) === singleSourceWindow.endLine));
     const repositoryContractCatalog = scopeValidatedRepositoryMission({
         catalog: missionToolCatalog, toolCalls: missionContractToolCalls,
-        objectives: missionContractEvidenceObjectives, validated: lastMissionContractError === null
+        objectives: missionContractEvidenceObjectives, validated: lastMissionContractError === null || narrowReadAllowed
     });
     const repositoryContractMission = repositoryContractCatalog !== null;
     if (repositoryContractMission) missionToolCatalog = repositoryContractCatalog;
@@ -5140,6 +5145,7 @@ if (
                     "EXPLICIT_REPOSITORY_TARGET_EVIDENCE"
             }));
     const missionInitialToolCalls =
+        narrowReadAllowed ? missionContractToolCalls :
         missionIsIsolated
             ? missionContractToolCalls
             : boundedCurrentTurnMission || observationFirstCurrentTurnMission || repositoryContractMission
@@ -5410,7 +5416,7 @@ if (
                             const nextCompletionAuditToolCall =
                                 completionAuditToolCalls.find(call =>
                                     allowedSingleSourceAction(call) &&
-                                    !alreadyReadSingleSource(mission) &&
+                                    !singleSourceReadAttempted(mission) &&
                                     !resolvedAuditSignatures.has(
                                         `${call.name}:${JSON.stringify(call.args || {})}`
                                     )
@@ -5543,7 +5549,7 @@ if (
                             }
                         );
                     return {
-                        toolCalls: alreadyReadSingleSource(mission) ? [] :
+                        toolCalls: singleSourceReadAttempted(mission) ? [] :
                             nextToolCalls.filter(allowedSingleSourceAction).slice(0, 1),
                         missionComplete: nextToolCalls.missionComplete === true,
                         completionAssessment: nextToolCalls.completionAssessment || null

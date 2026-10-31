@@ -3119,7 +3119,7 @@ async function generateStagedCompletionAudit({ai, request, catalog, contextToken
     const schema=structuredClone(request.config.responseJsonSchema);
     schema.properties.toolCalls={type:'array',maxItems:0,items:{type:'object',additionalProperties:false}};
     const audit=await ai.models.generateContent({...request,config:{...request.config,
-        chatMessages:[...messages.filter(m=>!isCatalog(m)),{role:'system',content:'Esta etapa evalúa solamente los objetivos contra las observaciones. Devuelve toolCalls=[]. Si falta trabajo conserva satisfied=false; la selección de una operación se realizará después con el mismo modelo y el catálogo completo.'}],
+        chatMessages:[...messages.filter(m=>!isCatalog(m)),{role:'system',content:'Esta etapa evalúa solamente los objetivos contra las observaciones. Devuelve toolCalls=[]. Si falta trabajo conserva satisfied=false; la selección de una operación se realizará después con el mismo modelo y el catálogo completo. Si el usuario solicitó únicamente un intervalo de líneas, verifica la cobertura de ese intervalo y no exijas leer el archivo completo: partial=true puede significar solo que existen líneas fuera del intervalo solicitado. No marques satisfied=true sin contenido real del intervalo.'}],
         responseJsonSchema:schema}});
     if(audit?.providerResponse?.finishReason==='length')return audit;
     const plan=extractJsonObject(String(audit?.text||''));
