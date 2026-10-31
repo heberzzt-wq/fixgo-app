@@ -873,6 +873,47 @@ test('relay worker refuses to register when local bridge head differs from the p
     );
 });
 
+test('failed owner relay startup releases only its own lease and never announces READY', async () => {
+    const fake=relayFakeSdk(),states=[];
+    const auth={currentUser:{uid:JARVIS_PRIVATE_RELAY.ownerUid,
+        async getIdToken(){return 'fixture-token';}},async authStateReady(){}};
+    const local=async route=>{
+        assert.equal(route,'/workstation/health');
+        return {ok:true,status:'JARVIS_WORKSTATION_LIVE',
+            runtime:{bridgeStarted:true,loadedHead:'fixture-head'}};
+    };
+    const originalGetDocs=fake.sdk.getDocs;
+    let failOnce=true;
+    fake.sdk.getDocs=async target=>{
+        if(failOnce && target.collection && target.filters.some(f=>f.kind==='where' &&
+            f.field==='state' && f.value==='RUNNING')){
+            failOnce=false;
+            throw Error('FIRESTORE_STARTUP_RECOVERY_UNAVAILABLE');
+        }
+        return originalGetDocs(target);
+    };
+    const first='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    await assert.rejects(startJarvisBrowserRelay({
+        auth,db:{},sdk:fake.sdk,contract:{releaseId:'startup-test'},
+        requestLocal:local,uuid:()=>first,onState:state=>states.push(state)
+    }),/FIRESTORE_STARTUP_RECOVERY_UNAVAILABLE/);
+    assert.equal(states.some(state=>state.status==='READY'),false,
+        'do not show a misleading green link before startup recovery');
+    const parent='jarvis_private_relay/'+JARVIS_PRIVATE_RELAY.ownerUid;
+    assert.equal(fake.docs.get(parent).workerId,first);
+    assert.equal(fake.docs.get(parent).online,false,
+        'failed startup must release only the lease it acquired');
+    const second=await startJarvisBrowserRelay({
+        auth,db:{},sdk:fake.sdk,contract:{releaseId:'startup-test'},
+        requestLocal:local,uuid:()=> 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff',
+        onState:state=>states.push(state)
+    });
+    try {
+        assert.equal(fake.docs.get(parent).online,true);
+        assert.equal(states.some(state=>state.status==='READY'),true);
+    } finally {await second.stop();}
+});
+
 test('workstation relay restores signed heartbeat on tab wake and unhooks all wake listeners on stop', async () => {
     const fake=relayFakeSdk(), globalListeners=new Map(), docListeners=new Map();
     const before={document:globalThis.document, add:globalThis.addEventListener, remove:globalThis.removeEventListener};

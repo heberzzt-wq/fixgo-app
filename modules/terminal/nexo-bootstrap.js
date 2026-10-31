@@ -361,7 +361,7 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
     ) {
         throw new Error("JARVIS_RELAY_LOCAL_RELEASE_MISMATCH");
     }
-    const heartbeat = async () => {
+    const heartbeat = async ({announce = true} = {}) => {
         if (stopped || auth.currentUser?.uid !== policy.ownerUid) throw new Error("JARVIS_RELAY_OWNER_REQUIRED");
         const local = await requestOwnerHealth();
         if (local?.ok !== true || local.status !== "JARVIS_WORKSTATION_LIVE") throw new Error("JARVIS_RELAY_LOCAL_HEALTH_REQUIRED");
@@ -389,7 +389,8 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
                 releaseId: contract.releaseId, heartbeatAt: sdk.serverTimestamp(),
                 loadedHead: String(local.runtime?.loadedHead || "").slice(0, 64) });
         });
-        lastHeartbeat = now(); onState({ status: "READY", workerId, loadedHead: local.runtime?.loadedHead });
+        lastHeartbeat = now();
+        if (announce) onState({ status: "READY", workerId, loadedHead: local.runtime?.loadedHead });
     };
     const complete = async (ref, result, error = null) => {
         await sdk.updateDoc(ref, { state: error ? "FAILED" : "COMPLETED", result: result ? JSON.stringify(result) : null,
@@ -491,15 +492,35 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
             void pump();
         }, error => { unsubscribe = null; onState({ status: "RECONNECTING", workerId, error: error.code || "listener" }); });
     };
-    await heartbeat();
-    // Interrupted operations are never replayed automatically after a page
-    // reload or loss of the workstation session.
-    const interrupted = await sdk.getDocs(sdk.query(jobs, sdk.where("state", "==", "RUNNING"), sdk.limit(16)));
-    for (const doc of interrupted.docs) if (doc.data().workerId !== workerId) {
-        await sdk.updateDoc(doc.ref, { state: "FAILED", resolvedBy: workerId,
-            error: "JARVIS_RELAY_RESULT_UNCONFIRMED_NO_REPLAY", finishedAt: sdk.serverTimestamp(), body: sdk.deleteField() });
+    const releaseOwnedLease = async () => {
+        try {
+            await sdk.runTransaction(db, async tx => {
+                const current = (await tx.get(parent)).data();
+                if (current?.workerId === workerId)
+                    tx.update(parent, { online: false, heartbeatAt: sdk.serverTimestamp() });
+            });
+        } catch { /* Fail closed; a live peer's lease is never overwritten. */ }
+    };
+    // Do not advertise READY until startup recovery and the queue listener
+    // are installed. Otherwise a failed startup strands our own live lease;
+    // the following retry incorrectly reports JAR-202 for 120 seconds.
+    await heartbeat({announce: false});
+    try {
+        // Interrupted operations are never replayed after tab loss.
+        const interrupted = await sdk.getDocs(sdk.query(jobs, sdk.where("state", "==", "RUNNING"), sdk.limit(16)));
+        for (const doc of interrupted.docs) if (doc.data().workerId !== workerId) {
+            await sdk.updateDoc(doc.ref, { state: "FAILED", resolvedBy: workerId,
+                error: "JARVIS_RELAY_RESULT_UNCONFIRMED_NO_REPLAY", finishedAt: sdk.serverTimestamp(), body: sdk.deleteField() });
+        }
+        attach();
+    } catch (error) {
+        await releaseOwnedLease();
+        unsubscribe?.();
+        unsubscribe = null;
+        onState({ status: "RECONNECTING", workerId, error: String(error?.code || error?.message || "RELAY_STARTUP_INCOMPLETE").slice(0, 100) });
+        throw error;
     }
-    attach();
+    onState({ status: "READY", workerId, loadedHead: health.runtime?.loadedHead });
     let maintaining = false, lastCleanup = 0;
     const maintain = async () => {
         if (maintaining || stopped) return;
